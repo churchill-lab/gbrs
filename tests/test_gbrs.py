@@ -10,8 +10,6 @@ Tests for `gbrs` module.
 
 import unittest
 
-from gbrs import gbrs
-
 
 class TestGbrs(unittest.TestCase):
 

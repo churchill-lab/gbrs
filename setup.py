@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
+import gbrs
 try:
     from setuptools import setup
 except ImportError:
@@ -24,10 +24,10 @@ test_requirements = [
 
 setup(
     name='gbrs',
-    version='0.1.0',
-    description="A suite of tools for Genome Reconstruction and Allele Specific Expression",
+    version=gbrs.__version__,
+    description='A suite of tools for Genome Reconstruction and Allele Specific Expression',
     long_description=readme + '\n\n' + history,
-    author="Kwangbom "KB" Choi, Ph.D.",
+    author='Kwangbom \"KB\" Choi, Ph.D.',
     author_email='kb.choi@jax.org',
     url='https://github.com/churchill-lab/gbrs',
     packages=[
@@ -45,7 +45,7 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: ISC License (ISCL)',
         'Natural Language :: English',
-        "Programming Language :: Python :: 2",
+        'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
@@ -53,6 +53,7 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
     ],
+    scripts=['scripts/gbrs'],
     test_suite='tests',
     tests_require=test_requirements
 )

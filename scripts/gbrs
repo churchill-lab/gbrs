@@ -1,0 +1,49 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import os
+import sys
+import argparse
+import gbrs
+
+logo_text = """
+        _
+       | |
+   __ _| |__  _ __ ___
+  / _` | '_ \| '__/ __|
+ | (_| | |_) | |  \__ \\
+  \__, |_.__/|_|  |___/
+   __/ |
+  |___/     Ver.:%s
+
+""" % gbrs.__version__
+
+
+def main():
+
+    #
+    # argparse options
+    #
+
+    parser = argparse.ArgumentParser(version=gbrs.__version__)
+
+    #
+    # Sub-commands
+    #
+
+    subparsers = parser.add_subparsers(dest='action')
+    subparser_logo = subparsers.add_parser()
+    subparser_logo.set_defaults(func=)
+
+    #
+    # Execute command
+    #
+    args = parser.parse_args()
+    if args.action is None:
+        parser.print_help()
+    else:
+        args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
