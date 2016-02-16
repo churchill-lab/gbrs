@@ -22,18 +22,21 @@ logo_text = """
 def main():
 
     #
-    # argparse options
+    # Main command parser
     #
 
     parser = argparse.ArgumentParser(version=gbrs.__version__)
+    subparsers = parser.add_subparsers(dest='action')
 
     #
     # Sub-commands
     #
 
-    subparsers = parser.add_subparsers(dest='action')
-    subparser_logo = subparsers.add_parser()
-    subparser_logo.set_defaults(func=)
+    subparser_plot = subparsers.add_parser('plot-genome')  # two-word command is possible with hyphens
+    subparser_plot.add_argument('-i', '--genoprob', action='store', dest='gpbfile', required=True)
+    subparser_plot.add_argument('-o', '--outfile', action='store', dest='outfile', default='gbrs.plot.pdf')
+    subparser_plot.add_argument('-n', '--sample-name', action='store', dest='sample_name')
+    subparser_plot.set_defaults(func=gbrs.commands.plot)
 
     #
     # Execute command
@@ -42,7 +45,11 @@ def main():
     if args.action is None:
         parser.print_help()
     else:
-        args.func(args)
+        # args.func(args)  # Use this eventually. For now, do the following...
+        kws = dict(vars(args))  # convert argparse.Namespace to dict
+        del kws['func']  # remove 'func' entry
+        del kws['action']  # remove 'func' entry
+        args.func(**kws)
 
 
 if __name__ == "__main__":

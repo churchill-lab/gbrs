@@ -1,6 +1,6 @@
-===============================
+====
 gbrs
-===============================
+====
 
 .. image:: https://img.shields.io/pypi/v/gbrs.svg
         :target: https://pypi.python.org/pypi/gbrs
@@ -13,13 +13,16 @@ gbrs
         :alt: Documentation Status
 
 
-A suite of tools for Genome Reconstruction and Allele Specific Expression
+Overview
+--------
+
+A suite of tools for Genome Reconstruction and Allele Specific Expression Quantification
 
 * Free software: ISC license
 * Documentation: https://gbrs.readthedocs.org.
 
-Features
---------
 
-* TODO
+References
+----------
 
+Manuscript in preparation (Expected in 2016)

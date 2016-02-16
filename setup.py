@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 import gbrs
 try:
     from setuptools import setup
@@ -14,9 +15,15 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = [
-    # TODO: put package requirements here
-]
+requirements = []
+on_rtd = os.environ.get('READTHEDOCS', None)
+if not on_rtd:
+    requirements.append('matplotlib==1.3.1')
+#    requirements.append('bx-python>=0.7.2')
+#    requirements.append('pysam>=0.8.1')
+#    requirements.append('biopython>=1.63')
+#    requirements.append('pysqlite>=2.6.3')
+
 
 test_requirements = [
     # TODO: put package test requirements here

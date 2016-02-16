@@ -5,7 +5,7 @@ Credits
 Development Lead
 ----------------
 
-* Kwangbom "KB" Choi, Ph. D. <kb.choi@jax.org>
+* Kwangbom "KB" Choi, Ph. D. <kb.choi@jax.org>, The Jackson Laboratory
 
 Contributors
 ------------

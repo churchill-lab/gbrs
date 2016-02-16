@@ -31,6 +31,14 @@ project_root = os.path.dirname(cwd)
 # version is used.
 sys.path.insert(0, project_root)
 
+from mock import Mock as MagicMock
+class Mock(MagicMock):
+    @classmethod
+    def __getattr__(cls, name):
+        return Mock()
+MOCK_MODULES = ['Bio', 'biopython', 'pysam', 'numpy', 'scipy', 'matplotlib', 'matplotlib.pyplot']
+sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
+
 import gbrs
 
 # -- General configuration ---------------------------------------------
