@@ -7,13 +7,16 @@ import matplotlib.pyplot as pyplot
 from itertools import combinations_with_replacement
 
 
-def plot(gpbfile, outfile, sample_name=''):
+def plot(**kwargs):
+    gpbfile = kwargs.get('gpbfile')
+    outfile = kwargs.get('outfile')
+    sample_name = kwargs.get('sample_name')
+    grid_size = kwargs.get('grid_size')
+    xt_max = kwargs.get('xt_max')
+    xt_size = kwargs.get('xt_size')
+    width = kwargs.get('width')
 
-    # TODO: Get the following from kwarg
-    grid_size = 42586
-    xt_max = 4501
-    xt_size = 475
-    width = 0.01
+    # TODO: Get the following from kwarg (or think about more elegant generalization)
     chrs = map(str, np.arange(19) + 1) + ['X', 'Y', 'MT']
     haplotypes = ('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H')
     hid = dict(zip(haplotypes, np.arange(8)))
