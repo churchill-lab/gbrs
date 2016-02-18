@@ -4,7 +4,150 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as pyplot
+from _collections import defaultdict
 from itertools import combinations_with_replacement
+
+
+def unit_vector(vector):
+    return vector / np.linalg.norm(vector)
+
+
+def get_genotype_probability(aln_profile, aln_specificity, sigma=0.12):
+    # 'aln_specificity' should be a set of unit vectors (at least one of the entry is larger than 1.)
+    num_haps = len(aln_profile)
+    aln_vec = unit_vector(aln_profile)
+    genoprob = []
+    for i in xrange(num_haps):
+        v1 = unit_vector(aln_specificity[i])
+        for j in xrange(i, num_haps):
+            if j == i:
+                genoprob.append(sum(np.power(aln_vec - v1, 2))) # homozygotes
+            else:
+                v2 = unit_vector(aln_specificity[j])
+                geno_vec = unit_vector(v1 + v2)
+                # compute directional similarity
+                genoprob.append(sum(np.power(aln_vec - geno_vec, 2))) # for heterozygotes
+    genoprob = np.exp(np.array(genoprob) / (-2 * sigma * sigma))
+    return np.array(genoprob / sum(genoprob))
+
+
+def reconstruct(**kwargs):
+        expr_file = kwargs.get('expr_file')
+        avec_file = kwargs.get('avec_file')
+        gid_file = kwargs.get('gid_file')
+        tprob_file = kwargs.get('tprob_file')
+        expr_threshold = kwargs.get('expr_threshold')
+        sigma = kwargs.get('sigma')
+        outdir = kwargs.get('outdir')
+
+        # Load meta info and alignment specificity
+        gid_genome_order = np.load(gid_file)
+        avecs = np.load(open(avec_file))
+
+        # Load expression level
+        expr = dict()
+        with open(expr_file) as fh:
+            curline = fh.next()
+            haplotypes = curline.rstrip().split("\t")[1:-1]
+            num_haps = len(haplotypes)
+            genotypes = [h1+h2 for h1, h2 in combinations_with_replacement(haplotypes, 2)]
+            num_genos = len(genotypes)
+            for curline in fh:
+                item = curline.rstrip().split("\t")
+                expr[item[0]] = np.array(map(float, item[1:-1]))
+
+        # Get null model probability
+        init_vec = []
+        for h1, h2 in combinations_with_replacement(haplotypes, 2):
+                if h1 == h2:
+                    init_vec.append(np.log(1.0/(num_haps*num_haps)))
+                else:
+                    init_vec.append(np.log(2.0/(num_haps*num_haps)))
+        init_vec = np.array(init_vec)
+
+        # Get initial emission probability
+        naiv_avecs = np.eye(num_haps) + (np.ones((num_haps, num_haps)) - np.eye(num_haps)) * 0.0001
+        eprob = dict()
+        for gid, evec in expr.iteritems():
+            if sum(evec) < expr_threshold:
+                eprob[gid] = init_vec
+            elif gid not in avecs.files:
+                eprob[gid] = np.log(get_genotype_probability(evec, naiv_avecs, sigma=0.450) + np.nextafter(0, 1))
+            else:
+                eprob[gid] = np.log(get_genotype_probability(evec, avecs[gid], sigma=sigma) + np.nextafter(0, 1))
+
+        # Load transition probabilities
+        tprob = np.load(tprob_file)
+        chrs = sorted(tprob.files)
+
+        # Get forward probability
+        alpha = dict()
+        alpha_scaler = dict()
+        for c in chrs:
+            tprob_c = tprob[c]
+            gid_genome_order_c = gid_genome_order[c]
+            num_genes_in_chr = len(gid_genome_order_c)
+            alpha_c = np.zeros((num_genos, num_genes_in_chr))
+            alpha_scaler_c = np.zeros(num_genes_in_chr)
+            alpha_c[:, 0] = init_vec + eprob[gid_genome_order_c[0]]
+            normalizer = np.log(sum(np.exp(alpha_c[:, 0])))
+            alpha_c[:, 0] -= normalizer # normalization
+            alpha_scaler_c[0] = -normalizer
+            for i in xrange(1, num_genes_in_chr):
+                alpha_c[:, i] = np.log(np.exp(alpha_c[:, i-1] + tprob_c[i-1]).sum(axis=1) + np.nextafter(0, 1)) + eprob[gid_genome_order_c[i]]
+                normalizer = np.log(sum(np.exp(alpha_c[:, i])))
+                alpha_c[:, i] -= normalizer  # normalization
+                alpha_scaler_c[i] = -normalizer
+            alpha[c] = alpha_c
+            alpha_scaler[c] = alpha_scaler_c
+
+        # Get backward probability
+        beta = dict()
+        for c in chrs:
+            tprob_c = tprob[c]
+            gid_genome_order_c = gid_genome_order[c]
+            num_genes_in_chr = len(gid_genome_order_c)
+            beta_c = np.zeros((num_genos, num_genes_in_chr))
+            beta_c[:, -1] = alpha_scaler[c][-1]  #init_vec + eprob[gid_genome_order_c[-1]]
+            for i in xrange(num_genes_in_chr-2, -1, -1):
+                beta_c[:, i] = np.log(np.exp(tprob_c[i].transpose() +
+                                             beta_c[:, i+1] +
+                                             eprob[gid_genome_order_c[i+1]] +
+                                             alpha_scaler[c][i]).sum(axis=1))
+            beta[c] = beta_c
+
+        # Get forward-backward probability
+        gamma = dict()
+        for c in chrs:
+            gamma_c = np.exp(alpha[c] + beta[c])
+            normalizer = gamma_c.sum(axis=0)
+            gamma[c] = gamma_c / normalizer
+        np.savez_compressed(os.path.join(outdir, 'gbrs.gamma.npz'), **gamma)
+
+        # Run Viterbi
+        delta = dict()
+        for c in chrs:
+            tprob_c = tprob[c]
+            gid_genome_order_c = gid_genome_order[c]
+            num_genes_in_chr = len(gid_genome_order_c)
+            delta_c = np.zeros((num_genos, num_genes_in_chr))
+            delta_c[:, 0] = init_vec + eprob[gid_genome_order_c[0]]
+            for i in xrange(1, num_genes_in_chr):
+                delta_c[:, i] = (delta_c[:, i-1] + tprob_c[i-1]).max(axis=1) + eprob[gid_genome_order_c[i]]
+            delta[c] = delta_c
+        viterbi_states = defaultdict(list)
+        for c in chrs:
+            tprob_c = tprob[c]
+            gid_genome_order_c = gid_genome_order[c]
+            num_genes_in_chr = len(gid_genome_order_c)
+            sid = delta[c][:, num_genes_in_chr-1].argmax()
+            viterbi_states[c].append(genotypes[sid])
+            for i in reversed(xrange(num_genes_in_chr-1)):
+                sid = (delta[c][:, i] + tprob_c[i][sid]).argmax()
+                viterbi_states[c].append(genotypes[sid])
+            viterbi_states[c].reverse()
+        viterbi_states = dict(viterbi_states)
+        np.savez_compressed(os.path.join(outdir, 'gbrs.genotypes.npz'), **viterbi_states)
 
 
 def plot(**kwargs):

@@ -6,6 +6,7 @@ import sys
 import argparse
 import gbrs
 
+
 logo_text = """
         _
        | |
@@ -19,12 +20,15 @@ logo_text = """
 """ % gbrs.__version__
 
 
+data_dir = os.getenv('GBRS_DATA')
+
+
 #
 # Subcommand: hybridize
 #
 def add_subcommand_hybridize(subparsers):
     subparser_hyb = subparsers.add_parser('hybridize')
-    pass
+    subparser_hyb.set_defaults(func=gbrs.emase_utils.hybridize)
 
 
 #
@@ -32,7 +36,7 @@ def add_subcommand_hybridize(subparsers):
 #
 def add_subcommand_align(subparsers):
     subparser_aln = subparsers.add_parser('align')
-    pass
+    subparser_aln.set_defaults(func=gbrs.emase_utils.align)
 
 
 #
@@ -40,7 +44,7 @@ def add_subcommand_align(subparsers):
 #
 def add_subcommand_bam2emase(subparsers):
     subparser_b2e = subparsers.add_parser('bam2emase')
-    pass
+    subparser_b2e.set_defaults(func=gbrs.emase_utils.bam2emase)
 
 
 #
@@ -48,7 +52,7 @@ def add_subcommand_bam2emase(subparsers):
 #
 def add_subcommand_quantify(subparsers):
     subparser_quan = subparsers.add_parser('quantify')
-    pass
+    subparser_quan.set_defaults(func=gbrs.emase_utils.quantify)
 
 
 #
@@ -56,7 +60,14 @@ def add_subcommand_quantify(subparsers):
 #
 def add_subcommand_reconstruct(subparsers):
     subparser_rec = subparsers.add_parser('reconstruct')
-    pass
+    subparser_rec.add_argument('-e', action='store', dest='expr_file', type=str, required=True)
+    subparser_rec.add_argument('-x', action='store', dest='avec_file', type=str, required=True)
+    subparser_rec.add_argument('-g', action='store', dest='gid_file', type=str, required=True)
+    subparser_rec.add_argument('-t', action='store', dest='tprob_file', type=str, required=True)
+    subparser_rec.add_argument('-c', action='store', dest='expr_threshold', type=float, default=1.0)
+    subparser_rec.add_argument('-s', action='store', dest='sigma', type=float, default=0.12)
+    subparser_rec.add_argument('-o', action='store', dest='outdir', type=str, default='.')
+    subparser_rec.set_defaults(func=gbrs.commands.reconstruct)
 
 
 #
@@ -64,13 +75,13 @@ def add_subcommand_reconstruct(subparsers):
 #
 def add_subcommand_plot(subparsers):
     subparser_plot = subparsers.add_parser('plot')
-    subparser_plot.add_argument('-i', '--genoprob', action='store', dest='gpbfile', required=True)
-    subparser_plot.add_argument('-o', '--outfile', action='store', dest='outfile', default='gbrs.plot.pdf')
-    subparser_plot.add_argument('-n', '--sample-name', action='store', dest='sample_name', default='')
-    subparser_plot.add_argument('--num-grids', action='store', dest='grid_size', default=42586)
-    subparser_plot.add_argument('--xt-max', action='store', dest='xt_max', default=4501)
-    subparser_plot.add_argument('--xt-size', action='store', dest='xt_size', default=475)
-    subparser_plot.add_argument('--grid-width', action='store', dest='width', default=0.01)
+    subparser_plot.add_argument('-i', '--genoprob', action='store', dest='gpbfile', type=str, required=True)
+    subparser_plot.add_argument('-o', '--outfile', action='store', dest='outfile', type=str, default='gbrs.plot.pdf')
+    subparser_plot.add_argument('-n', '--sample-name', action='store', dest='sample_name', type=str, default='')
+    subparser_plot.add_argument('--num-grids', action='store', dest='grid_size', type=int, default=42586)
+    subparser_plot.add_argument('--xt-max', action='store', dest='xt_max', type=int, default=4501)
+    subparser_plot.add_argument('--xt-size', action='store', dest='xt_size', type=int, default=475)
+    subparser_plot.add_argument('--grid-width', action='store', dest='width', type=float, default=0.01)
     subparser_plot.set_defaults(func=gbrs.commands.plot)
 
 
