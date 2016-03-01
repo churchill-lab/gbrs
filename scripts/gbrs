@@ -20,9 +20,6 @@ logo_text = """
 """ % gbrs.__version__
 
 
-data_dir = os.getenv('GBRS_DATA')
-
-
 #
 # Subcommand: hybridize
 #
@@ -60,14 +57,26 @@ def add_subcommand_quantify(subparsers):
 #
 def add_subcommand_reconstruct(subparsers):
     subparser_rec = subparsers.add_parser('reconstruct')
-    subparser_rec.add_argument('-e', action='store', dest='expr_file', type=str, required=True)
-    subparser_rec.add_argument('-x', action='store', dest='avec_file', type=str, required=True)
-    subparser_rec.add_argument('-g', action='store', dest='gid_file', type=str, required=True)
-    subparser_rec.add_argument('-t', action='store', dest='tprob_file', type=str, required=True)
+    subparser_rec.add_argument('-e', action='store', dest='exprfile', type=str, required=True)
+    subparser_rec.add_argument('-x', action='store', dest='avecfile', type=str, required=True)
+    subparser_rec.add_argument('-g', action='store', dest='gidfile', type=str, required=True)
+    subparser_rec.add_argument('-t', action='store', dest='tprobfile', type=str, required=True)
     subparser_rec.add_argument('-c', action='store', dest='expr_threshold', type=float, default=1.0)
     subparser_rec.add_argument('-s', action='store', dest='sigma', type=float, default=0.12)
     subparser_rec.add_argument('-o', action='store', dest='outdir', type=str, default='.')
     subparser_rec.set_defaults(func=gbrs.commands.reconstruct)
+
+
+#
+# Subcommand: interpolate
+#
+def add_subcommand_interpolate(subparsers):
+    subparser_interp = subparsers.add_parser('interpolate')
+    subparser_interp.add_argument('-p', action='store', dest='gposfile', type=str, required=True)
+    subparser_interp.add_argument('-g', action='store', dest='gridfile', type=str, required=True)
+    subparser_interp.add_argument('-i', action='store', dest='probfile', type=str, required=True)
+    subparser_interp.add_argument('-o', action='store', dest='outfile', type=str, required=True)
+    subparser_interp.set_defaults(func=gbrs.command.interpolate)
 
 
 #
@@ -102,6 +111,7 @@ def main():
     add_subcommand_bam2emase(subparsers)
     add_subcommand_quantify(subparsers)
     add_subcommand_reconstruct(subparsers)
+    add_subcommand_interpolate(subparsers)
     add_subcommand_plot(subparsers)
 
     #
