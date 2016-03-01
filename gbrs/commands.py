@@ -7,7 +7,7 @@ import matplotlib.pyplot as pyplot
 from itertools import combinations_with_replacement
 from collections import defaultdict
 from scipy.interpolate import interp1d
-from genome_info import CHRS, CHRLENS, NUM_CHRS
+from genome_info import CHRS, CHRLENS, NUM_CHRS, GENEPOS
 
 
 def unit_vector(vector):
@@ -157,12 +157,9 @@ def reconstruct(**kwargs):
 
 
 def interpolate(**kwargs):
-    gposfile = kwargs.get('gposfile')
     gridfile = kwargs.get('gridfile')
     probfile = kwargs.get('probfile')
     outfile = kwargs.get('outfile')
-
-    x_gene = np.load(open(gposfile))
 
     x_grid = defaultdict(list)
     with open(gridfile) as fh:
@@ -174,8 +171,8 @@ def interpolate(**kwargs):
 
     x_grid_complete = dict()
     for c in CHRS:
-        if c in x_gene.files:
-            x = [float(coord) for m, coord in x_gene[c]]
+        if c in GENEPOS.files:
+            x = [float(coord) for m, coord in GENEPOS[c]]
             x_min = min(x_grid[c][0]-100.0, 0.0)
             x_max = max(x_grid[c][-1]+100.0, CHRLENS[c])
             x = np.append([x_min], x)
