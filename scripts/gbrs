@@ -72,10 +72,11 @@ def add_subcommand_reconstruct(subparsers):
 #
 def add_subcommand_interpolate(subparsers):
     subparser_interp = subparsers.add_parser('interpolate')
+    subparser_interp.add_argument('-p', action='store', dest='gposfile', type=str, default=None)
     subparser_interp.add_argument('-g', action='store', dest='gridfile', type=str, required=True)
     subparser_interp.add_argument('-i', action='store', dest='probfile', type=str, required=True)
     subparser_interp.add_argument('-o', action='store', dest='outfile', type=str, required=True)
-    subparser_interp.set_defaults(func=gbrs.command.interpolate)
+    subparser_interp.set_defaults(func=gbrs.commands.interpolate)
 
 
 #

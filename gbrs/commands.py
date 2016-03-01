@@ -5,9 +5,32 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as pyplot
 from itertools import combinations_with_replacement
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from scipy.interpolate import interp1d
-from genome_info import CHRS, CHRLENS, NUM_CHRS, GENEPOS
+
+DATA_DIR = os.getenv('GBRS_DATA', '.')
+
+
+def get_chromosome_info():
+    faifile = os.path.join(DATA_DIR, 'ref.fa.fai')
+    try:
+        chrlens = OrderedDict(np.loadtxt(faifile, usecols=(0, 1), dtype='|S8,<i4'))
+    except:
+        print >> sys.stderr, "Please make sure if $GBRS_DATA is set correctly. Currently it is %s" % DATA_DIR
+        raise
+    else:
+        return chrlens
+
+
+def get_founder_info():
+    fcofile = os.path.join(DATA_DIR, 'founder.hexcolor.info')
+    try:
+        fcolors = OrderedDict(np.loadtxt(fcofile, usecols=(0, 1), dtype='string', delimiter='\t', comments=None))
+    except:
+        print >> sys.stderr, "Please make sure if $GBRS_DATA is set correctly. Currently it is %s" % DATA_DIR
+        raise
+    else:
+        return fcolors
 
 
 def unit_vector(vector):
@@ -34,6 +57,9 @@ def get_genotype_probability(aln_profile, aln_specificity, sigma=0.12):
 
 
 def reconstruct(**kwargs):
+    chrlens = get_chromosome_info()
+    chrs = chrlens.keys()
+
     exprfile = kwargs.get('exprfile')
     avecfile = kwargs.get('avecfile')
     gidfile = kwargs.get('gidfile')
@@ -84,7 +110,7 @@ def reconstruct(**kwargs):
     # Get forward probability
     alpha = dict()
     alpha_scaler = dict()
-    for c in CHRS:
+    for c in chrs:
         if c in tprob.files:
             tprob_c = tprob[c]
             gid_genome_order_c = gid_genome_order[c]
@@ -96,7 +122,8 @@ def reconstruct(**kwargs):
             alpha_c[:, 0] -= normalizer # normalization
             alpha_scaler_c[0] = -normalizer
             for i in xrange(1, num_genes_in_chr):
-                alpha_c[:, i] = np.log(np.exp(alpha_c[:, i-1] + tprob_c[i-1]).sum(axis=1) + np.nextafter(0, 1)) + eprob[gid_genome_order_c[i]]
+                alpha_c[:, i] = np.log(np.exp(alpha_c[:, i-1] + tprob_c[i-1]).sum(axis=1) + np.nextafter(0, 1)) + \
+                                eprob[gid_genome_order_c[i]]
                 normalizer = np.log(sum(np.exp(alpha_c[:, i])))
                 alpha_c[:, i] -= normalizer  # normalization
                 alpha_scaler_c[i] = -normalizer
@@ -105,7 +132,7 @@ def reconstruct(**kwargs):
 
     # Get backward probability
     beta = dict()
-    for c in CHRS:
+    for c in chrs:
         if c in tprob.files:
             tprob_c = tprob[c]
             gid_genome_order_c = gid_genome_order[c]
@@ -121,7 +148,7 @@ def reconstruct(**kwargs):
 
     # Get forward-backward probability
     gamma = dict()
-    for c in CHRS:
+    for c in chrs:
         if c in tprob.files:
             gamma_c = np.exp(alpha[c] + beta[c])
             normalizer = gamma_c.sum(axis=0)
@@ -130,7 +157,7 @@ def reconstruct(**kwargs):
 
     # Run Viterbi
     delta = dict()
-    for c in CHRS:
+    for c in chrs:
         if c in tprob.files:
             tprob_c = tprob[c]
             gid_genome_order_c = gid_genome_order[c]
@@ -141,7 +168,7 @@ def reconstruct(**kwargs):
                 delta_c[:, i] = (delta_c[:, i-1] + tprob_c[i-1]).max(axis=1) + eprob[gid_genome_order_c[i]]
             delta[c] = delta_c
     viterbi_states = defaultdict(list)
-    for c in CHRS:
+    for c in chrs:
         if c in tprob.files:
             tprob_c = tprob[c]
             gid_genome_order_c = gid_genome_order[c]
@@ -157,6 +184,22 @@ def reconstruct(**kwargs):
 
 
 def interpolate(**kwargs):
+    chrlens = get_chromosome_info()
+    chrs = chrlens.keys()
+
+    gposfile = kwargs.get('gposfile')
+    if gposfile is None:  # if gposfile is not specified
+        gposfile = os.path.join(DATA_DIR, 'gene.positions.npz')
+        try:
+            x_gene = np.load(gposfile)
+        except:
+            print >> sys.stderr, "Please make sure if $GBRS_DATA is set correctly: %s" % DATA_DIR
+            raise
+        else:
+            pass
+    else:
+        x_gene = np.load(gposfile)
+
     gridfile = kwargs.get('gridfile')
     probfile = kwargs.get('probfile')
     outfile = kwargs.get('outfile')
@@ -170,29 +213,33 @@ def interpolate(**kwargs):
     x_grid = dict(x_grid)
 
     x_grid_complete = dict()
-    for c in CHRS:
-        if c in GENEPOS.files:
-            x = [float(coord) for m, coord in GENEPOS[c]]
+    for c in chrs:
+        if c in x_gene.files:
+            x = [float(coord) for m, coord in x_gene[c]]
             x_min = min(x_grid[c][0]-100.0, 0.0)
-            x_max = max(x_grid[c][-1]+100.0, CHRLENS[c])
+            x_max = max(x_grid[c][-1]+100.0, chrlens[c])
             x = np.append([x_min], x)
             x = np.append(x, [x_max])
             x_grid_complete[c] = x
 
     gamma_gene = np.load(probfile)
-    gene_model_chr = {}
-    gene_intrp_chr = {}
-    for c in CHRS:
+    gene_model_chr = dict()
+    gene_intrp_chr = dict()
+    for c in chrs:
         if c in gamma_gene.files:
-            gamma_gene_c = gamma_gene[c].transpose()
-            y = np.append([gamma_gene_c[0, :]], gamma_gene_c, axis=0)
-            y = np.append(y, [y[-1, :]], axis=0)
-            gene_model_chr[c] = interp1d(x_grid_complete[c], y, axis=0)
+            gamma_gene_c = gamma_gene[c]
+            y = np.hstack((gamma_gene_c[:, 0][:, np.newaxis], gamma_gene_c))
+            y = np.hstack((y, y[:, -1][:, np.newaxis]))
+            gene_model_chr[c] = interp1d(x_grid_complete[c], y, axis=1)
             gene_intrp_chr[c] = gene_model_chr[c](x_grid[c])
     np.savez_compressed(outfile, **gene_intrp_chr)
 
 
 def plot(**kwargs):
+    chrlens = get_chromosome_info()
+    chrs = chrlens.keys()
+    num_chrs = len(chrs)
+
     gpbfile = kwargs.get('gpbfile')
     outfile = kwargs.get('outfile')
     sample_name = kwargs.get('sample_name')
@@ -201,10 +248,9 @@ def plot(**kwargs):
     xt_size = kwargs.get('xt_size')
     width = kwargs.get('width')
 
-    # TODO: Get the following from kwarg (or think about more elegant generalization)
-    haplotypes = ('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H')
+    hcolors = get_founder_info()
+    haplotypes = hcolors.keys()
     hid = dict(zip(haplotypes, np.arange(8)))
-    cc_colors = ('yellow', 'gray', 'salmon', 'blue', 'dodgerblue', 'forestgreen', 'red', 'darkviolet')
     genotypes = np.array([h1+h2 for h1, h2 in combinations_with_replacement(haplotypes, 2)])
 
     #
@@ -217,8 +263,7 @@ def plot(**kwargs):
     ax.set_xlim(0, 4500*width+width)
     ax.set_ylim(1, 95)
     num_recomb_total = 0
-    for cid in xrange(len(CHRS)):
-        c = CHRS[cid]
+    for cid, c in enumerate(chrs):
         if c in genoprob.files:  # Skip drawing Y chromosome if the sample is female
             genotype_calls = genotypes[genoprob[c].argmax(axis=0)]
             hap = []
@@ -230,8 +275,8 @@ def plot(**kwargs):
             num_genes_in_chr = len(genotype_calls)
             for i in xrange(num_genes_in_chr):
                 hap.append((i*width, width))
-                c1 = cc_colors[hid[genotype_calls[i][0]]]
-                c2 = cc_colors[hid[genotype_calls[i][1]]]
+                c1 = hcolors[genotype_calls[i][0]]
+                c2 = hcolors[genotype_calls[i][1]]
                 if i > 0:
                     if c1 == c2:
                         if col1[-1] != col2[-1]: # When homozygous region starts, remember the most recent het
@@ -249,9 +294,9 @@ def plot(**kwargs):
                 col2.append(c2)
             num_recomb_total += num_recomb
             # plot
-            ax.broken_barh(hap, (NUM_CHRS*4-cid*4+1, 1), facecolors=col1, edgecolor='face')
-            ax.broken_barh(hap, (NUM_CHRS*4-cid*4, 1), facecolors=col2, edgecolor='face')
-            ax.text((num_genes_in_chr+50)*width, NUM_CHRS*4-cid*4+0.5, '(%d)' % num_recomb)
+            ax.broken_barh(hap, (num_chrs*4-cid*4+1, 1), facecolors=col1, edgecolor='face')
+            ax.broken_barh(hap, (num_chrs*4-cid*4, 1), facecolors=col2, edgecolor='face')
+            ax.text((num_genes_in_chr+50)*width, num_chrs*4-cid*4+0.5, '(%d)' % num_recomb)
         ax.spines['top'].set_visible(False)
         ax.spines['bottom'].set_visible(False)
         ax.spines['right'].set_visible(False)
@@ -259,8 +304,8 @@ def plot(**kwargs):
         ax.get_yaxis().tick_right()
         ax.get_yaxis().tick_left()
         ax.get_yaxis().set_ticks([])
-        ax.set_yticklabels(CHRS)
-        pyplot.yticks(np.arange(NUM_CHRS*4+1, 1, -4), fontsize=14)
+        ax.set_yticklabels(chrs)
+        pyplot.yticks(np.arange(num_chrs*4+1, 1, -4), fontsize=14)
         ax.set_xticklabels([ '%dM' % xt for xt in np.arange(0, xt_max*grid_size/1000000, xt_size*grid_size/1000000)])
         pyplot.xticks(np.arange(0, xt_max*width, xt_size*width))
         title_txt = 'Genome reconstruction: ' + sample_name
