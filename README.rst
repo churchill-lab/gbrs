@@ -16,7 +16,7 @@ GBRS
 Overview
 --------
 
-GBRS is a suite of tools for reconstructing genomes using RNA-Seq data from multiparent population without resorting to array-based genotype information. It also quantifies allele specific expression.
+GBRS is a suite of tools for reconstructing genomes using RNA-Seq data from multiparent population. It also quantifies allele specific expression.
 
 * Free software: GPLv3 license
 * Documentation: https://gbrs.readthedocs.org.
