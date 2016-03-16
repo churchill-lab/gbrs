@@ -1,5 +1,5 @@
 ====
-gbrs
+GBRS
 ====
 
 .. image:: https://img.shields.io/pypi/v/gbrs.svg
@@ -16,7 +16,7 @@ gbrs
 Overview
 --------
 
-GBRS is a suite of tools for reconstructing genomes without resorting to genotype data and ASE Quantification
+GBRS is a suite of tools for reconstructing genomes using RNA-Seq data from multiparent population without resorting to array-based genotype information. It also quantifies allele specific expression.
 
 * Free software: GPLv3 license
 * Documentation: https://gbrs.readthedocs.org.
