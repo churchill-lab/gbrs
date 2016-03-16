@@ -1,12 +1,12 @@
 import os
 import sys
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as pyplot
 from itertools import combinations_with_replacement
 from collections import defaultdict, OrderedDict
 from scipy.interpolate import interp1d
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as pyplot
 
 DATA_DIR = os.getenv('GBRS_DATA', '.')
 

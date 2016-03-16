@@ -16,9 +16,9 @@ gbrs
 Overview
 --------
 
-A suite of tools for Genome Reconstruction and Allele Specific Expression Quantification
+GBRS is a suite of tools for reconstructing genomes without resorting to genotype data and ASE Quantification
 
-* Free software: ISC license
+* Free software: GPLv3 license
 * Documentation: https://gbrs.readthedocs.org.
 
 
