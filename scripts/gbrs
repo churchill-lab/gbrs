@@ -61,7 +61,7 @@ def add_subcommand_reconstruct(subparsers):
     subparser_rec.add_argument('-x', action='store', dest='avecfile', type=str, required=True)
     subparser_rec.add_argument('-g', action='store', dest='gidfile', type=str, required=True)
     subparser_rec.add_argument('-t', action='store', dest='tprobfile', type=str, required=True)
-    subparser_rec.add_argument('-c', action='store', dest='expr_threshold', type=float, default=1.0)
+    subparser_rec.add_argument('-c', action='store', dest='expr_threshold', type=float, default=1.5)
     subparser_rec.add_argument('-s', action='store', dest='sigma', type=float, default=0.12)
     subparser_rec.add_argument('-o', action='store', dest='outdir', type=str, default='.')
     subparser_rec.set_defaults(func=gbrs.commands.reconstruct)
