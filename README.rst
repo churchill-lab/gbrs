@@ -21,6 +21,8 @@ GBRS is a suite of tools for reconstructing genomes using RNA-Seq data from mult
 * Free software: GPLv3 license
 * Documentation: https://gbrs.readthedocs.org.
 
+The same concept should work for any multiparent population. For the Diversity Outbred ([DO]: https://www.jax.org/strain/009376), Collaborative Cross (CC) mice, or F1 hybrids of CC's (CCRIX), required information files are available at ftp://churchill-lab.jax.org/pub/software/GBRS/.
+
 
 References
 ----------
