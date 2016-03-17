@@ -18,7 +18,7 @@ with open('HISTORY.rst') as history_file:
 requirements = []
 on_rtd = os.environ.get('READTHEDOCS', None)
 if not on_rtd:
-    requirements.append('matplotlib==1.3.1')
+    requirements.append('matplotlib')
 #    requirements.append('bx-python>=0.7.2')
 #    requirements.append('pysam>=0.8.1')
 #    requirements.append('biopython>=1.63')
