@@ -8,7 +8,7 @@ We recommend using conda virtual enviroment::
 
     $ git clone https://github.com/churchill-lab/gbrs.git
     $ cd gbrs
-    $ conda create -n gbrs scipy=0.13.3 cython matplotlib jupyter hdf5 biopython
+    $ conda create -n gbrs jupyter scipy=0.13.3 cython matplotlib biopython
     $ source activate gbrs
     (gbrs) $ conda install pytables=3.1.0
     (gbrs) $ conda install -c https://conda.binstar.org/bcbio pysam
