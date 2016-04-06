@@ -27,3 +27,10 @@ Or, at the command line::
 
     $ easy_install gbrs
 
+**(For DO, CC, or CCRIX)** Make a GBRS_DATA folder, download data files to the folder, and make it visible from your shell. For example,::
+
+    $ mkdir /home/myspace/gbrs
+    $ cd /home/myspace/gbrs
+    $ wget ftp://churchill-lab.jax.org/pub/software/GBRS/R75-REL1410/\* .
+    $ tar xzf 8-way.bowtie1.index.tar.gz
+    $ export GBRS_DATA=/home/myspace/gbrs
