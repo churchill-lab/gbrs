@@ -18,12 +18,12 @@ We recommend using conda virtual enviroment::
     (gbrs) $ pip install g2gtools
     (gbrs) $ python setup.py install
 
-If you have virtualenvwrapper installed::
+Or if you have virtualenvwrapper installed::
 
     $ mkvirtualenv gbrs
     $ pip install gbrs
 
-Or, at the command line::
+Or at the command line::
 
     $ easy_install gbrs
 
