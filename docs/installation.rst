@@ -34,3 +34,4 @@ Or at the command line::
     $ wget ftp://churchill-lab.jax.org/pub/software/GBRS/R75-REL1410/\* .
     $ tar xzf 8-way.bowtie1.index.tar.gz
     $ export GBRS_DATA=/home/myspace/gbrs
+

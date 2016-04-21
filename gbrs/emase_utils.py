@@ -1,8 +1,11 @@
 import os
 import numpy as np
-import emase
+from emase.EMfactory import EMfactory
+from emase.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
+
 
 DATA_DIR = os.getenv('GBRS_DATA', '.')
+
 
 def hybridize(**kwargs):
     pass
@@ -22,7 +25,7 @@ def mask(**kwargs):
 
     :param alnfile: alignment incidence file (h5),
     :param gtypefile: genotype calls by GBRS (npz),
-    :param grpfile: gene ID to isoform ID mapping (tsv)
+    :param grpfile: gene ID to isoform ID mapping info (tsv)
     :return: masked version of alignment incidence file (h5)
     """
     alnfile = kwargs.get('alnfile')
@@ -59,25 +62,49 @@ def mask(**kwargs):
     outfile = kwargs.get('outfile')
     alnmat.save(h5file=outfile)
 
+
 def quantify(**kwargs):
     """
     Quantify expected read counts
 
-    :param:
-    :param:
-    :param:
-    :param:
-    :param:
-    :param:
-    :param:
-    :param:
-    :param:
-    :param:
-    :param:
-    :return:
+    :param alnfile: alignment incidence file (h5)
+    :param grpfile: gene ID to isoform ID mapping info (tsv)
+    :param lenfile: transcript lengths (tsv)
+    :param multiread_model: emase model (default: 4)
+    :param read_length: read length (default: 100)
+    :param pseudocount: prior read count (default: 0.0)
+    :param tolerance: tolerance for EM termination (default: 0.0001 in TPM)
+    :param max_iters: maximum iterations for EM iteration
+    :param report_alignment_counts: whether to report alignment counts (default: False)
+    :param report_posterior:
+    :return: Expected read counts (tsv)
     """
     alnfile = kwargs.get('alnfile')
-    alnmat = emase.AlignmentPropertyMatrix(h5file=alnfile)
+    grpfile = kwargs.get('grpfile')
+    outbase = kwargs.get('outbase')
+    pseudocount = kwargs.get('pseudocount')
+    lenfile = kwargs.get('lenfile')
+    read_length = kwargs.get('read_length')
+    multiread_model = kwargs.get('multiread_model')
+    tolerance = kwargs.get('tolerance')
+    max_iters = kwargs.get('max_iters')
+    report_gene_counts = grpfile is not None
+    report_alignment_counts = kwargs.get('report_alignment_counts')
+    report_posterior = kwargs.get('report_posterior')
 
-
-
+    em_factory = EMfactory(APM(h5file=alnfile, grpfile=grpfile))
+    em_factory.prepare(pseudocount=pseudocount, lenfile=lenfile, read_length=read_length)
+    em_factory.run(model=multiread_model, tol=tolerance, max_iters=max_iters, verbose=True)
+    em_factory.report_depths(filename="%s.isoforms.tpm" % outbase, tpm=True)
+    em_factory.report_effective_read_counts(filename="%s.isoforms.effective_read_counts" % outbase)
+    if report_posterior:
+        em_factory.export_posterior_probability(filename="%s.posterior.h5" % outbase)
+    if report_gene_counts:
+        em_factory.report_depths(filename="%s.genes.tpm" % outbase, tpm=True, grp_wise=True)
+        em_factory.report_effective_read_counts(filename="%s.genes.effective_read_counts" % outbase, grp_wise=True)
+    if report_alignment_counts:
+        alnmat = APM(h5file=alnfile, grpfile=grpfile)
+        alnmat.report_alignment_counts(filename="%s.isoforms.alignment_counts" % outbase)
+        if report_gene_counts:
+            alnmat._bundle_inline(reset=True)
+            alnmat.report_alignment_counts(filename="%s.genes.alignment_counts" % outbase)
