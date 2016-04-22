@@ -28,14 +28,11 @@ def mask(**kwargs):
     :param grpfile: gene ID to isoform ID mapping info (tsv)
     :return: masked version of alignment incidence file (h5)
     """
-    alnfile = kwargs.get('alnfile')
-    alnmat = APM(h5file=alnfile)
+    gidfile = os.path.join(DATA_DIR, 'gene_ids.ordered.npz')
+    gname_chr = np.load(gidfile)
 
     gtypefile = kwargs.get('gtypefile')
     gtype_chr = np.load(gtypefile)
-
-    gidfile = os.path.join(DATA_DIR, 'gene_ids.ordered.npz')
-    gname_chr = np.load(gidfile)
 
     grpfile = kwargs.get('grpfile')
     if grpfile is not None:
@@ -44,6 +41,9 @@ def mask(**kwargs):
             for curline in fh:
                 item = curline.rstrip().split()
                 g2t[item[0]] = item[1:]
+
+    alnfile = kwargs.get('alnfile')
+    alnmat = APM(h5file=alnfile)
 
     gtmask = np.zeros((alnmat.num_haplotypes, alnmat.num_loci))
     hid = dict(zip(alnmat.hname, np.arange(alnmat.num_haplotypes)))
