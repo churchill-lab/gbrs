@@ -67,6 +67,8 @@ def mask(**kwargs):
                 gtmask[np.meshgrid(hid2set, lid[g])] = 1.0
 
     alnmat.multiply(gtmask, axis=2)
+    for h in xrange(alnmat.num_haplotypes):
+        alnmat.data[h].eliminate_zeros()
     outfile = kwargs.get('outfile')
     alnmat.save(h5file=outfile)
 
