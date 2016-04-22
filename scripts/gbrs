@@ -64,18 +64,6 @@ def add_subcommand_quantify(subparsers):
 
 
 #
-# Subcommand: mask
-#
-def add_subcommand_mask(subparsers):
-    subparser_mask = subparsers.add_parser('mask')
-    subparser_mask.add_argument('-i', action='store', dest='alnfile', type=str, required=True)
-    subparser_mask.add_argument('-g', action='store', dest='grpfile', type=str, required=True)
-    subparser_mask.add_argument('-G', '--genotype', action='store', dest='gtypefile', type=str, default=None)
-    subparser_mask.add_argument('-o', action='store', dest='outfile', type=str, default='gbrs.diploid.h5')
-    subparser_mask.set_defaults(func=gbrs.emase_utils.mask)
-
-
-#
 # Subcommand: reconstruct
 #
 def add_subcommand_reconstruct(subparsers):
@@ -88,6 +76,18 @@ def add_subcommand_reconstruct(subparsers):
     subparser_rec.add_argument('-s', action='store', dest='sigma', type=float, default=0.12)
     subparser_rec.add_argument('-o', action='store', dest='outdir', type=str, default='.')
     subparser_rec.set_defaults(func=gbrs.commands.reconstruct)
+
+
+#
+# Subcommand: mask
+#
+def add_subcommand_mask(subparsers):
+    subparser_mask = subparsers.add_parser('mask')
+    subparser_mask.add_argument('-i', action='store', dest='alnfile', type=str, required=True)
+    subparser_mask.add_argument('-g', action='store', dest='grpfile', type=str, required=True)
+    subparser_mask.add_argument('-G', '--genotype', action='store', dest='gtypefile', type=str, default=None)
+    subparser_mask.add_argument('-o', action='store', dest='outfile', type=str, default='gbrs.diploid.h5')
+    subparser_mask.set_defaults(func=gbrs.emase_utils.mask)
 
 
 #
@@ -134,6 +134,7 @@ def main():
     add_subcommand_bam2emase(subparsers)
     add_subcommand_quantify(subparsers)
     add_subcommand_reconstruct(subparsers)
+    add_subcommand_mask(subparsers)
     add_subcommand_interpolate(subparsers)
     add_subcommand_plot(subparsers)
 
