@@ -49,17 +49,18 @@ def add_subcommand_bam2emase(subparsers):
 #
 def add_subcommand_quantify(subparsers):
     subparser_quan = subparsers.add_parser('quantify')
-    subparser_quan.add_argument('-i', action='store', dest='alnfile', type=str, required=True)
-    subparser_quan.add_argument('-g', action='store', dest='grpfile', type=str, required=True)
-    subparser_quan.add_argument('-L', action='store', dest='lenfile', type=str, required=True)
-    subparser_quan.add_argument('-M', action='store', dest='multiread_model', type=int, default=4)
-    subparser_quan.add_argument('-o', action='store', dest='outbase', type=str, default='gbrs.quantify')
-    subparser_quan.add_argument('-p', action='store', dest='pseudocount', type=float, default=0.0)
-    subparser_quan.add_argument('-r', action='store', dest='read_length', type=int, default=100)
-    subparser_quan.add_argument('-m', action='store', dest='max_iters', type=int, default=999)
-    subparser_quan.add_argument('-t', action='store', dest='tolerance', type=float, default=0.0001)
-    subparser_quan.add_argument('-c', action='store', dest='report_alignment_counts', type=bool, default=False)
-    subparser_quan.add_argument('-w', action='store', dest='report_posterior', type=bool, default=False)
+    subparser_quan.add_argument('-i', '--alignment-file', action='store', dest='alnfile', type=str, required=True)
+    subparser_quan.add_argument('-g', '--grouping-file', action='store', dest='grpfile', type=str, required=True)
+    subparser_quan.add_argument('-L', '--length-file', action='store', dest='lenfile', type=str, required=True)
+    subparser_quan.add_argument('-G', '--genotype', action='store', dest='gtypefile', type=str, default=None)
+    subparser_quan.add_argument('-M', '--multiread-model', action='store', dest='multiread_model', type=int, default=4)
+    subparser_quan.add_argument('-o', action='store', dest='outbase', type=str, default='gbrs.quantified')
+    subparser_quan.add_argument('-p', 'pseudocount', action='store', dest='pseudocount', type=float, default=0.0)
+    subparser_quan.add_argument('-r', '--read-length', action='store', dest='read_length', type=int, default=100)
+    subparser_quan.add_argument('-m', '--max-iters', action='store', dest='max_iters', type=int, default=999)
+    subparser_quan.add_argument('-t', '--tolerance', action='store', dest='tolerance', type=float, default=0.0001)
+    subparser_quan.add_argument('-c', '--report-counts', action='store', dest='report_alignment_counts', type=bool, default=False)
+    subparser_quan.add_argument('-w', '--report-posterior', action='store', dest='report_posterior', type=bool, default=False)
     subparser_quan.set_defaults(func=gbrs.emase_utils.quantify)
 
 
@@ -70,7 +71,7 @@ def add_subcommand_reconstruct(subparsers):
     subparser_rec = subparsers.add_parser('reconstruct')
     subparser_rec.add_argument('-e', action='store', dest='exprfile', type=str, required=True)
     subparser_rec.add_argument('-x', action='store', dest='avecfile', type=str, required=True)
-    subparser_rec.add_argument('-g', action='store', dest='gidfile', type=str, required=True)
+    #subparser_rec.add_argument('-g', action='store', dest='gidfile', type=str, required=True)
     subparser_rec.add_argument('-t', action='store', dest='tprobfile', type=str, required=True)
     subparser_rec.add_argument('-c', action='store', dest='expr_threshold', type=float, default=1.5)
     subparser_rec.add_argument('-s', action='store', dest='sigma', type=float, default=0.12)
@@ -86,7 +87,7 @@ def add_subcommand_mask(subparsers):
     subparser_mask.add_argument('-i', action='store', dest='alnfile', type=str, required=True)
     subparser_mask.add_argument('-G', '--genotype', action='store', dest='gtypefile', type=str, required=True)
     subparser_mask.add_argument('-g', action='store', dest='grpfile', type=str, default=None)
-    subparser_mask.add_argument('-o', action='store', dest='outfile', type=str, default='gbrs.diploid.h5')
+    subparser_mask.add_argument('-o', action='store', dest='outfile', type=str, default='gbrs.masked.diploid.h5')
     subparser_mask.set_defaults(func=gbrs.emase_utils.mask)
 
 
@@ -108,7 +109,7 @@ def add_subcommand_interpolate(subparsers):
 def add_subcommand_plot(subparsers):
     subparser_plot = subparsers.add_parser('plot')
     subparser_plot.add_argument('-i', '--genoprob', action='store', dest='gpbfile', type=str, required=True)
-    subparser_plot.add_argument('-o', '--outfile', action='store', dest='outfile', type=str, default='gbrs.plot.pdf')
+    subparser_plot.add_argument('-o', '--outfile', action='store', dest='outfile', type=str, default='gbrs.plotted.genome.pdf')
     subparser_plot.add_argument('-n', '--sample-name', action='store', dest='sample_name', type=str, default='')
     subparser_plot.add_argument('--num-grids', action='store', dest='grid_size', type=int, default=42586)
     subparser_plot.add_argument('--xt-max', action='store', dest='xt_max', type=int, default=4501)

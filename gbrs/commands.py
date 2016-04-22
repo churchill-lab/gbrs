@@ -62,7 +62,8 @@ def reconstruct(**kwargs):
 
     exprfile = kwargs.get('exprfile')
     avecfile = kwargs.get('avecfile')
-    gidfile = kwargs.get('gidfile')
+    #gidfile = kwargs.get('gidfile')
+    gidfile = os.path.join(DATA_DIR, 'gene_ids.ordered.npz')
     tprobfile = kwargs.get('tprobfile')
     expr_threshold = kwargs.get('expr_threshold')
     sigma = kwargs.get('sigma')
@@ -153,7 +154,7 @@ def reconstruct(**kwargs):
             gamma_c = np.exp(alpha[c] + beta[c])
             normalizer = gamma_c.sum(axis=0)
             gamma[c] = gamma_c / normalizer
-    np.savez_compressed(os.path.join(outdir, 'gbrs.gamma.npz'), **gamma)
+    np.savez_compressed(os.path.join(outdir, 'gbrs.reconstructed.gamma.npz'), **gamma)
 
     # Run Viterbi
     delta = dict()
@@ -168,6 +169,7 @@ def reconstruct(**kwargs):
                 delta_c[:, i] = (delta_c[:, i-1] + tprob_c[i-1]).max(axis=1) + eprob[gid_genome_order_c[i]]
             delta[c] = delta_c
     viterbi_states = defaultdict(list)
+    gtcall_g = dict()
     for c in chrs:
         if c in tprob.files:
             tprob_c = tprob[c]
@@ -178,9 +180,14 @@ def reconstruct(**kwargs):
             for i in reversed(xrange(num_genes_in_chr-1)):
                 sid = (delta[c][:, i] + tprob_c[i][sid]).argmax()
                 viterbi_states[c].append(genotypes[sid])
+                gtcall_g[gid_genome_order_c[i]] = genotypes[sid]
             viterbi_states[c].reverse()
     viterbi_states = dict(viterbi_states)
-    np.savez_compressed(os.path.join(outdir, 'gbrs.genotypes.npz'), **viterbi_states)
+    np.savez_compressed(os.path.join(outdir, 'gbrs.reconstructed.genotypes.npz'), **viterbi_states)
+    with open(os.path.join(outdir, 'gbrs.reconstructed.genotypes.tsv'), 'w') as fhout:
+        fhout.write('#Gene_ID\tDiplotype\n')
+        for g in sorted(gtcall_g.keys()):
+            fhout.write('%s\t%s\n' % (g, gtcall_g[g]))
 
 
 def interpolate(**kwargs):

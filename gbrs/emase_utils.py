@@ -1,10 +1,15 @@
 import os
 import numpy as np
+from itertools import dropwhile
 from emase.EMfactory import EMfactory
 from emase.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
 
 
 DATA_DIR = os.getenv('GBRS_DATA', '.')
+
+
+def is_comment(s):
+    return s.startswith('#')
 
 
 def hybridize(**kwargs):
@@ -92,6 +97,7 @@ def quantify(**kwargs):
     alnfile = kwargs.get('alnfile')
     grpfile = kwargs.get('grpfile')
     outbase = kwargs.get('outbase')
+    gtypefile = kwargs.get('gtypefile')
     pseudocount = kwargs.get('pseudocount')
     lenfile = kwargs.get('lenfile')
     read_length = kwargs.get('read_length')
@@ -102,16 +108,46 @@ def quantify(**kwargs):
     report_alignment_counts = kwargs.get('report_alignment_counts')
     report_posterior = kwargs.get('report_posterior')
 
-    em_factory = EMfactory(APM(h5file=alnfile, grpfile=grpfile))
+    # Load alignment incidence matrix
+    alnmat = APM(h5file=alnfile, grpfile=grpfile)  # 'alnfile' is assumed to be in multiway transcriptome
+
+    # Load genotype calls
+    if gtypefile is not None:  # Genotype calls are at the gene level
+        outbase = outbase + '.diploid'
+        hid = dict(zip(alnmat.hname, np.arange(alnmat.num_haplotypes)))
+        gid = dict(zip(alnmat.gname, np.arange(len(alnmat.gname))))
+        gtmask = np.zeros((alnmat.num_haplotypes, alnmat.num_loci))
+        gtcall_g = dict.fromkeys(alnmat.gname)
+        gtcall_t = dict.fromkeys(alnmat.lname)
+        with open(gtypefile) as fh:
+            for curline in dropwhile(is_comment, fh):
+                item = curline.rstrip().split("\t")
+                g, gt = item[:2]
+                gtcall_g[g] = gt
+                hid2set = np.array([hid[gt[0]], hid[gt[1]]])
+                tid2set = np.array(alnmat.groups[gid[g]])
+                gtmask[np.meshgrid(hid2set, tid2set)] = 1.0
+                for t in tid2set:
+                    gtcall_t[alnmat.lname[t]] = gt
+        alnmat.multiply(gtmask, axis=2)
+        for h in xrange(alnmat.num_haplotypes):
+            alnmat.data[h].eliminate_zeros()
+    else:
+        outbase = outbase + ".multiway"
+        gtcall_g = None
+        gtcall_t = None
+
+    # Run emase
+    em_factory = EMfactory(alnmat)
     em_factory.prepare(pseudocount=pseudocount, lenfile=lenfile, read_length=read_length)
     em_factory.run(model=multiread_model, tol=tolerance, max_iters=max_iters, verbose=True)
-    em_factory.report_depths(filename="%s.isoforms.tpm" % outbase, tpm=True)
-    em_factory.report_effective_read_counts(filename="%s.isoforms.effective_read_counts" % outbase)
+    em_factory.report_depths(filename="%s.isoforms.tpm" % outbase, tpm=True, notes=gtcall_t)
+    em_factory.report_read_counts(filename="%s.isoforms.expected_read_counts" % outbase, notes=gtcall_t)
     if report_posterior:
         em_factory.export_posterior_probability(filename="%s.posterior.h5" % outbase)
     if report_gene_counts:
-        em_factory.report_depths(filename="%s.genes.tpm" % outbase, tpm=True, grp_wise=True)
-        em_factory.report_effective_read_counts(filename="%s.genes.effective_read_counts" % outbase, grp_wise=True)
+        em_factory.report_depths(filename="%s.genes.tpm" % outbase, tpm=True, grp_wise=True, notes=gtcall_g)
+        em_factory.report_read_counts(filename="%s.genes.expected_read_counts" % outbase, grp_wise=True, notes=gtcall_g)
     if report_alignment_counts:
         alnmat = APM(h5file=alnfile, grpfile=grpfile)
         alnmat.report_alignment_counts(filename="%s.isoforms.alignment_counts" % outbase)
