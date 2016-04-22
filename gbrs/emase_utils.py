@@ -29,7 +29,7 @@ def mask(**kwargs):
     :return: masked version of alignment incidence file (h5)
     """
     alnfile = kwargs.get('alnfile')
-    alnmat = emase.AlignmentPropertyMatrix(h5file=alnfile)
+    alnmat = APM(h5file=alnfile)
 
     gtypefile = kwargs.get('gtypefile')
     gtype_chr = np.load(gtypefile)
@@ -37,28 +37,36 @@ def mask(**kwargs):
     gidfile = os.path.join(DATA_DIR, 'gene_ids.ordered.npz')
     gname_chr = np.load(gidfile)
 
-    g2t = dict()
     grpfile = kwargs.get('grpfile')
-    with open(grpfile) as fh:
-        for curline in fh:
-            item = curline.rstrip().split()
-            g2t[item[0]] = item[1:]
+    if grpfile is not None:
+        g2t = dict()
+        with open(grpfile) as fh:
+            for curline in fh:
+                item = curline.rstrip().split()
+                g2t[item[0]] = item[1:]
 
     gtmask = np.zeros((alnmat.num_haplotypes, alnmat.num_loci))
-
     hid = dict(zip(alnmat.hname, np.arange(alnmat.num_haplotypes)))
-    tid = dict(zip(alnmat.lname, np.arange(alnmat.num_loci)))
+    lid = dict(zip(alnmat.lname, np.arange(alnmat.num_loci)))
+    if grpfile is not None:
+        for chro in gtype_chr.keys():
+            gtype = gtype_chr[chro]
+            gname = gname_chr[chro]
+            for gid, g in enumerate(gname):
+                gt = gtype[gid]
+                hid2set = np.array([hid[gt[0]], hid[gt[1]]])
+                tid2set = np.array([lid[t] for t in g2t[g]])
+                gtmask[np.meshgrid(hid2set, tid2set)] = 1.0
+    else:
+        for chro in gtype_chr.keys():
+            gtype = gtype_chr[chro]
+            gname = gname_chr[chro]
+            for gid, g in enumerate(gname):
+                gt = gtype[gid]
+                hid2set = np.array([hid[gt[0]], hid[gt[1]]])
+                gtmask[np.meshgrid(hid2set, lid[g])] = 1.0
 
-    for chro in gtype_chr.keys():
-        gtype = gtype_chr[chro]
-        gname = gname_chr[chro]
-        for gid, g in enumerate(gname):
-            gt = gtype[gid]
-            hid2set = np.array([hid[gt[0]], hid[gt[1]]])
-            tid2set = np.array([tid[t] for t in g2t[g]])
-            gtmask[np.meshgrid(hid2set, tid2set)] = 1.0
     alnmat.multiply(gtmask, axis=2)
-
     outfile = kwargs.get('outfile')
     alnmat.save(h5file=outfile)
 

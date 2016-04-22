@@ -84,8 +84,8 @@ def add_subcommand_reconstruct(subparsers):
 def add_subcommand_mask(subparsers):
     subparser_mask = subparsers.add_parser('mask')
     subparser_mask.add_argument('-i', action='store', dest='alnfile', type=str, required=True)
-    subparser_mask.add_argument('-g', action='store', dest='grpfile', type=str, required=True)
-    subparser_mask.add_argument('-G', '--genotype', action='store', dest='gtypefile', type=str, default=None)
+    subparser_mask.add_argument('-G', '--genotype', action='store', dest='gtypefile', type=str, required=True)
+    subparser_mask.add_argument('-g', action='store', dest='grpfile', type=str, default=None)
     subparser_mask.add_argument('-o', action='store', dest='outfile', type=str, default='gbrs.diploid.h5')
     subparser_mask.set_defaults(func=gbrs.emase_utils.mask)
 
