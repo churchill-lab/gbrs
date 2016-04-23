@@ -55,7 +55,7 @@ def add_subcommand_quantify(subparsers):
     subparser_quan.add_argument('-G', '--genotype', action='store', dest='gtypefile', type=str, default=None)
     subparser_quan.add_argument('-M', '--multiread-model', action='store', dest='multiread_model', type=int, default=4)
     subparser_quan.add_argument('-o', action='store', dest='outbase', type=str, default='gbrs.quantified')
-    subparser_quan.add_argument('-p', 'pseudocount', action='store', dest='pseudocount', type=float, default=0.0)
+    subparser_quan.add_argument('-p', '--pseudocount', action='store', dest='pseudocount', type=float, default=0.0)
     subparser_quan.add_argument('-r', '--read-length', action='store', dest='read_length', type=int, default=100)
     subparser_quan.add_argument('-m', '--max-iters', action='store', dest='max_iters', type=int, default=999)
     subparser_quan.add_argument('-t', '--tolerance', action='store', dest='tolerance', type=float, default=0.0001)
