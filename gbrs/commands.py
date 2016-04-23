@@ -60,18 +60,23 @@ def reconstruct(**kwargs):
     chrlens = get_chromosome_info()
     chrs = chrlens.keys()
 
-    exprfile = kwargs.get('exprfile')
     avecfile = kwargs.get('avecfile')
-    #gidfile = kwargs.get('gidfile')
-    gidfile = os.path.join(DATA_DIR, 'gene_ids.ordered.npz')
+    if avecfile is None:
+        avecfile = os.path.join(DATA_DIR, 'avecs.npz')
+    gidfile = kwargs.get('gidfile')
+    if gidfile is None:
+        gidfile = os.path.join(DATA_DIR, 'gene_ids.ordered.npz')
     tprobfile = kwargs.get('tprobfile')
+    if tprobfile is None:
+        tprobfile = os.path.join(DATA_DIR, 'tprobs.npz')
+    exprfile = kwargs.get('exprfile')
     expr_threshold = kwargs.get('expr_threshold')
     sigma = kwargs.get('sigma')
     outdir = kwargs.get('outdir')
 
     # Load meta info and alignment specificity
     gid_genome_order = np.load(gidfile)
-    avecs = np.load(open(avecfile))
+    avecs = np.load(avecfile)
 
     # Load expression level
     expr = dict()
