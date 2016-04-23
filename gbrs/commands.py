@@ -154,7 +154,7 @@ def reconstruct(**kwargs):
             gamma_c = np.exp(alpha[c] + beta[c])
             normalizer = gamma_c.sum(axis=0)
             gamma[c] = gamma_c / normalizer
-    np.savez_compressed(os.path.join(outdir, 'gbrs.reconstructed.gamma.npz'), **gamma)
+    np.savez_compressed(os.path.join(outdir, 'gbrs.reconstructed.genoprobs.npz'), **gamma)
 
     # Run Viterbi
     delta = dict()
