@@ -59,8 +59,8 @@ def add_subcommand_quantify(subparsers):
     subparser_quan.add_argument('-r', '--read-length', action='store', dest='read_length', type=int, default=100)
     subparser_quan.add_argument('-m', '--max-iters', action='store', dest='max_iters', type=int, default=999)
     subparser_quan.add_argument('-t', '--tolerance', action='store', dest='tolerance', type=float, default=0.0001)
-    subparser_quan.add_argument('-c', '--report-counts', action='store', dest='report_alignment_counts', type=bool, default=False)
-    subparser_quan.add_argument('-w', '--report-posterior', action='store', dest='report_posterior', type=bool, default=False)
+    subparser_quan.add_argument('-c', '--report-counts', action='store_true', dest='report_alignment_counts')
+    subparser_quan.add_argument('-w', '--report-posterior', action='store_true', dest='report_posterior')
     subparser_quan.set_defaults(func=gbrs.emase_utils.quantify)
 
 
