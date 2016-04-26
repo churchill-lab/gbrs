@@ -58,7 +58,7 @@ def add_subcommand_bam2emase(subparsers):
 # Subcommand: emase2ec
 #
 def add_subcommand_compress(subparsers):
-    subparser_press = subparsers.add_parser('bam2emase')
+    subparser_press = subparsers.add_parser('compress')
     subparser_press.add_argument('-i', '--alignment-file', action='store', dest='alnfile', type=str, required=True)
     subparser_press.add_argument('-o', action='store', dest='outfile', type=str, default=None)
     subparser_press.set_defaults(func=gbrs.emase_utils.compress)
