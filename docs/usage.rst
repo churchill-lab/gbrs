@@ -40,7 +40,7 @@ We can now quantify allele-specific expressions on diploid transcriptome::
 
     gbrs quantify -i ${COMPRESSED_EMASE_FILE} \
                   -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
-                  <pre><b>-G gbrs.reconstructed.genotypes.tsv</b></pre> \
+                  -G gbrs.reconstructed.genotypes.tsv \
                   -L ${GBRS_DATA}/gbrs.hybridized.targets.info \
                   -M 4 --report-counts
 
