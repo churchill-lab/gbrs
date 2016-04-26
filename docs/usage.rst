@@ -5,8 +5,6 @@ Usage
 To use GBRS in command line
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-***Note: You don't have to specify the files in ${GBRS_DATA} if you specified the folder as an environment variable, GBRS_DATA, in your shell and storing those files in that folder.***
-
 First of all, we need to align our RNA-Seq reads against pooled transcriptome of all founder strains::
 
     bowtie -q -a --best --strata --sam -v 3 ${GBRS_DIR}/bowtie.transcriptome ${FASTQ} \
@@ -58,7 +56,6 @@ To plot a reconstructed genome::
     gbrs plot -i gbrs.interpolated.genoprobs.npz \
               -o gbrs.plotted.genome.pdf \
               -n ${SAMPLE_ID}
-
 
 
 To use GBRS in a project
