@@ -25,7 +25,6 @@ if not on_rtd:
 #    requirements.append('biopython>=1.63')
 #    requirements.append('pysqlite>=2.6.3')
 
-
 test_requirements = [
     # TODO: put package test requirements here
 ]
