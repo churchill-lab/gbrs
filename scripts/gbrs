@@ -25,6 +25,10 @@ logo_text = """
 #
 def add_subcommand_hybridize(subparsers):
     subparser_hyb = subparsers.add_parser('hybridize')
+    subparser_hyb.add_argument('-F', '--target-files',  action='store', dest='fastalist', type=str, required=True)
+    subparser_hyb.add_argument('-s', '--suffices', action='store', dest='haplist', type=str, required=True)
+    subparser_hyb.add_argument('-o', action='store', dest='outfile', type=str, default='gbrs.hybridized.targets.fa')
+    subparser_hyb.add_argument('--build-bowtie-index', action='store_true', dest='build_bowtie_index')
     subparser_hyb.set_defaults(func=gbrs.emase_utils.hybridize)
 
 
@@ -41,7 +45,19 @@ def add_subcommand_align(subparsers):
 #
 def add_subcommand_bam2emase(subparsers):
     subparser_b2e = subparsers.add_parser('bam2emase')
+    subparser_b2e.add_argument('-i', '--bamfile', action='store', dest='alnfile', type=str, required=True)
+    subparser_b2e.add_argument('-o', action='store', dest='outfile', type=str, default='gbrs.bam2emased.transcriptome.h5')
     subparser_b2e.set_defaults(func=gbrs.emase_utils.bam2emase)
+
+
+#
+# Subcommand: emase2ec
+#
+def add_subcommand_compress(subparsers):
+    subparser_press = subparsers.add_parser('bam2emase')
+    subparser_press.add_argument('-i', '--alignment-file', action='store', dest='alnfile', type=str, required=True)
+    subparser_press.add_argument('-o', action='store', dest='outbase', type=str, default='gbrs.compressed')
+    subparser_press.set_defaults(func=gbrs.emase_utils.compress)
 
 
 #
@@ -133,6 +149,7 @@ def main():
     add_subcommand_hybridize(subparsers)
     add_subcommand_align(subparsers)
     add_subcommand_bam2emase(subparsers)
+    add_subcommand_compress(subparsers)
     add_subcommand_quantify(subparsers)
     add_subcommand_reconstruct(subparsers)
     add_subcommand_mask(subparsers)

@@ -1,9 +1,13 @@
 import os
+import sys
 import numpy as np
+import subprocess
 from itertools import dropwhile
-from emase.EMfactory import EMfactory
+from emase.AlignmentMatrixFactory import AlignmentMatrixFactory as AMF
 from emase.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
-
+from emase.EMfactory import EMfactory
+from collections import OrderedDict, defaultdict
+import pysam
 
 DATA_DIR = os.getenv('GBRS_DATA', '.')
 
@@ -12,16 +16,121 @@ def is_comment(s):
     return s.startswith('#')
 
 
+def get_names(idfile):
+    ids = dict()
+    master_id = 0
+    with open(idfile) as fh:
+        for curline in fh:
+            item = curline.rstrip().split("\t")
+            g = item[0]
+            if not ids.has_key(g):
+                ids[g] = master_id
+                master_id += 1
+    num_ids = len(ids)
+    names = {index:name for name, index in ids.iteritems()}
+    return [names[k] for k in xrange(num_ids)]
+
+
 def hybridize(**kwargs):
-    pass
+    outfile = kwargs.get('outfile')
+    outdir = os.path.dirname(outfile)
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+
+    # Get pooled transcriptome
+    outbase = os.path.splitext(outfile)[0]
+    fastalist = kwargs.get('fastalist').split(',')
+    haplist = kwargs.get('haplist').split(',')
+    num_haps = len(fastalist)
+    lenfile = outbase + '.info'
+    seqout = open(outfile, 'w')
+    lenout = open(lenfile, 'w')
+    for hid in xrange(num_haps):
+        fasta = fastalist[hid]
+        # fastaname = os.path.splitext(os.path.basename(fasta))[0]
+        hapname = haplist[hid]
+        print >> sys.stderr, "Adding suffix \'_%s\' to the sequence ID's of %s..." % (hapname, fasta)
+        fh = open(fasta)
+        curline = fh.next()  # The first fasta header
+        curline = curline.rstrip().split()[0] + '_' + hapname
+        seqout.write('%s\n' % curline)
+        lenout.write('%s\t' % curline[1:])
+        seqlen = 0
+        for curline in fh:
+            if curline[0] == '>':
+                curline = curline.rstrip().split()[0] + '_' + hapname + "\n"
+                lenout.write('%d\n%s\t' % (seqlen, curline[1:].rstrip()))
+                seqlen = 0
+            else:
+                seqlen += len(curline.rstrip())
+            seqout.write(curline)
+        fh.close()
+        lenout.write('%d\n' % seqlen)
+    seqout.close()
+    lenout.close()
+
+    # Build bowtie index for the pooled transcriptome
+    build_bowtie_index = kwargs.get('build_bowtie_index')
+    if build_bowtie_index:
+        out_index = outbase + '.bowtie1'
+        print >> sys.stderr, "Building bowtie1 index..."
+        status = subprocess.call("bowtie-build %s %s" % (outfile, out_index), shell=True)
 
 
 def align(**kwargs):
-    pass
+    raise NotImplementedError
 
 
 def bam2emase(**kwargs):
-    pass
+    lidfile = kwargs.get('lidfile')
+    alnfile = kwargs.get('alnfile')
+    outfile = kwargs.get('outfile')
+    haplotypes = kwargs.get('haplogypes')
+    index_dtype = kwargs.get('index_dtype')
+    data_dtype = kwargs.get('data_dtype')
+
+    loci = get_names(lidfile)
+    alignmat_factory = AMF(alnfile)
+    alignmat_factory.prepare(haplotypes, loci, outdir=os.path.dirname(outfile))
+    alignmat_factory.produce(outfile, index_dtype=index_dtype, data_dtype=data_dtype)
+    alignmat_factory.cleanup()
+
+
+def compress(**kwargs):
+    alnfile = kwargs.get('alnfile')
+    outbase = kwargs.get('outbase')
+
+    alnmat_rd = APM(h5file=alnfile)
+    for h in xrange(alnmat_rd.num_haplotypes):
+        alnmat_rd.data[h] = alnmat_rd.data[h].tocsr()
+
+    ec = defaultdict(int)
+    for curind in xrange(alnmat_rd.num_reads):
+        ec_key = []
+        for h in xrange(alnmat_rd.num_haplotypes):
+            i0 = alnmat_rd.data[h].indptr[curind]
+            i1 = alnmat_rd.data[h].indptr[curind+1]
+            ec_key.append(','.join(map(str, sorted(alnmat_rd.data[h].indices[i0:i1]))))
+        ec[':'.join(ec_key)] += 1
+    ec = dict(ec)
+    num_ecs = len(ec)
+
+    alnmat_ec = APM(shape=(alnmat_rd.num_loci, alnmat_rd.num_haplotypes, num_ecs))
+    alnmat_ec.hname = alnmat_rd.hname
+    alnmat_ec.lname = alnmat_rd.lname
+    alnmat_ec.count = np.zeros(num_ecs)
+    for row_id, ec_key in enumerate(ec):
+        alnmat_ec.count[row_id] = ec[ec_key]
+        nzlocs = ec_key.split(':')
+        for h in xrange(alnmat_ec.num_haplotypes):
+            nzlocs_h = nzlocs[h]
+            if nzlocs_h != '':
+                nzinds = np.array(map(np.int, nzlocs_h.split(',')))
+                alnmat_ec.data[h][row_id, nzinds] = 1
+    alnmat_ec.finalize()
+
+    outfile = outbase + '.' + os.path.basename(alnfile)
+    alnmat_ec.save(h5file=outfile)
 
 
 def mask(**kwargs):
