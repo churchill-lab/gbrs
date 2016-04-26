@@ -24,6 +24,7 @@ if not on_rtd:
     requirements.append('pysam>=0.8.1')
     requirements.append('biopython>=1.63')
     requirements.append('pysqlite>=2.6.3')
+    requirements.append('pytables<=3.1.0')
 
 test_requirements = [
     # TODO: put package test requirements here

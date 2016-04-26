@@ -80,9 +80,12 @@ def align(**kwargs):
 
 
 def bam2emase(**kwargs):
-    lidfile = kwargs.get('lidfile')
     alnfile = kwargs.get('alnfile')
+    lidfile = kwargs.get('lidfile')
     outfile = kwargs.get('outfile')
+    if outfile is None:
+        outfile = 'gbrs.bam2emased.' + os.path.basename(alnfile)
+
     haplotypes = kwargs.get('haplogypes')
     index_dtype = kwargs.get('index_dtype')
     data_dtype = kwargs.get('data_dtype')
@@ -96,9 +99,11 @@ def bam2emase(**kwargs):
 
 def compress(**kwargs):
     alnfile = kwargs.get('alnfile')
-    outbase = kwargs.get('outbase')
+    outfile = kwargs.get('outfile')
+    if outfile is None:
+        outfile = 'gbrs.compressed.' + os.path.basename(alnfile)
 
-    alnmat_rd = APM(h5file=alnfile)
+    alnmat_rd = emase.AlignmentPropertyMatrix(h5file=alnfile)
     for h in xrange(alnmat_rd.num_haplotypes):
         alnmat_rd.data[h] = alnmat_rd.data[h].tocsr()
 
@@ -126,8 +131,6 @@ def compress(**kwargs):
                 nzinds = np.array(map(np.int, nzlocs_h.split(',')))
                 alnmat_ec.data[h][row_id, nzinds] = 1
     alnmat_ec.finalize()
-
-    outfile = outbase + '.' + os.path.basename(alnfile)
     alnmat_ec.save(h5file=outfile)
 
 
@@ -182,6 +185,8 @@ def mask(**kwargs):
     for h in xrange(alnmat.num_haplotypes):
         alnmat.data[h].eliminate_zeros()
     outfile = kwargs.get('outfile')
+    if outfile is None:
+        outfile = 'gbrs.masked.' + os.path.basename(alnfile)
     alnmat.save(h5file=outfile)
 
 

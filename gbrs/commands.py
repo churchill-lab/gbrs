@@ -216,6 +216,8 @@ def interpolate(**kwargs):
     gridfile = kwargs.get('gridfile')
     probfile = kwargs.get('probfile')
     outfile = kwargs.get('outfile')
+    if outfile is None:
+        outfile = 'gbrs.interpolated.' + os.path.basename(probfile)
 
     x_grid = defaultdict(list)
     with open(gridfile) as fh:
@@ -255,6 +257,9 @@ def plot(**kwargs):
 
     gpbfile = kwargs.get('gpbfile')
     outfile = kwargs.get('outfile')
+    if outfile is None:
+        outfile = 'gbrs.plotted.' + os.path.basename(gpbfile)
+
     sample_name = kwargs.get('sample_name')
     grid_size = kwargs.get('grid_size')
     xt_max = kwargs.get('xt_max')
