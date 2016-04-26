@@ -70,9 +70,6 @@ def reconstruct(**kwargs):
         gidfile = os.path.join(DATA_DIR, 'ref.gene_ids.ordered.npz')
 
     tprobfile = kwargs.get('tprobfile')
-    if tprobfile is None:
-        tprobfile = os.path.join(DATA_DIR, 'tprobs.npz')
-
     exprfile = kwargs.get('exprfile')
     expr_threshold = kwargs.get('expr_threshold')
     sigma = kwargs.get('sigma')

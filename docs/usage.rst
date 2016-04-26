@@ -32,15 +32,15 @@ If storage space is tight, you may want to delete ${BAM_FILE} or ${EMASE_FILE} a
 Then, we reconstruct the genome based upon gene-level TPM quantities (assuming the sample is a female from the 20th generation Diversity Outbred mice population) ::
 
     gbrs reconstruct -e gbrs.quantified.multiway.genes.tpm \
-                     -x ${GBRS_DATA}/avecs.npz \
-                     -g ${GBRS_DATA}/ref.gene_ids.ordered.npz \
                      -t ${GBRS_DATA}/tranprob.DO.G20.F.npz \
+                     -x ${GBRS_DATA}/avecs.npz \
+                     -g ${GBRS_DATA}/ref.gene_ids.ordered.npz
 
 We can now quantify allele-specific expressions on diploid transcriptome::
 
     gbrs quantify -i ${COMPRESSED_EMASE_FILE} \
-                  -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
                   -G gbrs.reconstructed.genotypes.tsv \
+                  -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
                   -L ${GBRS_DATA}/gbrs.hybridized.targets.info \
                   -M 4 --report-counts
 
