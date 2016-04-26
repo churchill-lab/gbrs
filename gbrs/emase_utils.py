@@ -84,7 +84,7 @@ def bam2emase(**kwargs):
     lidfile = kwargs.get('lidfile')
     outfile = kwargs.get('outfile')
     if outfile is None:
-        outfile = 'gbrs.bam2emased.' + os.path.basename(alnfile)
+        outfile = 'gbrs.bam2emased.' + os.path.splitext(os.path.basename(alnfile))[0] + '.h5'
 
     haplotypes = tuple(kwargs.get('haplogypes').split(','))
     index_dtype = kwargs.get('index_dtype')
@@ -143,7 +143,7 @@ def mask(**kwargs):
     :param grpfile: gene ID to isoform ID mapping info (tsv)
     :return: masked version of alignment incidence file (h5)
     """
-    gidfile = os.path.join(DATA_DIR, 'gene_ids.ordered.npz')
+    gidfile = os.path.join(DATA_DIR, 'ref.gene_ids.ordered.npz')
     gname_chr = np.load(gidfile)
 
     gtypefile = kwargs.get('gtypefile')

@@ -64,12 +64,15 @@ def reconstruct(**kwargs):
     avecfile = kwargs.get('avecfile')
     if avecfile is None:
         avecfile = os.path.join(DATA_DIR, 'avecs.npz')
+
     gidfile = kwargs.get('gidfile')
     if gidfile is None:
-        gidfile = os.path.join(DATA_DIR, 'gene_ids.ordered.npz')
+        gidfile = os.path.join(DATA_DIR, 'ref.gene_ids.ordered.npz')
+
     tprobfile = kwargs.get('tprobfile')
     if tprobfile is None:
         tprobfile = os.path.join(DATA_DIR, 'tprobs.npz')
+
     exprfile = kwargs.get('exprfile')
     expr_threshold = kwargs.get('expr_threshold')
     sigma = kwargs.get('sigma')
@@ -200,9 +203,11 @@ def interpolate(**kwargs):
     chrlens = get_chromosome_info()
     chrs = chrlens.keys()
 
+    probfile = kwargs.get('probfile')
+
     gposfile = kwargs.get('gposfile')
     if gposfile is None:  # if gposfile is not specified
-        gposfile = os.path.join(DATA_DIR, 'gene.positions.npz')
+        gposfile = os.path.join(DATA_DIR, 'ref.gene_pos.ordered.npz')
         try:
             x_gene = np.load(gposfile)
         except:
@@ -214,7 +219,9 @@ def interpolate(**kwargs):
         x_gene = np.load(gposfile)
 
     gridfile = kwargs.get('gridfile')
-    probfile = kwargs.get('probfile')
+    if gridfile is None:
+        gridfile = os.path.join(DATA_DIR, 'ref.genome_grid.64k.txt')
+
     outfile = kwargs.get('outfile')
     if outfile is None:
         outfile = 'gbrs.interpolated.' + os.path.basename(probfile)
@@ -258,7 +265,7 @@ def plot(**kwargs):
     gpbfile = kwargs.get('gpbfile')
     outfile = kwargs.get('outfile')
     if outfile is None:
-        outfile = 'gbrs.plotted.' + os.path.basename(gpbfile)
+        outfile = 'gbrs.plotted.' + os.path.splitext(os.path.basename(gpbfile))[0] + '.pdf'
 
     sample_name = kwargs.get('sample_name')
     grid_size = kwargs.get('grid_size')

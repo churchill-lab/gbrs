@@ -5,53 +5,60 @@ Usage
 To use GBRS in command line
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+***Note: You don't have to specify the files in ${GBRS_DATA} if you specified the folder as an environment variable, GBRS_DATA, in your shell and storing those files in that folder.***
+
 First of all, we need to align our RNA-Seq reads against pooled transcriptome of all founder strains::
 
-    bowtie -q -a --best --strata --sam -v 3 ${GBRS_DIR}/bowtie.pooled.transcriptome ${FASTQ} \
+    bowtie -q -a --best --strata --sam -v 3 ${GBRS_DIR}/bowtie.transcriptome ${FASTQ} \
         | samtools view -bS - > ${BAM_FILE}
 
-Before quantifying multiway allele specificity, bam file should be converted to emase format::
+Before quantifying multiway allele specificity, bam file should be converted into emase format::
 
-    gbrs bam2emase -i ${BAM_FILE} -o ${EMASE_FILE}
+    gbrs bam2emase -i ${BAM_FILE} \
+                   -m ${GBRS_DATA}/ref.transcripts.info \
+                   -s ${COMMA_SEPARATED_LIST_OF_HAPLOTYPE_CODES} \
+                   -o ${EMASE_FILE}
 
 We can compress EMASE format alignment incidence matrix::
 
-    gbrs compress -i ${EMASE_FILE} -o ${COMPRESSED_EMASE_FILE}
+    gbrs compress -i ${EMASE_FILE} \
+                  -o ${COMPRESSED_EMASE_FILE}
 
-Now we are ready to quantify multiway allele specificity::
+If storage space is tight, you may want to delete ${BAM_FILE} or ${EMASE_FILE} at this point since ${COMPRESSED_EMASE_FILE} has all the information the following steps need. Now we are ready to quantify multiway allele specificity::
 
     gbrs quantify -i ${COMPRESSED_EMASE_FILE} \
-                  -g ${GBRS_DATA}/REF/emase.gene2transcripts.tsv \
-                  -L ${GBRS_DATA}/8-way/emase.pooled.transcripts.info \
-                  -M ${MULTIREAD_MODEL} --report-counts
+                  -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
+                  -L ${GBRS_DATA}/gbrs.hybridized.targets.info \
+                  -M 4 --report-counts
 
-Then, we run HMM to reconstruct the genome::
+Then, we reconstruct the genome based upon gene-level TPM quantities (assuming the sample is a female from the 20th generation Diversity Outbred mice population) ::
 
-    gbrs reconstruct -e emase.genes.tpm \
+    gbrs reconstruct -e gbrs.quantified.multiway.genes.tpm \
                      -x ${GBRS_DATA}/avecs.npz \
-                     -g ${GBRS_DATA}/gene_ids.ordered.npz \
-                     -t ${GBRS_DATA}/tranprob.DO.G1.F.npz \
-                     -o ${OUTDIR}
+                     -g ${GBRS_DATA}/ref.gene_ids.ordered.npz \
+                     -t ${GBRS_DATA}/tranprob.DO.G20.F.npz \
 
 We can now quantify allele-specific expressions on diploid transcriptome::
 
-    gbrs quantify -i bowtie.8-way.transcriptome.h5 \
-                  -g ${GBRS_DATA}/REF/emase.gene2transcripts.tsv \
-                  -G gbrs.reconstructed.genotypes.tsv \
-                  -L ${GBRS_DATA}/8-way/emase.pooled.transcripts.info \
-                  -M ${MULTIREAD_MODEL} --report-counts
-
+    gbrs quantify -i ${COMPRESSED_EMASE_FILE} \
+                  -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
+                  <pre><b>-G gbrs.reconstructed.genotypes.tsv</b></pre> \
+                  -L ${GBRS_DATA}/gbrs.hybridized.targets.info \
+                  -M 4 --report-counts
 
 Genotype probabilities are on a grid of genes. For eQTL mapping or plotting genome reconstruction, we may want to interpolate probability on a grid at the genome scale.::
 
-    gbrs interpolate -g marker_grid_64K.wYwMT.txt \
-                     -i gbrs.reconstructed.genoprobs.npz \
+    gbrs interpolate -i gbrs.reconstructed.genoprobs.npz \
+                     -g ${GBRS_DATA}/ref.genome_grid.64k.txt \
+                     -p ${GBRS_DATA}/ref.gene_pos.ordered.npz \
                      -o gbrs.interpolated.genoprobs.npz
-
 
 To plot a reconstructed genome::
 
-    gbrs plot -i gbrs.gamma.on_grid.npz -o gbrs.genome.pdf -n SAMPLE_ID
+    gbrs plot -i gbrs.interpolated.genoprobs.npz \
+              -o gbrs.plotted.genome.pdf \
+              -n ${SAMPLE_ID}
+
 
 
 To use GBRS in a project
@@ -60,3 +67,4 @@ To use GBRS in a project
 All the features are available as a python module. You can simply::
 
     import gbrs
+
