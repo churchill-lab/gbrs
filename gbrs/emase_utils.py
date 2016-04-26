@@ -4,9 +4,9 @@ import numpy as np
 import subprocess
 from itertools import dropwhile
 import emase
-from emase.AlignmentMatrixFactory import AlignmentMatrixFactory as AMF
-from emase.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
-from emase.EMfactory import EMfactory
+#from emase.AlignmentMatrixFactory import AlignmentMatrixFactory as AMF
+#from emase.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
+#from emase.EMfactory import EMfactory
 from collections import OrderedDict, defaultdict
 import pysam
 
