@@ -86,7 +86,7 @@ def bam2emase(**kwargs):
     if outfile is None:
         outfile = 'gbrs.bam2emased.' + os.path.basename(alnfile)
 
-    haplotypes = kwargs.get('haplogypes')
+    haplotypes = tuple(kwargs.get('haplogypes').split(','))
     index_dtype = kwargs.get('index_dtype')
     data_dtype = kwargs.get('data_dtype')
 

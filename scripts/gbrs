@@ -46,7 +46,11 @@ def add_subcommand_align(subparsers):
 def add_subcommand_bam2emase(subparsers):
     subparser_b2e = subparsers.add_parser('bam2emase')
     subparser_b2e.add_argument('-i', '--bamfile', action='store', dest='alnfile', type=str, required=True)
+    subparser_b2e.add_argument('-m', '--locus-ids', action='store', dest='lidfile', type=str, required=True)
+    subparser_b2e.add_argument('-s', '--haplotype-codes', action='store', dest='haplogypes', type=str, required=True)
     subparser_b2e.add_argument('-o', action='store', dest='outfile', type=str, default=None)
+    subparser_b2e.add_argument('--index-dtype', action='store', dest='index_dtype', type=str, default='uint32')
+    subparser_b2e.add_argument('--data-dtype', action='store', dest='data_dtype', type=str, default='uint8')
     subparser_b2e.set_defaults(func=gbrs.emase_utils.bam2emase)
 
 
