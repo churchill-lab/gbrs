@@ -3,12 +3,9 @@ import sys
 import numpy as np
 import subprocess
 from itertools import dropwhile
+from collections import defaultdict
 import emase
-#from emase.AlignmentMatrixFactory import AlignmentMatrixFactory as AMF
-#from emase.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
-#from emase.EMfactory import EMfactory
-from collections import OrderedDict, defaultdict
-import pysam
+
 
 DATA_DIR = os.getenv('GBRS_DATA', '.')
 
@@ -91,7 +88,7 @@ def bam2emase(**kwargs):
     data_dtype = kwargs.get('data_dtype')
 
     loci = get_names(lidfile)
-    alignmat_factory = AMF(alnfile)
+    alignmat_factory = emase.AlignmentMatrixFactory(alnfile)
     alignmat_factory.prepare(haplotypes, loci, outdir=os.path.dirname(outfile))
     alignmat_factory.produce(outfile, index_dtype=index_dtype, data_dtype=data_dtype)
     alignmat_factory.cleanup()
@@ -116,7 +113,7 @@ def compress(**kwargs):
     ec = dict(ec)
     num_ecs = len(ec)
 
-    alnmat_ec = APM(shape=(alnmat_rd.num_loci, alnmat_rd.num_haplotypes, num_ecs))
+    alnmat_ec = emase.AlignmentPropertyMatrix(shape=(alnmat_rd.num_loci, alnmat_rd.num_haplotypes, num_ecs))
     alnmat_ec.hname = alnmat_rd.hname
     alnmat_ec.lname = alnmat_rd.lname
     alnmat_ec.count = np.zeros(num_ecs)
@@ -158,7 +155,7 @@ def mask(**kwargs):
                 g2t[item[0]] = item[1:]
 
     alnfile = kwargs.get('alnfile')
-    alnmat = APM(h5file=alnfile)
+    alnmat = emase.AlignmentPropertyMatrix(h5file=alnfile)
 
     gtmask = np.zeros((alnmat.num_haplotypes, alnmat.num_loci))
     hid = dict(zip(alnmat.hname, np.arange(alnmat.num_haplotypes)))
@@ -218,8 +215,8 @@ def quantify(**kwargs):
     report_alignment_counts = kwargs.get('report_alignment_counts')
     report_posterior = kwargs.get('report_posterior')
 
-    # Load alignment incidence matrix
-    alnmat = APM(h5file=alnfile, grpfile=grpfile)  # 'alnfile' is assumed to be in multiway transcriptome
+    # Load alignment incidence matrix ('alnfile' is assumed to be in multiway transcriptome)
+    alnmat = emase.AlignmentPropertyMatrix(h5file=alnfile, grpfile=grpfile)
 
     # Load genotype calls
     if gtypefile is not None:  # Genotype calls are at the gene level
@@ -248,7 +245,7 @@ def quantify(**kwargs):
         gtcall_t = None
 
     # Run emase
-    em_factory = EMfactory(alnmat)
+    em_factory = emase.EMfactory(alnmat)
     em_factory.prepare(pseudocount=pseudocount, lenfile=lenfile, read_length=read_length)
     em_factory.run(model=multiread_model, tol=tolerance, max_iters=max_iters, verbose=True)
     em_factory.report_depths(filename="%s.isoforms.tpm" % outbase, tpm=True, notes=gtcall_t)
@@ -259,7 +256,7 @@ def quantify(**kwargs):
         em_factory.report_depths(filename="%s.genes.tpm" % outbase, tpm=True, grp_wise=True, notes=gtcall_g)
         em_factory.report_read_counts(filename="%s.genes.expected_read_counts" % outbase, grp_wise=True, notes=gtcall_g)
     if report_alignment_counts:
-        alnmat = APM(h5file=alnfile, grpfile=grpfile)
+        alnmat = emase.AlignmentPropertyMatrix(h5file=alnfile, grpfile=grpfile)
         alnmat.report_alignment_counts(filename="%s.isoforms.alignment_counts" % outbase)
         if report_gene_counts:
             alnmat._bundle_inline(reset=True)
