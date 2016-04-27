@@ -27,11 +27,14 @@ Or at the command line::
 
     $ easy_install gbrs
 
-**(For DO, CC, or CCRIX)** Make a GBRS_DATA folder, download data files to the folder, and make it visible from your shell. For example,::
+Then, make a folder to store GBRS specific data and set the following environment variable. You may want to add the second line (export) to your shell rc file (e.g., .bashrc or .bash_profile). For example,::
 
-    $ mkdir /home/myspace/gbrs
-    $ cd /home/myspace/gbrs
+    $ mkdir /home/gbrs
+    $ export GBRS_DATA=/home/gbrs
+
+**(For DO, CC, or CCRIX)** Download data files to $GBRS_DATA folder::
+
+    $ cd $GBRS_DATA
     $ wget ftp://churchill-lab.jax.org/pub/software/GBRS/R75-REL1410/\* .
-    $ tar xzf 8-way.bowtie1.index.tar.gz
-    $ export GBRS_DATA=/home/myspace/gbrs
+    $ tar xzf gbrs.hybridized.targets.bowtie-index.tar.gz
 

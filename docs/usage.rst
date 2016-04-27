@@ -27,7 +27,7 @@ If storage space is tight, you may want to delete ${BAM_FILE} or ${EMASE_FILE} a
     gbrs quantify -i ${COMPRESSED_EMASE_FILE} \
                   -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
                   -L ${GBRS_DATA}/gbrs.hybridized.targets.info \
-                  -M 4 --report-counts
+                  -M 4 --report-alignment-counts
 
 Then, we reconstruct the genome based upon gene-level TPM quantities (assuming the sample is a female from the 20th generation Diversity Outbred mice population) ::
 
@@ -42,7 +42,7 @@ We can now quantify allele-specific expressions on diploid transcriptome::
                   -G gbrs.reconstructed.genotypes.tsv \
                   -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
                   -L ${GBRS_DATA}/gbrs.hybridized.targets.info \
-                  -M 4 --report-counts
+                  -M 4 --report-alignment-counts
 
 Genotype probabilities are on a grid of genes. For eQTL mapping or plotting genome reconstruction, we may want to interpolate probability on a grid at the genome scale.::
 

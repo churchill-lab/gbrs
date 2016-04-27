@@ -45,9 +45,8 @@ def hybridize(**kwargs):
     lenout = open(lenfile, 'w')
     for hid in xrange(num_haps):
         fasta = fastalist[hid]
-        # fastaname = os.path.splitext(os.path.basename(fasta))[0]
         hapname = haplist[hid]
-        print >> sys.stderr, "Adding suffix \'_%s\' to the sequence ID's of %s..." % (hapname, fasta)
+        print >> sys.stderr, "[gbrs::hybridize] Adding suffix \'_%s\' to the sequence ID's of %s..." % (hapname, fasta)
         fh = open(fasta)
         curline = fh.next()  # The first fasta header
         curline = curline.rstrip().split()[0] + '_' + hapname
@@ -71,7 +70,7 @@ def hybridize(**kwargs):
     build_bowtie_index = kwargs.get('build_bowtie_index')
     if build_bowtie_index:
         out_index = outbase + '.bowtie1'
-        print >> sys.stderr, "Building bowtie1 index..."
+        print >> sys.stderr, "[gbrs::hybridize] Building bowtie1 index..."
         status = subprocess.call("bowtie-build %s %s" % (outfile, out_index), shell=True)
 
 
@@ -79,9 +78,20 @@ def align(**kwargs):
     raise NotImplementedError
 
 
+def intersect(**kwargs):
+    raise NotImplementedError
+
+
 def bam2emase(**kwargs):
     alnfile = kwargs.get('alnfile')
     lidfile = kwargs.get('lidfile')
+    if lidfile is None:
+        lidfile2chk = os.path.join(DATA_DIR, 'ref.transcripts.info')
+        if os.path.exists(lidfile2chk):
+            lidfile = lidfile2chk
+        else:
+            print >> sys.stderr, '[gbrs::bam2emase] Cannot find a locus id file.'
+            return 2
     outfile = kwargs.get('outfile')
     if outfile is None:
         outfile = 'gbrs.bam2emased.' + os.path.splitext(os.path.basename(alnfile))[0] + '.h5'
@@ -139,7 +149,7 @@ def mask(**kwargs):
     Applying genotype calls to multi-way alignment incidence matrix
 
     :param alnfile: alignment incidence file (h5),
-    :param gtypefile: genotype calls by GBRS (npz),
+    :param gtypefile: genotype calls by GBRS (tsv),
     :param grpfile: gene ID to isoform ID mapping info (tsv)
     :return: masked version of alignment incidence file (h5)
     """
@@ -150,36 +160,41 @@ def mask(**kwargs):
     gtype_chr = np.load(gtypefile)
 
     grpfile = kwargs.get('grpfile')
-    if grpfile is not None:
-        g2t = dict()
-        with open(grpfile) as fh:
-            for curline in fh:
-                item = curline.rstrip().split()
-                g2t[item[0]] = item[1:]
+    if grpfile is None:
+        grpfile2chk = os.path.join(DATA_DIR, 'ref.gene2transcripts.tsv')
+        if os.path.exists(grpfile2chk):
+            grpfile = grpfile2chk
+        else:
+            print >> sys.stderr, '[gbrs::mask] A group file is not given. Genotype masking will be performed as is.'
 
+    # Load alignment incidence matrix ('alnfile' is assumed to be in multiway transcriptome)
     alnfile = kwargs.get('alnfile')
-    alnmat = emase.AlignmentPropertyMatrix(h5file=alnfile)
+    alnmat = emase.AlignmentPropertyMatrix(h5file=alnfile, grpfile=grpfile)
 
-    gtmask = np.zeros((alnmat.num_haplotypes, alnmat.num_loci))
+    # Load genotype calls
     hid = dict(zip(alnmat.hname, np.arange(alnmat.num_haplotypes)))
-    lid = dict(zip(alnmat.lname, np.arange(alnmat.num_loci)))
-    if grpfile is not None:
-        for chro in gtype_chr.keys():
-            gtype = gtype_chr[chro]
-            gname = gname_chr[chro]
-            for gid, g in enumerate(gname):
-                gt = gtype[gid]
+    gid = dict(zip(alnmat.gname, np.arange(len(alnmat.gname))))
+    gtmask = np.zeros((alnmat.num_haplotypes, alnmat.num_loci))
+    gtcall_g = dict.fromkeys(alnmat.gname)
+    with open(gtypefile) as fh:
+        if grpfile is not None:
+            gtcall_t = dict.fromkeys(alnmat.lname)
+            for curline in dropwhile(is_comment, fh):
+                item = curline.rstrip().split("\t")
+                g, gt = item[:2]
+                gtcall_g[g] = gt
                 hid2set = np.array([hid[gt[0]], hid[gt[1]]])
-                tid2set = np.array([lid[t] for t in g2t[g]])
+                tid2set = np.array(alnmat.groups[gid[g]])
                 gtmask[np.meshgrid(hid2set, tid2set)] = 1.0
-    else:
-        for chro in gtype_chr.keys():
-            gtype = gtype_chr[chro]
-            gname = gname_chr[chro]
-            for gid, g in enumerate(gname):
-                gt = gtype[gid]
+                for t in tid2set:
+                    gtcall_t[alnmat.lname[t]] = gt
+        else:
+            for curline in dropwhile(is_comment, fh):
+                item = curline.rstrip().split("\t")
+                g, gt = item[:2]
+                gtcall_g[g] = gt
                 hid2set = np.array([hid[gt[0]], hid[gt[1]]])
-                gtmask[np.meshgrid(hid2set, lid[g])] = 1.0
+                gtmask[np.meshgrid(hid2set, gid[g])] = 1.0
 
     alnmat.multiply(gtmask, axis=2)
     for h in xrange(alnmat.num_haplotypes):
@@ -208,15 +223,29 @@ def quantify(**kwargs):
     """
     alnfile = kwargs.get('alnfile')
     grpfile = kwargs.get('grpfile')
+    if grpfile is None:
+        grpfile2chk = os.path.join(DATA_DIR, 'ref.gene2transcripts.tsv')
+        if os.path.exists(grpfile2chk):
+            grpfile = grpfile2chk
+        else:
+            print >> sys.stderr, '[gbrs::quantify] A group file is not given. Group-level results will not be reported.'
+
     outbase = kwargs.get('outbase')
     gtypefile = kwargs.get('gtypefile')
     pseudocount = kwargs.get('pseudocount')
     lenfile = kwargs.get('lenfile')
+    if lenfile is None:
+        lenfile2chk = os.path.join(DATA_DIR, 'gbrs.hybridized.targets.info')
+        if os.path.exists(lenfile2chk):
+            lenfile = lenfile2chk
+        else:
+            print >> sys.stderr, '[gbrs::quantify] A length file is not given. Transcript length adjustment will *not* be performed.'
+
     read_length = kwargs.get('read_length')
     multiread_model = kwargs.get('multiread_model')
     tolerance = kwargs.get('tolerance')
     max_iters = kwargs.get('max_iters')
-    report_gene_counts = grpfile is not None
+    report_group_counts = grpfile is not None  # If grpfile exist, always report groupwise results too
     report_alignment_counts = kwargs.get('report_alignment_counts')
     report_posterior = kwargs.get('report_posterior')
 
@@ -257,12 +286,12 @@ def quantify(**kwargs):
     em_factory.report_read_counts(filename="%s.isoforms.expected_read_counts" % outbase, notes=gtcall_t)
     if report_posterior:
         em_factory.export_posterior_probability(filename="%s.posterior.h5" % outbase)
-    if report_gene_counts:
+    if report_group_counts:
         em_factory.report_depths(filename="%s.genes.tpm" % outbase, tpm=True, grp_wise=True, notes=gtcall_g)
         em_factory.report_read_counts(filename="%s.genes.expected_read_counts" % outbase, grp_wise=True, notes=gtcall_g)
     if report_alignment_counts:
         alnmat = emase.AlignmentPropertyMatrix(h5file=alnfile, grpfile=grpfile)
         alnmat.report_alignment_counts(filename="%s.isoforms.alignment_counts" % outbase)
-        if report_gene_counts:
+        if report_group_counts:
             alnmat._bundle_inline(reset=True)
             alnmat.report_alignment_counts(filename="%s.genes.alignment_counts" % outbase)

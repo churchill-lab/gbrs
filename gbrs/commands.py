@@ -12,23 +12,23 @@ import matplotlib.pyplot as pyplot
 DATA_DIR = os.getenv('GBRS_DATA', '.')
 
 
-def get_chromosome_info():
+def get_chromosome_info(caller='gbrs'):
     faifile = os.path.join(DATA_DIR, 'ref.fa.fai')
     try:
         chrlens = OrderedDict(np.loadtxt(faifile, usecols=(0, 1), dtype='|S8,<i4'))
     except:
-        print >> sys.stderr, "Please make sure if $GBRS_DATA is set correctly. Currently it is %s" % DATA_DIR
+        print >> sys.stderr, "[%s] Make sure if $GBRS_DATA is set correctly. Currently it is %s" % (caller, DATA_DIR)
         raise
     else:
         return chrlens
 
 
-def get_founder_info():
+def get_founder_info(caller='gbrs'):
     fcofile = os.path.join(DATA_DIR, 'founder.hexcolor.info')
     try:
         fcolors = OrderedDict(np.loadtxt(fcofile, usecols=(0, 1), dtype='string', delimiter='\t', comments=None))
     except:
-        print >> sys.stderr, "Please make sure if $GBRS_DATA is set correctly. Currently it is %s" % DATA_DIR
+        print >> sys.stderr, "[%s] Make sure if $GBRS_DATA is set correctly. Currently it is %s" % (caller, DATA_DIR)
         raise
     else:
         return fcolors
@@ -58,7 +58,7 @@ def get_genotype_probability(aln_profile, aln_specificity, sigma=0.12):
 
 
 def reconstruct(**kwargs):
-    chrlens = get_chromosome_info()
+    chrlens = get_chromosome_info(caller='gbrs::reconstruct')
     chrs = chrlens.keys()
 
     avecfile = kwargs.get('avecfile')
@@ -197,7 +197,7 @@ def reconstruct(**kwargs):
 
 
 def interpolate(**kwargs):
-    chrlens = get_chromosome_info()
+    chrlens = get_chromosome_info(caller='gbrs::interpolate')
     chrs = chrlens.keys()
 
     probfile = kwargs.get('probfile')
@@ -208,7 +208,7 @@ def interpolate(**kwargs):
         try:
             x_gene = np.load(gposfile)
         except:
-            print >> sys.stderr, "Please make sure if $GBRS_DATA is set correctly: %s" % DATA_DIR
+            print >> sys.stderr, "[gbrs::interpolate] Please make sure if $GBRS_DATA is set correctly: %s" % DATA_DIR
             raise
         else:
             pass
@@ -254,8 +254,12 @@ def interpolate(**kwargs):
     np.savez_compressed(outfile, **gene_intrp_chr)
 
 
+def combine(**kwargs):
+    raise NotImplementedError
+
+
 def plot(**kwargs):
-    chrlens = get_chromosome_info()
+    chrlens = get_chromosome_info(caller='gbrs::plot')
     chrs = chrlens.keys()
     num_chrs = len(chrs)
 
@@ -270,7 +274,7 @@ def plot(**kwargs):
     xt_size = kwargs.get('xt_size')
     width = kwargs.get('width')
 
-    hcolors = get_founder_info()
+    hcolors = get_founder_info(caller='gbrs::plot')
     haplotypes = hcolors.keys()
     hid = dict(zip(haplotypes, np.arange(8)))
     genotypes = np.array([h1+h2 for h1, h2 in combinations_with_replacement(haplotypes, 2)])
