@@ -153,12 +153,8 @@ def stencil(**kwargs):
     :param grpfile: gene ID to isoform ID mapping info (tsv)
     :return: genotyped version of alignment incidence file (h5)
     """
-    gidfile = os.path.join(DATA_DIR, 'ref.gene_ids.ordered.npz')
-    gname_chr = np.load(gidfile)
-
+    alnfile = kwargs.get('alnfile')
     gtypefile = kwargs.get('gtypefile')
-    gtype_chr = np.load(gtypefile)
-
     grpfile = kwargs.get('grpfile')
     if grpfile is None:
         grpfile2chk = os.path.join(DATA_DIR, 'ref.gene2transcripts.tsv')
@@ -168,7 +164,6 @@ def stencil(**kwargs):
             print >> sys.stderr, '[gbrs::stencil] A group file is *not* given. Genotype will be stenciled as is.'
 
     # Load alignment incidence matrix ('alnfile' is assumed to be in multiway transcriptome)
-    alnfile = kwargs.get('alnfile')
     alnmat = emase.AlignmentPropertyMatrix(h5file=alnfile, grpfile=grpfile)
 
     # Load genotype calls
