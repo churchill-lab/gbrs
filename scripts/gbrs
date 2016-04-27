@@ -95,15 +95,15 @@ def add_subcommand_quantify(subparsers):
 
 
 #
-# Subcommand: mask
+# Subcommand: stencil
 #
-def add_subcommand_mask(subparsers):
-    subparser_mask = subparsers.add_parser('mask')
-    subparser_mask.add_argument('-i', action='store', dest='alnfile', type=str, required=True)
-    subparser_mask.add_argument('-G', '--genotype', action='store', dest='gtypefile', type=str, required=True)
-    subparser_mask.add_argument('-g', action='store', dest='grpfile', type=str, default=None)
-    subparser_mask.add_argument('-o', action='store', dest='outfile', type=str, default=None)
-    subparser_mask.set_defaults(func=gbrs.emase_utils.mask)
+def add_subcommand_stencil(subparsers):
+    subparser_stenc = subparsers.add_parser('stencil')
+    subparser_stenc.add_argument('-i', action='store', dest='alnfile', type=str, required=True)
+    subparser_stenc.add_argument('-G', '--genotype', action='store', dest='gtypefile', type=str, required=True)
+    subparser_stenc.add_argument('-g', action='store', dest='grpfile', type=str, default=None)
+    subparser_stenc.add_argument('-o', action='store', dest='outfile', type=str, default=None)
+    subparser_stenc.set_defaults(func=gbrs.emase_utils.stencil)
 
 
 #
@@ -177,7 +177,7 @@ def main():
     add_subcommand_compress(subparsers)
     add_subcommand_quantify(subparsers)
     add_subcommand_reconstruct(subparsers)
-    add_subcommand_mask(subparsers)
+    add_subcommand_stencil(subparsers)
     add_subcommand_interpolate(subparsers)
     add_subcommand_combine(subparsers)
     add_subcommand_plot(subparsers)

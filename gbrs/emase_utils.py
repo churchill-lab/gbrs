@@ -144,14 +144,14 @@ def compress(**kwargs):
     alnmat_ec.save(h5file=outfile)
 
 
-def mask(**kwargs):
+def stencil(**kwargs):
     """
     Applying genotype calls to multi-way alignment incidence matrix
 
     :param alnfile: alignment incidence file (h5),
     :param gtypefile: genotype calls by GBRS (tsv),
     :param grpfile: gene ID to isoform ID mapping info (tsv)
-    :return: masked version of alignment incidence file (h5)
+    :return: genotyped version of alignment incidence file (h5)
     """
     gidfile = os.path.join(DATA_DIR, 'ref.gene_ids.ordered.npz')
     gname_chr = np.load(gidfile)
@@ -165,7 +165,7 @@ def mask(**kwargs):
         if os.path.exists(grpfile2chk):
             grpfile = grpfile2chk
         else:
-            print >> sys.stderr, '[gbrs::mask] A group file is not given. Genotype masking will be performed as is.'
+            print >> sys.stderr, '[gbrs::stencil] A group file is *not* given. Genotype will be stenciled as is.'
 
     # Load alignment incidence matrix ('alnfile' is assumed to be in multiway transcriptome)
     alnfile = kwargs.get('alnfile')
@@ -183,7 +183,7 @@ def mask(**kwargs):
                 item = curline.rstrip().split("\t")
                 g, gt = item[:2]
                 gtcall_g[g] = gt
-                hid2set = np.array([hid[gt[0]], hid[gt[1]]])
+                hid2set = np.array([hid[c] for c in gt])
                 tid2set = np.array(alnmat.groups[gid[g]])
                 gtmask[np.meshgrid(hid2set, tid2set)] = 1.0
                 for t in tid2set:
@@ -193,7 +193,7 @@ def mask(**kwargs):
                 item = curline.rstrip().split("\t")
                 g, gt = item[:2]
                 gtcall_g[g] = gt
-                hid2set = np.array([hid[gt[0]], hid[gt[1]]])
+                hid2set = np.array([hid[c] for c in gt])
                 gtmask[np.meshgrid(hid2set, gid[g])] = 1.0
 
     alnmat.multiply(gtmask, axis=2)
@@ -201,7 +201,7 @@ def mask(**kwargs):
         alnmat.data[h].eliminate_zeros()
     outfile = kwargs.get('outfile')
     if outfile is None:
-        outfile = 'gbrs.masked.' + os.path.basename(alnfile)
+        outfile = 'gbrs.stenciled.' + os.path.basename(alnfile)
     alnmat.save(h5file=outfile)
 
 
@@ -265,7 +265,7 @@ def quantify(**kwargs):
                 item = curline.rstrip().split("\t")
                 g, gt = item[:2]
                 gtcall_g[g] = gt
-                hid2set = np.array([hid[gt[0]], hid[gt[1]]])
+                hid2set = np.array([hid[c] for c in gt])
                 tid2set = np.array(alnmat.groups[gid[g]])
                 gtmask[np.meshgrid(hid2set, tid2set)] = 1.0
                 for t in tid2set:
