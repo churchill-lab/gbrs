@@ -26,7 +26,7 @@ We can compress EMASE format alignment incidence matrix::
     gbrs compress -i ${EMASE_FILE} \
                   -o ${COMPRESSED_EMASE_FILE}
 
-If storage space is tight, you may want to delete ${BAM_FILE} or ${EMASE_FILE} at this point since ${COMPRESSED_EMASE_FILE} has all the information the following steps need. Now we are ready to quantify multiway allele specificity::
+If storage space is tight, you may want to delete ${BAM_FILE} or ${EMASE_FILE} at this point since ${COMPRESSED_EMASE_FILE} has all the information the following steps would need. Now we are ready to quantify multiway allele specificity::
 
     gbrs quantify -i ${COMPRESSED_EMASE_FILE} \
                   -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
@@ -48,7 +48,7 @@ We can now quantify allele-specific expressions on diploid transcriptome::
                   -L ${GBRS_DATA}/gbrs.hybridized.targets.info \
                   -M 4 --report-alignment-counts
 
-Genotype probabilities are on a grid of genes. For eQTL mapping or plotting genome reconstruction, we may want to interpolate probability on a grid at the genome scale.::
+Genotype probabilities are on a grid of genes. For eQTL mapping or plotting genome reconstruction, we may want to interpolate probability on a decently-spaced grid of the reference genome.::
 
     gbrs interpolate -i gbrs.reconstructed.genoprobs.npz \
                      -g ${GBRS_DATA}/ref.genome_grid.64k.txt \
