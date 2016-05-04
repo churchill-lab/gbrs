@@ -5,11 +5,11 @@ Usage
 To use GBRS in command line
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-First of all, you have to load GBRS virtual environment. For example, if you installed it using conda virtual environment, you should do::
+**Note:** We will assume you installed GBRS in its own conda virtual environment. First of all, you have to "activate" the virtual environment by doing the following::
 
     source activate gbrs
 
-Next we need to align our RNA-Seq reads against pooled transcriptome of all founder strains::
+The first step is to align our RNA-Seq reads against pooled transcriptome of all founder strains::
 
     bowtie -q -a --best --strata --sam -v 3 ${GBRS_DIR}/bowtie.transcriptome ${FASTQ} \
         | samtools view -bS - > ${BAM_FILE}
