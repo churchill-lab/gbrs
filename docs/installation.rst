@@ -4,19 +4,11 @@
 Installation
 ============
 
-We recommend using conda virtual enviroment::
+To avoid conflicts among dependencies, we highly recommend using conda virtual environment::
 
-    $ git clone https://github.com/churchill-lab/gbrs.git
-    $ cd gbrs
-    $ conda create -n gbrs jupyter scipy=0.13.3 cython matplotlib biopython
+    $ conda create -n gbrs jupyter
     $ source activate gbrs
-    (gbrs) $ conda install pytables=3.1.0
-    (gbrs) $ conda install -c https://conda.binstar.org/bcbio pysam
-    (gbrs) $ pip install pysqlite
-    (gbrs) $ pip install bx-python
-    (gbrs) $ pip install emase
-    (gbrs) $ pip install g2gtools
-    (gbrs) $ python setup.py install
+    (gbrs) $ conda install -c kbchoi gbrs
 
 Or if you have virtualenvwrapper installed::
 

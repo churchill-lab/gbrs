@@ -18,22 +18,23 @@ with open('HISTORY.rst') as history_file:
 requirements = []
 on_rtd = os.environ.get('READTHEDOCS', None)
 if not on_rtd:
-    requirements.append('matplotlib')
+    requirements.append('g2gtools')
     requirements.append('emase')
+    requirements.append('matplotlib')
     requirements.append('bx-python>=0.7.2')
     requirements.append('pysam>=0.8.1')
     requirements.append('biopython>=1.63')
     requirements.append('pysqlite>=2.6.3')
-    requirements.append('tables==3.1.0')
+    requirements.append('tables>=3.1.0')
 
 test_requirements = [
-    # TODO: put package test requirements here
+    'pytest'
 ]
 
 setup(
     name='gbrs',
     version=gbrs.__version__,
-    description='A suite of tools for Genome Reconstruction and Allele Specific Expression',
+    description='A suite of tools for Reconstructing Genomes and Quantifying Allele Specific Expression from RNA-Seq data',
     long_description=readme + '\n\n' + history,
     author='Kwangbom \"KB\" Choi, Ph.D.',
     author_email='kb.choi@jax.org',
@@ -53,8 +54,6 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Natural Language :: English',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
     ],
     scripts=['scripts/gbrs'],
