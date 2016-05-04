@@ -8,8 +8,8 @@ GBRS
 .. image:: https://anaconda.org/kbchoi/gbrs/badges/version.svg
     :target: https://anaconda.org/kbchoi/gbrs
 
-.. image:: https://img.shields.io/travis/kbchoi-jax/gbrs.svg
-        :target: https://travis-ci.org/kbchoi-jax/gbrs
+.. image:: https://travis-ci.org/churchill-lab/gbrs.svg?branch=master
+    :target: https://travis-ci.org/churchill-lab/gbrs
 
 .. image:: https://readthedocs.org/projects/gbrs/badge/?version=latest
         :target: https://readthedocs.org/projects/gbrs/?badge=latest
