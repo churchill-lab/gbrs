@@ -72,11 +72,19 @@ def reconstruct(**kwargs):
     if gidfile is None:
         gidfile = os.path.join(DATA_DIR, 'ref.gene_ids.ordered.npz')
 
+    outbase = kwargs.get('outbase')
+    if outbase is None:
+        out_gtype = 'gbrs.reconstructed.genotypes.tsv'
+        out_gprob = 'gbrs.reconstructed.genoprobs.npz'
+    else:
+        out_gtype = outbase + '.genotypes.tsv'
+        out_gprob = outbase + '.genoprobs.npz'
+    out_gtype_ordered = os.path.splitext(out_gtype)[0] + '.npz'
+
     tprobfile = kwargs.get('tprobfile')
     exprfile = kwargs.get('exprfile')
     expr_threshold = kwargs.get('expr_threshold')
     sigma = kwargs.get('sigma')
-    outdir = kwargs.get('outdir')
 
     # Load meta info and alignment specificity
     gid_genome_order = np.load(gidfile)
@@ -163,7 +171,7 @@ def reconstruct(**kwargs):
             gamma_c = np.exp(alpha[c] + beta[c])
             normalizer = gamma_c.sum(axis=0)
             gamma[c] = gamma_c / normalizer
-    np.savez_compressed(os.path.join(outdir, 'gbrs.reconstructed.genoprobs.npz'), **gamma)
+    np.savez_compressed(out_gprob, **gamma)
 
     # Run Viterbi
     delta = dict()
@@ -192,8 +200,8 @@ def reconstruct(**kwargs):
                 gtcall_g[gid_genome_order_c[i]] = genotypes[sid]
             viterbi_states[c].reverse()
     viterbi_states = dict(viterbi_states)
-    np.savez_compressed(os.path.join(outdir, 'gbrs.reconstructed.genotypes.npz'), **viterbi_states)
-    with open(os.path.join(outdir, 'gbrs.reconstructed.genotypes.tsv'), 'w') as fhout:
+    np.savez_compressed(out_gtype_ordered, **viterbi_states)
+    with open(out_gtype, 'w') as fhout:
         fhout.write('#Gene_ID\tDiplotype\n')
         for g in sorted(gtcall_g.keys()):
             fhout.write('%s\t%s\n' % (g, gtcall_g[g]))
