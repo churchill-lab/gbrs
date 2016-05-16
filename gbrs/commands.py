@@ -35,7 +35,10 @@ def get_founder_info(caller='gbrs'):
 
 
 def unit_vector(vector):
-    return vector / np.linalg.norm(vector)
+    if sum(vector) > 1e-6:
+        return vector / np.linalg.norm(vector)
+    else:
+        return vector
 
 
 def get_genotype_probability(aln_profile, aln_specificity, sigma=0.12):
