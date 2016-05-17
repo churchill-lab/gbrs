@@ -26,7 +26,12 @@ We can compress EMASE format alignment incidence matrix::
     gbrs compress -i ${EMASE_FILE} \
                   -o ${COMPRESSED_EMASE_FILE}
 
-If storage space is tight, you may want to delete ${BAM_FILE} or ${EMASE_FILE} at this point since ${COMPRESSED_EMASE_FILE} has all the information the following steps would need. Now we are ready to quantify multiway allele specificity::
+If storage space is tight, you may want to delete ${BAM_FILE} or ${EMASE_FILE} at this point since ${COMPRESSED_EMASE_FILE} has all the information the following steps would need. If you want to merge emase format files in order to, for example, pool technical replicates, you run 'compress' once more listing files you want to merge with commas::
+
+    gbrs compress -i ${COMPRESSED_EMASE_FILE1},${COMPRESSED_EMASE_FILE2},... \
+                  -o ${MERGED_COMPRESSED_EMASE_FILE}
+
+and use ${MERGED_COMPRESSED_EMASE_FILE} in the following steps. Now we are ready to quantify multiway allele specificity::
 
     gbrs quantify -i ${COMPRESSED_EMASE_FILE} \
                   -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
