@@ -5,8 +5,8 @@ History
 0.1.5 (05/04/2016)
 ~~~~~~~~~~~~~~~~~~
 
-* ``merge`` subcommand merges compressed emase files
-* ``intersect`` subcommand combines
+* ``compress`` subcommand also merges emase files
+* Added ``intersect`` subcommand to combine each of paired-end emase files
 * Added internal utility methods for computing emission and transition probabilities
 
 0.1.4 (05/04/2016)
