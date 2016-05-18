@@ -18,6 +18,7 @@ with open('HISTORY.rst') as history_file:
 requirements = []
 on_rtd = os.environ.get('READTHEDOCS', None)
 if not on_rtd:
+    # requirements.append('numpy==1.8.2')
     requirements.append('g2gtools')
     requirements.append('emase')
     requirements.append('matplotlib')
@@ -56,7 +57,9 @@ setup(
         'Natural Language :: English',
         'Programming Language :: Python :: 2.7',
     ],
-    scripts=['scripts/gbrs'],
+    scripts=['scripts/gbrs',
+             'scripts/convert-kallisto-result-for-gbrs',
+             'scripts/convert-salmon-result-for-gbrs'],
     test_suite='tests',
     tests_require=test_requirements
 )
