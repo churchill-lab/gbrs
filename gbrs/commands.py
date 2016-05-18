@@ -64,11 +64,6 @@ def reconstruct(**kwargs):
     chrlens = get_chromosome_info(caller='gbrs::reconstruct')
     chrs = chrlens.keys()
 
-    avecfile = kwargs.get('avecfile')
-    if avecfile is None:
-        avecfile = os.path.join(DATA_DIR, 'avecs.npz')
-    avecs = np.load(avecfile)
-
     outbase = kwargs.get('outbase')
     if outbase is None:
         out_gtype = 'gbrs.reconstructed.genotypes.tsv'
@@ -83,7 +78,13 @@ def reconstruct(**kwargs):
     expr_threshold = kwargs.get('expr_threshold')
     sigma = kwargs.get('sigma')
 
-    # Load meta info and alignment specificity
+    # Load alignment specificity
+    avecfile = kwargs.get('avecfile')
+    if avecfile is None:
+        avecfile = os.path.join(DATA_DIR, 'avecs.npz')
+    avecs = np.load(avecfile)
+
+    # Load meta info
     gposfile = kwargs.get('gposfile')
     if gposfile is None:
         gposfile = os.path.join(DATA_DIR, 'ref.gene_pos.ordered.npz')
