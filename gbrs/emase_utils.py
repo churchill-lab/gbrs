@@ -78,10 +78,6 @@ def align(**kwargs):
     raise NotImplementedError
 
 
-def intersect(**kwargs):
-    raise NotImplementedError
-
-
 def bam2emase(**kwargs):
     alnfile = kwargs.get('alnfile')
     lidfile = kwargs.get('lidfile')
@@ -107,27 +103,44 @@ def bam2emase(**kwargs):
     alignmat_factory.cleanup()
 
 
-def compress(**kwargs):
-    alnfile = kwargs.get('alnfile')
+def intersect(**kwargs):
+    flist = kwargs.get('emasefiles').split(',')
     outfile = kwargs.get('outfile')
     if outfile is None:
-        outfile = 'gbrs.compressed.' + os.path.basename(alnfile)
+        outfile = 'gbrs.intersected.' + os.path.basename(flist[0])
+    complib = kwargs.get('complib')
+    alnmat = emase.AlignmentPropertyMatrix(h5file=flist[0])
+    for f in flist[1:]:
+        alnmat_next = emase.AlignmentPropertyMatrix(h5file=f)
+        if np.all(alnmat.rname == alnmat_next.rname):
+            alnmat = alnmat * alnmat_next
+        else:
+            print >> sys.stderr, "[gbrs::intersect] The read ID's are not compatible."
+            return 2
+    alnmat.save(h5file=outfile, complib=complib)
 
-    alnmat_rd = emase.AlignmentPropertyMatrix(h5file=alnfile)
-    for h in xrange(alnmat_rd.num_haplotypes):
-        alnmat_rd.data[h] = alnmat_rd.data[h].tocsr()
+
+def compress(**kwargs):
+    flist = kwargs.get('emasefiles').split(',')
+    outfile = kwargs.get('outfile')
+    complib = kwargs.get('complib')
 
     ec = defaultdict(int)
-    for curind in xrange(alnmat_rd.num_reads):
-        ec_key = []
+    for alnfile in flist:
+        alnmat_rd = emase.AlignmentPropertyMatrix(h5file=alnfile)
         for h in xrange(alnmat_rd.num_haplotypes):
-            i0 = alnmat_rd.data[h].indptr[curind]
-            i1 = alnmat_rd.data[h].indptr[curind+1]
-            ec_key.append(','.join(map(str, sorted(alnmat_rd.data[h].indices[i0:i1]))))
-        ec[':'.join(ec_key)] += 1
+            alnmat_rd.data[h] = alnmat_rd.data[h].tocsr()
+        if alnmat_rd.count is None:
+            alnmat_rd.count = np.ones(alnmat_rd.num_reads)
+        for curind in xrange(alnmat_rd.num_reads):
+            ec_key = []
+            for h in xrange(alnmat_rd.num_haplotypes):
+                i0 = alnmat_rd.data[h].indptr[curind]
+                i1 = alnmat_rd.data[h].indptr[curind+1]
+                ec_key.append(','.join(map(str, sorted(alnmat_rd.data[h].indices[i0:i1]))))
+            ec[':'.join(ec_key)] += alnmat_rd.count[curind]
     ec = dict(ec)
     num_ecs = len(ec)
-
     alnmat_ec = emase.AlignmentPropertyMatrix(shape=(alnmat_rd.num_loci, alnmat_rd.num_haplotypes, num_ecs))
     alnmat_ec.hname = alnmat_rd.hname
     alnmat_ec.lname = alnmat_rd.lname
@@ -141,7 +154,7 @@ def compress(**kwargs):
                 nzinds = np.array(map(np.int, nzlocs_h.split(',')))
                 alnmat_ec.data[h][row_id, nzinds] = 1
     alnmat_ec.finalize()
-    alnmat_ec.save(h5file=outfile)
+    alnmat_ec.save(h5file=outfile, complib=complib)
 
 
 def stencil(**kwargs):
