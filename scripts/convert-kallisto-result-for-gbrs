@@ -34,7 +34,7 @@ def main(args, loglevel):
     logging.info("Getting suffices for strains...")
     strains = args.strains.split(',')
     num_strains = len(strains)
-    hid = dict(zip(args.strains, np.arange(num_strains)))
+    hid = dict(zip(strains, np.arange(num_strains)))
 
     logging.info("Processing group file")
     if args.grpfile is None:
