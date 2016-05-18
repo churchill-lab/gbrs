@@ -10,6 +10,7 @@ import numpy as np
 
 DATA_DIR = os.getenv('GBRS_DATA', '.')
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", '--quant-file', action='store', dest='quantfile', type=str, required=True)
@@ -36,7 +37,7 @@ def main(args, loglevel):
     num_strains = len(strains)
     hid = dict(zip(strains, np.arange(num_strains)))
 
-    logging.info("Processing group file")
+    logging.info("Processing group file...")
     if args.grpfile is None:
         grpfile = os.path.join(DATA_DIR, 'ref.gene2transcripts.tsv')
     else:
@@ -66,7 +67,7 @@ def main(args, loglevel):
             tmat[tid[t], hid[h]] = float(item[4])
     tmat = np.column_stack((tmat, tmat.sum(axis=1)))
 
-    logging.info("Exporting to GBRS quant format")
+    logging.info("Exporting to GBRS quant format...")
     if args.outbase is None:
         outbase = 'kallisto.abundance'
     else:
@@ -80,6 +81,8 @@ def main(args, loglevel):
     gheader = "\t".join(["Gene_ID"] + strains + ["Total"])
     np.savetxt(goutfile, np.column_stack((gname, np.char.mod('%f', gmat))), \
                header=gheader, fmt='%s', delimiter='\t')
+
+    logging.info("DONE")
 
 if __name__ == '__main__':
     arguments = parse_args()
