@@ -67,10 +67,7 @@ def reconstruct(**kwargs):
     avecfile = kwargs.get('avecfile')
     if avecfile is None:
         avecfile = os.path.join(DATA_DIR, 'avecs.npz')
-
-    gidfile = kwargs.get('gidfile')
-    if gidfile is None:
-        gidfile = os.path.join(DATA_DIR, 'ref.gene_ids.ordered.npz')
+    avecs = np.load(avecfile)
 
     outbase = kwargs.get('outbase')
     if outbase is None:
@@ -87,8 +84,13 @@ def reconstruct(**kwargs):
     sigma = kwargs.get('sigma')
 
     # Load meta info and alignment specificity
-    gid_genome_order = np.load(gidfile)
-    avecs = np.load(avecfile)
+    gposfile = kwargs.get('gposfile')
+    if gposfile is None:
+        gposfile = os.path.join(DATA_DIR, 'ref.gene_pos.ordered.npz')
+    gene_pos = np.load(gposfile)
+    gid_genome_order = dict.fromkeys(gene_pos.files)
+    for c in gene_pos.files:
+        gid_genome_order[c] = np.array([g for g, p in gene_pos[c]])
 
     # Load expression level
     expr = dict()
