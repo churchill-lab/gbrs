@@ -14,11 +14,11 @@ To avoid conflicts among dependencies, we highly recommend using conda virtual e
     $ conda create -n gbrs jupyter
     $ source activate gbrs
 
-Once GBRS virtual environment is activated, your shell prompt will show '(gbrs)' at the beginning to specify what virtual environment you are currently in. Now please type the following and install GBRS::
+Once GBRS virtual environment is created and activated, your shell prompt will show '(gbrs)' at the beginning to specify what virtual environment you are currently in. Now please type the following and install GBRS::
 
     (gbrs) $ conda install -c kbchoi gbrs
 
-Then, make a folder to store GBRS specific data and set the following environment variable. You may want to add the second line (export) to your shell rc file (e.g., .bashrc or .bash_profile). For example,::
+Then, make a folder to store GBRS specific data and set the following environment variable. You may want to add the second line (export command) to your shell rc file (e.g., .bashrc or .bash_profile). For example, ::
 
     $ mkdir /home/<user>/gbrs
     $ export GBRS_DATA=/home/<user>/gbrs

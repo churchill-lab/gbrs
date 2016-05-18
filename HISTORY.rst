@@ -6,8 +6,7 @@ History
 ~~~~~~~~~~~~~~~~~~
 
 * ``compress`` subcommand also merges emase files
-* Added ``intersect`` subcommand to combine each of paired-end emase files
-* Added internal utility methods for computing emission and transition probabilities
+* ``reconstruct`` does not require ``ref.gene_ids.ordered.npz`` file anymore
 
 0.1.4 (05/04/2016)
 ~~~~~~~~~~~~~~~~~~
