@@ -23,7 +23,7 @@ def parse_args():
 
 def main(args, loglevel):
 
-    logging.basicConfig(format="gbrs %(levelname)s: %(message)s", level=loglevel)
+    logging.basicConfig(format="[gbrs::%(levelname)s] %(message)s", level=loglevel)
     logging.debug("Conversion requested: %s" % args.quantfile)
 
     logging.info("Reading in transcript IDs...")
@@ -73,12 +73,12 @@ def main(args, loglevel):
         outbase = args.outbase
     toutfile = outbase + ".isoforms"
     theader = "\t".join(["Transcript_ID"] + strains + ["Total"])
-    np.savetxt(toutfile, np.column_stack((tname, np.char.mod('%d', tmat))), \
+    np.savetxt(toutfile, np.column_stack((tname, np.char.mod('%f', tmat))), \
                header=theader, fmt='%s', delimiter='\t')
     gmat = grp_conv_mat.transpose() * tmat
     goutfile = outbase + '.genes'
     gheader = "\t".join(["Gene_ID"] + strains + ["Total"])
-    np.savetxt(goutfile, np.column_stack((gname, np.char.mod('%d', gmat))), \
+    np.savetxt(goutfile, np.column_stack((gname, np.char.mod('%f', gmat))), \
                header=gheader, fmt='%s', delimiter='\t')
 
 if __name__ == '__main__':
