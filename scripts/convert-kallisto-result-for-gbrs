@@ -21,7 +21,7 @@ def parse_args():
 def main(args, loglevel):
 
     logging.basicConfig(format="%(levelname)s: %(message)s", level=loglevel)
-    logging.debug("Your Argument: %s" % args.argument)
+    logging.debug("Conversion requested: %s" % args.quantfile)
 
     logging.info("Reading in transcript IDs...")
     tname = np.loadtxt(args.tidfile, usecols=(0,), dtype='string')
