@@ -5,4 +5,4 @@ from .emase_utils import hybridize, align, bam2emase, quantify
 
 __author__ = 'Kwangbom "KB" Choi, Ph.D.'
 __email__ = 'kb.choi@jax.org'
-__version__ = '0.1.5'
+__version__ = '0.1.6'

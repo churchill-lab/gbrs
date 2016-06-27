@@ -95,10 +95,11 @@ def bam2emase(**kwargs):
     haplotypes = tuple(kwargs.get('haplogypes').split(','))
     index_dtype = kwargs.get('index_dtype')
     data_dtype = kwargs.get('data_dtype')
+    delim = kwargs.get('delim')
 
     loci = get_names(lidfile)
     alignmat_factory = emase.AlignmentMatrixFactory(alnfile)
-    alignmat_factory.prepare(haplotypes, loci, outdir=os.path.dirname(outfile))
+    alignmat_factory.prepare(haplotypes, loci, delim=delim, outdir=os.path.dirname(outfile))
     alignmat_factory.produce(outfile, index_dtype=index_dtype, data_dtype=data_dtype)
     alignmat_factory.cleanup()
 

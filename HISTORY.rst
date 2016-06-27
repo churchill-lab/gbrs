@@ -2,7 +2,14 @@
 History
 =======
 
-0.1.5 (05/04/2016)
+0.1.6 (06/09/2016)
+~~~~~~~~~~~~~~~~~~
+
+* Fixed a bug (ValueError: need more than 1 value to unpack) in ``bam2emase``
+* Ported to Python3
+* Added snakefile
+
+0.1.5 (05/18/2016)
 ~~~~~~~~~~~~~~~~~~
 
 * ``compress`` subcommand also merges emase files
