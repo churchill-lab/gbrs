@@ -58,6 +58,7 @@ setup(
         'Programming Language :: Python :: 2.7',
     ],
     scripts=['scripts/gbrs',
+             'scripts/convert-genoprob-file',
              'scripts/convert-kallisto-result-for-gbrs',
              'scripts/convert-salmon-result-for-gbrs'],
     test_suite='tests',
