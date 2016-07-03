@@ -2,10 +2,12 @@
 History
 =======
 
-0.1.6 (06/09/2016)
+0.1.6 (07/04/2016)
 ~~~~~~~~~~~~~~~~~~
 
 * Fixed a bug (ValueError: need more than 1 value to unpack) in ``bam2emase``
+* Added a script ``convert-genoprob-file`` to report genotype probability in different format
+* Added subcommands ``get-emission-probs`` and ``get-transition-probs`` for Recombinant Inbred Lines
 * Ported to Python3
 * Added snakefile
 
