@@ -286,7 +286,7 @@ def quantify(**kwargs):
         outbase = outbase + ".multiway"
         gtcall_g = None
         gtcall_t = None
-
+    print "[gbrs::quantify] Outbase=%s" % outbase
     # Run emase
     em_factory = emase.EMfactory(alnmat)
     em_factory.prepare(pseudocount=pseudocount, lenfile=lenfile, read_length=read_length)

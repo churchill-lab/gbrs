@@ -17,9 +17,9 @@ def parse_args():
     parser.add_argument("-i", '--genoprob-file', action='store', dest='gprobfile', type=str, required=True)
     parser.add_argument('-s', '--strains', action='store', dest='strains', type=str, required=True)
     parser.add_argument('-g', '--grid-file', action='store', dest='gridfile', type=str, default=None)
-    parser.add_argument('-f', '--output-format', action='store', dest='outformat', type=str, default='tsv')
-    parser.add_argument('-d', '--by-strains', action='store_false')
-    parser.add_argument('-c', '--by-chromosomes', action='store_true')
+    parser.add_argument('-f', '--in-numpy-format', action='store_true')  # file format
+    parser.add_argument('-c', '--by-chromosomes', action='store_true')  # row dimension
+    parser.add_argument('-p', '--by-strains', action='store_false')  # column dimension
     parser.add_argument("-o", action='store', dest='outfile', type=str, default=None)
     parser.add_argument("-v", "--verbose", help="Toggle DEBUG verbosity", action="store_true")
     return parser.parse_args()
@@ -69,10 +69,6 @@ def main(args, loglevel):
     gprob_mat_converted = np.dot(gprob_mat, convmat)
 
     logging.info("Exporting to GBRS quant format...")
-#    if args.outfile is None:
-#        outfile = os.path.splitext(args.gprobfile)[0] + '.tsv'
-#    else:
-#        outfile = args.outbase
     if args.outfile is None:
         args.outfile = os.path.splitext(args.gprobfile)[0] + '.tsv'
     np.savetxt(args.outfile, gprob_mat_converted, fmt='%.6f', delimiter='\t', header='\t'.join(strains))
