@@ -1,7 +1,7 @@
 import os
 import sys
 import numpy as np
-from itertools import combinations_with_replacement
+from itertools import combinations_with_replacement, product
 from collections import defaultdict, OrderedDict
 from scipy.interpolate import interp1d
 import matplotlib
@@ -41,6 +41,15 @@ def unit_vector(vector):
         return vector
 
 
+def print_vecs(vecs, format_str="%10.1f", show_sum=False):
+    for i in xrange(vecs.shape[0]):
+        v = vecs[i]
+        print " ".join( format_str % elem for elem in v ),
+        if show_sum:
+            print "\t=>", format_str % sum(v)
+        else:
+            print
+
 def get_genotype_probability(aln_profile, aln_specificity, sigma=0.12):
     # 'aln_specificity' should be a set of unit vectors (at least one of the entry is larger than 1.)
     num_haps = len(aln_profile)
@@ -58,6 +67,196 @@ def get_genotype_probability(aln_profile, aln_specificity, sigma=0.12):
                 genoprob.append(sum(np.power(aln_vec - geno_vec, 2))) # for heterozygotes
     genoprob = np.exp(np.array(genoprob) / (-2 * sigma * sigma))
     return np.array(genoprob / sum(genoprob))
+
+
+def ris_step(gen_left, gen_right, rec_frac, haps=('A', 'B'), gamma_scale=0.1, is_x_chr=False, forward_direction=True):
+    """
+    Log transition probability for RIL by sib-mating
+    Originally part of r/qtl2 designed/coded by Karl Broman (http://kbroman.org/qtl2/)
+    Ported to python by Karl Broman (https://gist.github.com/kbroman/14984b40b0eab71e51891aceaabec850)
+    Extended to open the possibility of heterogyzosity by KB Choi
+
+    :param gen_left: left genotype
+    :param gen_right: right genotype
+    :param rec_frac: interval distance (cM)
+    :param haps: list of parental strain
+    :param gamma_scale: amount we allow heterozygosity
+    :param is_x_chr: whether it is 'X' chromosome
+    :param forward_direction: direction of intervals
+    :return: log_e transition probability
+    """
+    it = combinations_with_replacement(haps, 2)
+    diplotype = [ '%s%s' % (ht1, ht2) for ht1, ht2 in it ]
+
+    if is_x_chr:
+        R = (2*rec_frac)/(1.0 + 4.0*rec_frac)
+        gamma = R * gamma_scale
+        if forward_direction:
+            if gen_left == diplotype[0]:
+                if gen_right == diplotype[0]:
+                    return np.log(1.0-R) - np.log(1+gamma)
+                elif gen_right == diplotype[1]:
+                    return np.log(gamma) - np.log(1+gamma)
+                elif gen_right == diplotype[2]:
+                    return np.log(R) - np.log(1+gamma)
+            elif gen_left == diplotype[1]:
+                return np.log(1/3.0)
+            if gen_left == diplotype[2]:
+                if gen_right == diplotype[0]:
+                    return np.log(2.0*R) - np.log(1+gamma)
+                elif gen_right == diplotype[1]:
+                    return np.log(gamma) - np.log(1+gamma)
+                elif gen_right == diplotype[2]:
+                    return np.log(1.0-2.0*R) - np.log(1+gamma)
+        else:  # backward direction
+            if gen_left == diplotype[0]:
+                if gen_right == diplotype[0]:
+                    return np.log(1.0-2.0*R) - np.log(1+gamma)
+                elif gen_right == diplotype[1]:
+                    return np.log(gamma) - np.log(1+gamma)
+                elif gen_right == diplotype[2]:
+                    return np.log(2.0*R) - np.log(1+gamma)
+            elif gen_left == diplotype[1]:
+                return np.log(1/3.0)
+            elif gen_left == diplotype[2]:
+                if gen_right == diplotype[0]:
+                    return np.log(R) - np.log(1+gamma)
+                elif gen_right == diplotype[1]:
+                    return np.log(gamma) - np.log(1+gamma)
+                elif gen_right == diplotype[2]:
+                    return np.log(1.0-R) - np.log(1+gamma)
+
+    else:  # autosome
+        R = 4.0*rec_frac/(1+6.0*rec_frac)
+        gamma = R * gamma_scale
+        if gen_left == diplotype[0]:
+            if gen_right == diplotype[0]:
+                return np.log(1.0-R) - np.log(1+gamma)
+            elif gen_right == diplotype[1]:
+                return np.log(gamma) - np.log(1+gamma)
+            elif gen_right == diplotype[2]:
+                return np.log(R) - np.log(1+gamma)
+        elif gen_left == diplotype[1]:
+            return np.log(1/3.0)
+        elif gen_left == diplotype[2]:
+            if gen_right == diplotype[0]:
+                return np.log(R) - np.log(1+gamma)
+            elif gen_right == diplotype[1]:
+                return np.log(gamma) - np.log(1+gamma)
+            elif gen_right == diplotype[2]:
+                return np.log(1.0-R) - np.log(1+gamma)
+
+
+def f2_step(gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True):
+    return NotImplementedError
+
+
+def cc_step(gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True):
+    return NotImplementedError
+
+
+def do_step(gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True):
+    return NotImplementedError
+
+
+def get_transition_prob(**kwargs):
+    haplotype = kwargs.get('haps').split(',')
+    num_haplotypes = len(haplotype)
+    it = combinations_with_replacement(haplotype, 2)
+    diplotype = [ '%s%s' % (ht1, ht2) for ht1, ht2 in it ]
+    num_diplotypes = len(diplotype)
+    diplotype_index = np.arange(num_diplotypes)
+
+    locs_by_chro = defaultdict(list)
+    gpos_by_chro = defaultdict(list)
+    with open(kwargs.get('mkrfile')) as fh:
+        for curline in fh:
+            item = curline.rstrip().split('\t')
+            locs_by_chro[item[1]].append((item[0], float(item[3])))
+            gpos_by_chro[item[1]].append((item[0], int(item[2])))
+    locs_by_chro = dict(locs_by_chro)
+    gpos_by_chro = dict(gpos_by_chro)
+    np.savez_compressed(os.path.join(DATA_DIR, 'ref.gene_pos.ordered.npz'), **gpos_by_chro)
+
+    mating_scheme = kwargs.get('mating_scheme')
+    if mating_scheme == 'RI':
+        stepfunc = ris_step
+    elif mating_scheme == 'F2':
+        stepfunc = f2_step
+    elif mating_scheme == 'CC':
+        stepfunc = cc_step
+    elif mating_scheme == 'DO':
+        stepfunc = do_step
+
+    gamma_scale = kwargs.get('gamma_scale')
+    epsilon = kwargs.get('epsilon')
+    tprob = dict()
+    for c in locs_by_chro.iterkeys():
+        is_x_chr = (c == 'X')
+        pdiff = np.diff(np.array([ e[1] for e in locs_by_chro[c] ]))
+        pdiff[pdiff < epsilon] = epsilon
+        ndiff = len(pdiff)
+        tprob[c] = np.ndarray(shape=(ndiff, num_diplotypes, num_diplotypes), dtype=float)
+        for dt1id, dt2id in list(product(diplotype_index, repeat=2)):
+            dt1 = diplotype[dt1id]
+            dt2 = diplotype[dt2id]
+            for i, d in enumerate(pdiff):
+                tprob[c][i][dt1id, dt2id] = stepfunc(dt1, dt2, d, gamma_scale=gamma_scale, haps=haplotype, is_x_chr=is_x_chr)
+    np.savez_compressed(os.path.join(DATA_DIR, kwargs.get('outfile')), **tprob)
+
+
+def get_alignment_spec(**kwargs):
+    strains = kwargs.get('haps').split(',')
+    num_strains = len(strains)
+
+    gname = np.loadtxt(os.path.join(DATA_DIR, 'ref.gene2transcripts.tsv'), usecols=(0,), dtype='string')
+    num_genes = len(gname)
+    gid = dict(zip(gname, np.arange(num_genes)))
+
+    flist = defaultdict(list)
+    with open(kwargs.get('smpfile')) as fh:
+        for curline in fh:
+            item = curline.rstrip().split("\t")
+            flist[item[0]].append(item[1])
+    flist = dict(flist)
+
+    dset = dict()
+    for st in strains:
+        dmat_strain = np.zeros((num_genes, num_strains))
+        for tpmfile in flist[st]:
+            dmat_sample = np.zeros((num_genes, num_strains))
+            if not os.path.isfile(tpmfile):
+                print "File %s does not exist." % tpmfile
+                continue
+            with open(tpmfile) as fh:
+                fh.next()  # header
+                for curline in fh:
+                    item = curline.rstrip().split("\t")
+                    row = gid[item[0]]
+                    dmat_sample[row, :] = map(float, item[1:9])
+            dmat_strain += dmat_sample
+        dset[st] = dmat_strain / len(flist[st])
+    min_expr = kwargs.get('min_expr')
+    axes = dict()
+    ases = dict()
+    avecs = dict()
+    for g in gname:
+        axes[g] = np.zeros((num_strains, num_strains))
+        ases[g] = np.zeros((1, num_strains))
+        good = np.zeros(num_strains)
+        for i, st in enumerate(strains):
+            v = dset[st][gid[g], :]
+            axes[g][i, :] = v
+            ases[g][0, i] = sum(v)
+            if sum(v) > min_expr:
+                good[i] = 1.0
+        if sum(good) > 0:  # At least one strain expresses
+            avecs[g] = np.zeros((num_strains, num_strains))
+            for i in xrange(num_strains):
+                avecs[g][i, :] = unit_vector(axes[g][i, :])
+    np.savez_compressed(os.path.join(DATA_DIR, 'axes.npz'), **axes)
+    np.savez_compressed(os.path.join(DATA_DIR, 'ases.npz'), **ases)
+    np.savez_compressed(os.path.join(DATA_DIR, 'avecs.npz'), **avecs)
 
 
 def reconstruct(**kwargs):

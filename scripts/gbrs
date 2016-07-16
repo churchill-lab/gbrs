@@ -78,6 +78,31 @@ def add_subcommand_compress(subparsers):
 
 
 #
+# Subcommand: get-alignment-spec
+#
+def add_subcommand_aspec(subparsers):
+    subparser_aspec = subparsers.add_parser('get-alignment-spec')
+    subparser_aspec.add_argument('-i', '--sample-file', action='store', dest='smpfile', type=str, required=True)
+    subparser_aspec.add_argument('-s', '--parental-strains', action='store', dest='haps', type=str, required=True)
+    subparser_aspec.add_argument('-m', '--min-expr', action='store', dest='min_expr', type=float, default=2.0)
+    subparser_aspec.set_defaults(func=gbrs.commands.get_alignment_spec)
+
+
+#
+# Subcommand: get-transition-prob
+#
+def add_subcommand_tprob(subparsers):
+    subparser_tprob = subparsers.add_parser('get-transition-prob')
+    subparser_tprob.add_argument('-i', '--marker-file', action='store', dest='mkrfile', type=str, required=True)
+    subparser_tprob.add_argument('-s', '--haplotypes', action='store', dest='haps', type=str, default='A,B')
+    subparser_tprob.add_argument('-m', '--mating-scheme', action='store', dest='mating_scheme', type=str, default='RI')
+    subparser_tprob.add_argument('-g', '--gamma-scale', action='store', dest='gamma_scale', type=float, default=0.01)
+    subparser_tprob.add_argument('-e', '--epsilon', action='store', dest='epsilon', type=float, default=0.000001)
+    subparser_tprob.add_argument('-o', '--outfile', action='store', dest='outfile', type=str, default='tranprob.npz')
+    subparser_tprob.set_defaults(func=gbrs.commands.get_transition_prob)
+
+
+#
 # Subcommand: quantify
 #
 def add_subcommand_quantify(subparsers):
@@ -178,6 +203,8 @@ def main():
     add_subcommand_bam2emase(subparsers)
     add_subcommand_intersect(subparsers)
     add_subcommand_compress(subparsers)
+    add_subcommand_tprob(subparsers)
+    add_subcommand_aspec(subparsers)
     add_subcommand_quantify(subparsers)
     add_subcommand_reconstruct(subparsers)
     add_subcommand_stencil(subparsers)
