@@ -43,7 +43,7 @@ Then, we reconstruct the genome based upon gene-level TPM quantities (assuming t
     gbrs reconstruct -e gbrs.quantified.multiway.genes.tpm \
                      -t ${GBRS_DATA}/tranprob.DO.G20.F.npz \
                      -x ${GBRS_DATA}/avecs.npz \
-                     -g ${GBRS_DATA}/ref.gene_ids.ordered.npz
+                     -g ${GBRS_DATA}/ref.gene_pos.ordered.npz
 
 We can now quantify allele-specific expressions on diploid transcriptome::
 
