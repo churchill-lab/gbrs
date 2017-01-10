@@ -232,8 +232,9 @@ def get_alignment_spec(**kwargs):
                 fh.next()  # header
                 for curline in fh:
                     item = curline.rstrip().split("\t")
-                    row = gid[item[0]]
-                    dmat_sample[row, :] = map(float, item[1:(num_strains+1)])
+                    if gid.has_key(item[0]):
+                        row = gid[item[0]]
+                        dmat_sample[row, :] = map(float, item[1:(num_strains+1)])
             dmat_strain += dmat_sample
         dset[st] = dmat_strain / len(flist[st])
     min_expr = kwargs.get('min_expr')
