@@ -2,7 +2,7 @@
 History
 =======
 
-0.1.6 (07/16/2016)
+0.1.6 (01/16/2017)
 ~~~~~~~~~~~~~~~~~~
 
 * Fixed a bug (ValueError: need more than 1 value to unpack) in ``bam2emase``
