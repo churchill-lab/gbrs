@@ -32,7 +32,7 @@ def get_names(idfile):
 def hybridize(**kwargs):
     outfile = kwargs.get('outfile')
     outdir = os.path.dirname(outfile)
-    if not os.path.exists(outdir):
+    if outdir != '' and not os.path.exists(outdir):
         os.mkdir(outdir)
 
     # Get pooled transcriptome
