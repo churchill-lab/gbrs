@@ -50,6 +50,7 @@ def print_vecs(vecs, format_str="%10.1f", show_sum=False):
         else:
             print
 
+
 def get_genotype_probability(aln_profile, aln_specificity, sigma=0.12):
     # 'aln_specificity' should be a set of unit vectors (at least one of the entry is larger than 1.)
     num_haps = len(aln_profile)
