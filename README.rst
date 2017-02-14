@@ -15,6 +15,8 @@ GBRS
         :target: https://readthedocs.org/projects/gbrs/?badge=latest
         :alt: Documentation Status
 
+.. image:: https://zenodo.org/badge/54070005.svg
+        :target: https://zenodo.org/badge/latestdoi/54070005
 
 Overview
 --------
