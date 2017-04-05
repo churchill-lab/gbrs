@@ -11,7 +11,7 @@ Although GBRS is available at PyPI (https://pypi.python.org/pypi/gbrs/) for 'pip
 
 To avoid conflicts among dependencies, we highly recommend using conda virtual environment::
 
-    $ conda create -n gbrs jupyter
+    $ conda create -n gbrs python=2
     $ source activate gbrs
 
 Once GBRS virtual environment is created and activated, your shell prompt will show '(gbrs)' at the beginning to specify what virtual environment you are currently in. Now please type the following and install GBRS::
