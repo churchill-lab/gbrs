@@ -1,0 +1,6 @@
+_site
+.bundle
+.idea
+.sass-cache
+Gemfile.lock
+.DS_Store
