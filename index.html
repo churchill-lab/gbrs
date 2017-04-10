@@ -3,8 +3,37 @@ layout: default
 title: {{ site.name }}
 ---
 
+<p>GBRS is a suite of tools for reconstructing genomes using RNA-Seq data from multiparent population and quantifying allele specific expression. Although we tested it with mouse models only, GBRS should work for any multiparent populations. If you are interested in using it for other multiparent population model, please <a href="mailto:kb.choi@jax.org?Subject=[GBRS]%20Question" target="_top">contact</a> Kwangbom “KB” Choi at The Jackson Laboratory. For the Diversity Outbred (<a href="https://www.jax.org/strain/009376">DO</a>), Collaborative Cross (CC) mice, or F1 hybrids of CC’s (CCRIX), required data files are available at <a href="ftp://churchill-lab.jax.org/pub/software/GBRS/">ftp://churchill-lab.jax.org/pub/software/GBRS/</a>.</p>
+
+<h2>
+<a id="installation" class="anchor" href="#installation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Installation</h2>
+
+<p><strong>Note:</strong> Although GBRS is available at <a href="https://pypi.python.org/pypi/gbrs/">PyPI</a> for <code>pip install</code> or <code>easy_install</code>, we highly recommend using <a href="https://www.continuum.io/downloads">Anaconda distribution</a> of python to install all the dependencies without issues. GBRS is also available on <a href="https://anaconda.org/kbchoi/gbrs">Anaconda Cloud</a>, so add the following channels if you have not already:</p>
+
+<pre>
+  <code>$ conda config --add channels r
+  $ conda config --add channels bioconda</code>
+</pre>
+
+<p>To avoid conflicts among dependencies, we also highly recommend using conda virtual environment:</p>
+
+<pre>
+  <code>$ conda create -n gbrs python=2
+  $ source activate gbrs</code>
+</pre>
+
+<p>Once GBRS virtual environment is created and activated, your shell prompt will show ‘(gbrs)’ at the beginning to specify what virtual environment you are currently in. Now please type the following and install GBRS:</p>
+
+<pre><code>(gbrs) $ conda install -c kbchoi gbrs
+</code></pre>
+
+<p>That's all! Now gbrs is available. Once you are done using GBRS, you can go out from GBRS virtual environment anytime:</p>
+
+<pre><code>(gbrs) $ source deactivate
+</code></pre>
+
 <div id="home">
-  <h1>Blog Posts</h1>
+  <h2>Announcements</h2>
   <ul class="posts">
     {% for post in site.posts %}
       <li><span>{{ post.date | date_to_string }}</span> &raquo; <a href="{{ site.baseurl }}{{ post.url }}">{{ post.title }}</a></li>
