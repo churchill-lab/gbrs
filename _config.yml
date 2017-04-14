@@ -1,6 +1,6 @@
 # Setup
 title:        GBRS
-tagline:      Genotype-free genome reconstruction and ASE quantification using RNA-Seq data from multiparental population models
+tagline:      Genotype-free genome reconstruction and ASE quantification from RNA-Seq data
 baseurl:      ""
 paginate:     1
 show_downloads: "true"
