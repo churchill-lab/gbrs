@@ -3,7 +3,6 @@ title:        GBRS
 tagline:      Genotype-free genome reconstruction and ASE quantification from RNA-Seq data
 baseurl:      ""
 paginate:     1
-show_downloads: "true"
 
 # About/contact
 author:
