@@ -15,4 +15,4 @@ gems:
 
 #Others
 markdown: kramdown
-theme: jekyll-theme-slate
+theme: jekyll-theme-cayman
