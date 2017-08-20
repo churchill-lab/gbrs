@@ -12,6 +12,8 @@ author:
 # Gems
 gems:
   - jekyll-paginate
+  - github-pages
+  - kramdown
 
 #Others
 markdown: kramdown
