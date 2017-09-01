@@ -222,7 +222,6 @@ def quantify(**kwargs):
     :param grpfile: gene ID to isoform ID mapping info (tsv)
     :param lenfile: transcript lengths (tsv)
     :param multiread_model: emase model (default: 4)
-    :param read_length: read length (default: 100)
     :param pseudocount: prior read count (default: 0.0)
     :param tolerance: tolerance for EM termination (default: 0.0001 in TPM)
     :param max_iters: maximum iterations for EM iteration
@@ -250,7 +249,6 @@ def quantify(**kwargs):
         else:
             print >> sys.stderr, '[gbrs::quantify] A length file is not given. Transcript length adjustment will *not* be performed.'
 
-    read_length = kwargs.get('read_length')
     multiread_model = kwargs.get('multiread_model')
     tolerance = kwargs.get('tolerance')
     max_iters = kwargs.get('max_iters')
@@ -289,7 +287,7 @@ def quantify(**kwargs):
     print "[gbrs::quantify] Outbase=%s" % outbase
     # Run emase
     em_factory = emase.EMfactory(alnmat)
-    em_factory.prepare(pseudocount=pseudocount, lenfile=lenfile, read_length=read_length)
+    em_factory.prepare(pseudocount=pseudocount, lenfile=lenfile)
     em_factory.run(model=multiread_model, tol=tolerance, max_iters=max_iters, verbose=True)
     em_factory.report_depths(filename="%s.isoforms.tpm" % outbase, tpm=True, notes=gtcall_t)
     em_factory.report_read_counts(filename="%s.isoforms.expected_read_counts" % outbase, notes=gtcall_t)

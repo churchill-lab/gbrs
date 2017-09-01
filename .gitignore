@@ -60,3 +60,7 @@ target/
 
 # PyCharm settings
 .idea
+
+# gh-pages files
+_site
+Gemfile.lock

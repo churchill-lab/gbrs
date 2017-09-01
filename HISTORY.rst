@@ -2,14 +2,13 @@
 History
 =======
 
-0.1.6 (01/16/2017)
+0.1.6 (08/31/2017)
 ~~~~~~~~~~~~~~~~~~
 
 * Fixed a bug (ValueError: need more than 1 value to unpack) in ``bam2emase``
 * Added a script ``export-genoprob-file`` to report genotype probability in different format
 * Added subcommands ``get-alignment-spec`` and ``get-transition-prob`` for Recombinant Inbred Lines
-* Ported to Python3
-* Added snakefile
+* We do not adjust effective transcript lengths by read length any more since ``quantify`` expects effective lengths are given as an input.
 
 0.1.5 (05/18/2016)
 ~~~~~~~~~~~~~~~~~~
