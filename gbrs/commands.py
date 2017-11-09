@@ -440,20 +440,22 @@ def interpolate(**kwargs):
 
     x_grid = defaultdict(list)
     with open(gridfile) as fh:
-        fh.next()  # skip header
+        fh.next()  # skip header (Assuming there is just one line of header)
         for curline in fh:
             item = curline.rstrip().split("\t")
-            x_grid[item[0]].append(float(item[1]))
+            x_grid[item[1]].append(float(item[3]))  # x_grid[chr] = [...positions in cM...]
     x_grid = dict(x_grid)
 
     x_grid_complete = dict()
     for c in chrs:
         if c in x_gene.files:
             x = [float(coord) for m, coord in x_gene[c]]
-            x_min = min(x_grid[c][0]-100.0, 0.0)
-            x_max = max(x_grid[c][-1]+100.0, chrlens[c])
-            x = np.append([x_min], x)
-            x = np.append(x, [x_max])
+            #x_min = min(x_grid[c][0]-100.0, 0.0)
+            #x_max = max(x_grid[c][-1]+1.0, chrlens[c])
+            #x = np.append([x_min], x)
+            #x = np.append(x, [x_max])
+            x = np.append([0.0], x)
+            x = np.append(x, [x_grid[c][-1]+1.0])
             x_grid_complete[c] = x
 
     gamma_gene = np.load(probfile)

@@ -9,6 +9,7 @@ History
 * Added a script ``export-genoprob-file`` to report genotype probability in different format
 * Added subcommands ``get-alignment-spec`` and ``get-transition-prob`` for Recombinant Inbred Lines
 * We do not adjust effective transcript lengths by read length any more since ``quantify`` expects effective lengths are given as an input.
+* Uses the Karl Broman's grid file for genoprob interpolation
 
 0.1.5 (05/18/2016)
 ~~~~~~~~~~~~~~~~~~
