@@ -462,7 +462,7 @@ def interpolate(**kwargs):
     gene_model_chr = dict()
     gene_intrp_chr = dict()
     for c in chrs:
-        if c in gamma_gene.files:
+        if (c in x_grid.keys()) and (c in gamma_gene.files):
             gamma_gene_c = gamma_gene[c]
             y = np.hstack((gamma_gene_c[:, 0][:, np.newaxis], gamma_gene_c))
             y = np.hstack((y, y[:, -1][:, np.newaxis]))
