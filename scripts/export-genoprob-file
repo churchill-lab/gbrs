@@ -50,7 +50,7 @@ def main(args, loglevel):
         grid = OrderedDict()
         for curline in fh:
             item = curline.rstrip().split('\t')
-            chro = item[0]
+            chro = item[1]
             if grid.has_key(chro):
                 grid[chro] += 1
             else:
