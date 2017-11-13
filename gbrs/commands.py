@@ -447,7 +447,7 @@ def interpolate(**kwargs):
     x_grid = dict(x_grid)
 
     x_gene_extended = dict()  # Adding end points in case we have to extrapolate at the 1st or last grid
-    for c in chrs:
+    for c in x_grid.iterkeys():
         if c in x_gene.files:
             x = [float(coord) for m, coord in x_gene[c]]
             #x_min = min(x_grid[c][0]-100.0, 0.0)
@@ -461,8 +461,8 @@ def interpolate(**kwargs):
     gamma_gene = np.load(probfile)
     gene_model_chr = dict()
     gene_intrp_chr = dict()
-    for c in chrs:
-        if (c in x_grid.keys()) and (c in gamma_gene.files):
+    for c in x_grid.iterkeys():
+        if c in gamma_gene.files:
             gamma_gene_c = gamma_gene[c]
             y = np.hstack((gamma_gene_c[:, 0][:, np.newaxis], gamma_gene_c))
             y = np.hstack((y, y[:, -1][:, np.newaxis]))
