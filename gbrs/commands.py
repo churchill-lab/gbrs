@@ -549,7 +549,7 @@ def plot(**kwargs):
         ax.get_yaxis().set_ticks([])
         ax.set_yticklabels(chrs)
         pyplot.yticks(np.arange(num_chrs*4+1, 1, -4), fontsize=14)
-        ax.set_xticklabels(['%dcM' % xt for xt in np.arange(0, xt_max*grid_size/1000000, xt_size*grid_size/1000000)])
+        ax.set_xticklabels(['%dcM' % xt for xt in np.arange(0, xt_max*grid_size/100, xt_size*grid_size/100)])
         pyplot.xticks(np.arange(0, xt_max*width, xt_size*width))
         title_txt = 'Genome reconstruction: ' + sample_name
         title_txt += "\n(Total %d recombinations)" % num_recomb_total

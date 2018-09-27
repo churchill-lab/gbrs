@@ -178,9 +178,9 @@ def add_subcommand_plot(subparsers):
     subparser_plot.add_argument('-i', '--genoprob', action='store', dest='gpbfile', type=str, required=True)
     subparser_plot.add_argument('-o', '--outfile', action='store', dest='outfile', type=str, default=None)
     subparser_plot.add_argument('-n', '--sample-name', action='store', dest='sample_name', type=str, default='')
-    subparser_plot.add_argument('--num-grids', action='store', dest='grid_size', type=float, default=0.02)
-    subparser_plot.add_argument('--xt-max', action='store', dest='xt_max', type=int, default=4720)
-    subparser_plot.add_argument('--xt-size', action='store', dest='xt_size', type=int, default=472)
+    subparser_plot.add_argument('--num-grids', action='store', dest='grid_size', type=int, default=2)
+    subparser_plot.add_argument('--xt-max', action='store', dest='xt_max', type=int, default=5000)
+    subparser_plot.add_argument('--xt-size', action='store', dest='xt_size', type=int, default=500)
     subparser_plot.add_argument('--grid-width', action='store', dest='width', type=float, default=0.01)
     subparser_plot.set_defaults(func=gbrs.commands.plot)
 
