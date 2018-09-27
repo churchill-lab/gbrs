@@ -503,7 +503,7 @@ def plot(**kwargs):
     fig = pyplot.figure()
     fig.set_size_inches((16, 16))
     ax = fig.add_subplot(111)
-    ax.set_xlim(0, 4500*width+width)
+    ax.set_xlim(0, xt_max*width+width)
     ax.set_ylim(1, 95)
     num_recomb_total = 0
     for cid, c in enumerate(chrs):
@@ -549,7 +549,7 @@ def plot(**kwargs):
         ax.get_yaxis().set_ticks([])
         ax.set_yticklabels(chrs)
         pyplot.yticks(np.arange(num_chrs*4+1, 1, -4), fontsize=14)
-        ax.set_xticklabels([ '%dM' % xt for xt in np.arange(0, xt_max*grid_size/1000000, xt_size*grid_size/1000000)])
+        ax.set_xticklabels(['%dcM' % xt for xt in np.arange(0, xt_max*grid_size/1000000, xt_size*grid_size/1000000)])
         pyplot.xticks(np.arange(0, xt_max*width, xt_size*width))
         title_txt = 'Genome reconstruction: ' + sample_name
         title_txt += "\n(Total %d recombinations)" % num_recomb_total
