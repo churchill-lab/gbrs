@@ -50,7 +50,7 @@ def main(args, loglevel):
         grid = OrderedDict()
         for curline in fh:
             item = curline.rstrip().split('\t')
-            chro = item[0]
+            chro = item[1]
             if grid.has_key(chro):
                 grid[chro] += 1
             else:
@@ -58,17 +58,17 @@ def main(args, loglevel):
     num_grids = sum(grid.values())
     logging.info("There were %d grids." % num_grids)
 
-    logging.info("Loading Reading in GBRS genotype probability file...")
+    logging.info("Reading in GBRS genotype probability file")
     gprob = np.load(args.gprobfile)
     chromosomes = grid.keys()
     gprob_mat = gprob[chromosomes[0]].transpose()
     for c in chromosomes[1:]:
         gprob_mat = np.vstack((gprob_mat, gprob[c].transpose()))
 
-    logging.info("Converting genotype probability...")
+    logging.info("Converting genotype probability")
     gprob_mat_converted = np.dot(gprob_mat, convmat)
 
-    logging.info("Exporting to GBRS quant format...")
+    logging.info("Exporting to GBRS quant format")
     if args.outfile is None:
         args.outfile = os.path.splitext(args.gprobfile)[0] + '.tsv'
     np.savetxt(args.outfile, gprob_mat_converted, fmt='%.6f', delimiter='\t', header='\t'.join(strains))

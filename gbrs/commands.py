@@ -446,8 +446,8 @@ def interpolate(**kwargs):
             x_grid[item[1]].append(float(item[3]))  # x_grid[chr] = [...positions in cM...]
     x_grid = dict(x_grid)
 
-    x_grid_complete = dict()
-    for c in chrs:
+    x_gene_extended = dict()  # Adding end points in case we have to extrapolate at the 1st or last grid
+    for c in x_grid.iterkeys():
         if c in x_gene.files:
             x = [float(coord) for m, coord in x_gene[c]]
             #x_min = min(x_grid[c][0]-100.0, 0.0)
@@ -455,18 +455,18 @@ def interpolate(**kwargs):
             #x = np.append([x_min], x)
             #x = np.append(x, [x_max])
             x = np.append([0.0], x)
-            x = np.append(x, [x_grid[c][-1]+1.0])
-            x_grid_complete[c] = x
+            x = np.append(x, [x_grid[c][-1]+1.0])  # Do we have chromosome length in cM?
+            x_gene_extended[c] = x
 
     gamma_gene = np.load(probfile)
     gene_model_chr = dict()
     gene_intrp_chr = dict()
-    for c in chrs:
+    for c in x_grid.iterkeys():
         if c in gamma_gene.files:
             gamma_gene_c = gamma_gene[c]
             y = np.hstack((gamma_gene_c[:, 0][:, np.newaxis], gamma_gene_c))
             y = np.hstack((y, y[:, -1][:, np.newaxis]))
-            gene_model_chr[c] = interp1d(x_grid_complete[c], y, axis=1)
+            gene_model_chr[c] = interp1d(x_gene_extended[c], y, axis=1)
             gene_intrp_chr[c] = gene_model_chr[c](x_grid[c])
     np.savez_compressed(outfile, **gene_intrp_chr)
 

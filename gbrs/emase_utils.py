@@ -46,7 +46,7 @@ def hybridize(**kwargs):
     for hid in xrange(num_haps):
         fasta = fastalist[hid]
         hapname = haplist[hid]
-        print >> sys.stderr, "[gbrs::hybridize] Adding suffix \'_%s\' to the sequence ID's of %s..." % (hapname, fasta)
+        print >> sys.stderr, "[gbrs::hybridize] Adding suffix \'_%s\' to the sequence ID's of %s" % (hapname, fasta)
         fh = open(fasta)
         curline = fh.next()  # The first fasta header
         curline = curline.rstrip().split()[0] + '_' + hapname
@@ -70,7 +70,7 @@ def hybridize(**kwargs):
     build_bowtie_index = kwargs.get('build_bowtie_index')
     if build_bowtie_index:
         out_index = outbase + '.bowtie1'
-        print >> sys.stderr, "[gbrs::hybridize] Building bowtie1 index..."
+        print >> sys.stderr, "[gbrs::hybridize] Building bowtie1 index"
         status = subprocess.call("bowtie-build %s %s" % (outfile, out_index), shell=True)
 
 
