@@ -522,11 +522,11 @@ def plot(**kwargs):
                 c2 = hcolors[genotype_calls[i][1]]
                 if i > 0:
                     if c1 == c2:
-                        if col1[-1] != col2[-1]: # When homozygous region starts, remember the most recent het
+                        if col1[-1] != col2[-1]:  # When homozygous region starts, remember the most recent het
                             oldcol1 = col1[-1]
                             oldcol2 = col2[-1]
                     else:
-                        if col1[-1] == col2[-1]: # When heterozygous region starts
+                        if col1[-1] == col2[-1]:  # When heterozygous region starts
                             if c1 == oldcol2 or c2 == oldcol1:
                                 c1, c2 = c2, c1
                         elif c1 == col2[-1] or c2 == col1[-1]:
