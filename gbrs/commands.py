@@ -503,7 +503,7 @@ def plot(**kwargs):
     fig = pyplot.figure()
     fig.set_size_inches((16, 16))
     ax = fig.add_subplot(111)
-    ax.set_xlim(0, 4500*width+width)
+    ax.set_xlim(0, xt_max*width+width)
     ax.set_ylim(1, 95)
     num_recomb_total = 0
     for cid, c in enumerate(chrs):
@@ -522,11 +522,11 @@ def plot(**kwargs):
                 c2 = hcolors[genotype_calls[i][1]]
                 if i > 0:
                     if c1 == c2:
-                        if col1[-1] != col2[-1]: # When homozygous region starts, remember the most recent het
+                        if col1[-1] != col2[-1]:  # When homozygous region starts, remember the most recent het
                             oldcol1 = col1[-1]
                             oldcol2 = col2[-1]
                     else:
-                        if col1[-1] == col2[-1]: # When heterozygous region starts
+                        if col1[-1] == col2[-1]:  # When heterozygous region starts
                             if c1 == oldcol2 or c2 == oldcol1:
                                 c1, c2 = c2, c1
                         elif c1 == col2[-1] or c2 == col1[-1]:
@@ -549,7 +549,7 @@ def plot(**kwargs):
         ax.get_yaxis().set_ticks([])
         ax.set_yticklabels(chrs)
         pyplot.yticks(np.arange(num_chrs*4+1, 1, -4), fontsize=14)
-        ax.set_xticklabels([ '%dM' % xt for xt in np.arange(0, xt_max*grid_size/1000000, xt_size*grid_size/1000000)])
+        ax.set_xticklabels(['%dcM' % xt for xt in np.arange(0, xt_max*grid_size/100, xt_size*grid_size/100)])
         pyplot.xticks(np.arange(0, xt_max*width, xt_size*width))
         title_txt = 'Genome reconstruction: ' + sample_name
         title_txt += "\n(Total %d recombinations)" % num_recomb_total

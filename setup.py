@@ -60,7 +60,8 @@ setup(
     scripts=['scripts/gbrs',
              'scripts/export-genoprob-file',
              'scripts/convert-kallisto-result-for-gbrs',
-             'scripts/convert-salmon-result-for-gbrs'],
+             'scripts/convert-salmon-result-for-gbrs',
+             'scripts/run_gbrs_on_cluster.sh'],
     test_suite='tests',
     tests_require=test_requirements
 )
