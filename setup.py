@@ -18,8 +18,8 @@ with open('HISTORY.rst') as history_file:
 requirements = []
 on_rtd = os.environ.get('READTHEDOCS', None)
 if not on_rtd:
-    # requirements.append('numpy==1.8.2')
-    requirements.append('g2gtools')
+    # requirements.append('g2gtools')
+    requirements.append('numpy==1.8.2')
     requirements.append('emase')
     requirements.append('matplotlib')
     requirements.append('bx-python>=0.7.2')
