@@ -47,7 +47,7 @@ setup(
                  'gbrs'},
     include_package_data=True,
     install_requires=requirements,
-    license="GPLv3",
+    license="MIT License",
     zip_safe=False,
     keywords='gbrs',
     classifiers=[
