@@ -6,7 +6,7 @@ title: {{ site.name }}
 <p>GBRS is a suite of tools for reconstructing genomes using RNA-Seq data from multiparent population and quantifying allele specific expression. Although we tested it with mouse models only, GBRS should work for any multiparent populations. If you are interested in using it for other multiparent population model, please <a href="mailto:kb.choi@jax.org?Subject=[GBRS]%20Question" target="_top">contact</a> Kwangbom “KB” Choi at The Jackson Laboratory. For the Diversity Outbred (<a href="https://www.jax.org/strain/009376">DO</a>), Collaborative Cross (CC) mice, or F1 hybrids of CC’s (CCRIX), required data files are available at <a href="ftp://churchill-lab.jax.org/software/GBRS/">ftp://churchill-lab.jax.org/software/GBRS/</a>.</p>
 
 <ul>
-  <li>Free software: GPLv3 license</li>
+  <li>Free software: MIT license</li>
   <li>Full documentation: <a href="https://gbrs.readthedocs.io/en/latest/readme.html">https://gbrs.readthedocs.io/en/latest/readme.html</a></li>
 </ul>
 
@@ -45,7 +45,7 @@ title: {{ site.name }}
 
 <p>The first step is to align our RNA-Seq reads against pooled transcriptome of all founder strains:</p>
 
-<pre><code>$ bowtie -q -a --best --strata --sam -v 3 ${GBRS_DIR}/bowtie.transcriptome ${FASTQ} \
+<pre><code>$ bowtie -q -a --best --strata --sam -v 3 ${GBRS_DATA}/bowtie.transcriptome ${FASTQ} \
     | samtools view -bS - > ${BAM_FILE}</code>
 </pre>
 
@@ -97,7 +97,7 @@ title: {{ site.name }}
 <p>Genotype probabilities are on a grid of genes. For eQTL mapping or plotting genome reconstruction, we may want to interpolate probability on a decently-spaced grid of the reference genome.:</p>
 
 <pre><code>$ gbrs interpolate -i gbrs.reconstructed.genoprobs.npz \
-                   -g ${GBRS_DATA}/ref.genome_grid.64k.txt \
+                   -g ${GBRS_DATA}/ref.genome_grid.69k.txt \
                    -p ${GBRS_DATA}/ref.gene_pos.ordered.npz \
                    -o gbrs.interpolated.genoprobs.npz</code>
 </pre>
