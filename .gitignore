@@ -1,6 +1,7 @@
 _site
 .bundle
 .idea
+.vscode
 .sass-cache
 Gemfile.lock
 .DS_Store
