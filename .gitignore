@@ -60,3 +60,6 @@ target/
 
 # PyCharm settings
 .idea
+
+# VS Code settings
+.vscode
