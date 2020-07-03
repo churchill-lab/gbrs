@@ -36,7 +36,7 @@ class Mock(MagicMock):
     @classmethod
     def __getattr__(cls, name):
         return Mock()
-MOCK_MODULES = ['Bio', 'biopython', 'emase', 'g2gtools', 'pysam', 'tables', 'numpy', 'scipy', 'scipy.sparse', 'scipy.interpolate', 'matplotlib', 'matplotlib.pyplot']
+MOCK_MODULES = ['Bio', 'biopython', 'emase', 'pysam', 'tables', 'numpy', 'scipy', 'scipy.sparse', 'scipy.interpolate', 'matplotlib', 'matplotlib.pyplot']
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 import gbrs
