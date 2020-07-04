@@ -16,13 +16,14 @@ install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
-  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION scipy=0.13.3 cython matplotlib biopython
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION scipy=0.13.3 cython biopython
   - source activate test-environment
   - conda install pytables=3.1.0
   - conda install -c https://conda.binstar.org/bcbio pysam
   - pip install pysqlite
   - pip install bx-python
   - pip install emase
+  - pip install matplotlib
   - python setup.py install
 
 script:
