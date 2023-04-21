@@ -1,0 +1,4 @@
+brew install hdf5 
+mkvirtualenv -p ~/.pyenv/versions/3.10.0/bin/python3 gbrs_3.10.0
+export HDF5_DIR=/opt/homebrew/Cellar/hdf5/1.12.2_2
+pip install tables

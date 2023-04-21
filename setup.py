@@ -1,8 +1,6 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 import os
-import gbrs
+
 try:
     from setuptools import setup
 except ImportError:
@@ -18,15 +16,10 @@ with open('HISTORY.rst') as history_file:
 requirements = []
 on_rtd = os.environ.get('READTHEDOCS', None)
 if not on_rtd:
-    # requirements.append('g2gtools')
-    requirements.append('numpy==1.8.2')
-    requirements.append('emase')
-    requirements.append('matplotlib')
-    requirements.append('bx-python>=0.7.2')
-    requirements.append('pysam>=0.8.1')
-    requirements.append('biopython>=1.63')
-    requirements.append('pysqlite>=2.6.3')
-    requirements.append('tables>=3.1.0')
+    with open("requirements.txt") as requirements_file:
+        requirements_lines = requirements_file.readlines()
+        for line in requirements_lines:
+            requirements.append(line)
 
 test_requirements = [
     'pytest'
@@ -34,7 +27,7 @@ test_requirements = [
 
 setup(
     name='gbrs',
-    version=gbrs.__version__,
+    version="0.2.0",
     description='A suite of tools for Reconstructing Genomes and Quantifying Allele Specific Expression from RNA-Seq data',
     long_description=readme + '\n\n' + history,
     author='Kwangbom \"KB\" Choi, Ph.D.',
@@ -55,7 +48,7 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Natural Language :: English',
-        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.10',
     ],
     scripts=['scripts/gbrs',
              'scripts/export-genoprob-file',
