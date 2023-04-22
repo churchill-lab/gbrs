@@ -379,7 +379,7 @@ def main():
     # Main command parser
     #
 
-    parser = argparse.ArgumentParser(version=version)
+    parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="action")
 
     #
