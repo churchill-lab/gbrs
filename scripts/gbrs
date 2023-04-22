@@ -47,7 +47,7 @@ def add_subcommand_hybridize(subparsers):
     subparser_hyb.add_argument(
         "--build-bowtie-index", action="store_true", dest="build_bowtie_index"
     )
-    subparser_hyb.set_defaults(func=emase_utils.hybridize())
+    subparser_hyb.set_defaults(func=emase_utils.hybridize)
 
 
 #
