@@ -13,6 +13,12 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
+
+def get_gbrs_version():
+    sys.path.insert(0, "gbrs")
+    import version
+    return version.__version__
+
 requirements = []
 on_rtd = os.environ.get('READTHEDOCS', None)
 if not on_rtd:
@@ -27,7 +33,7 @@ test_requirements = [
 
 setup(
     name='gbrs',
-    version="0.2.0",
+    version=get_gbrs_version(),
     description='A suite of tools for Reconstructing Genomes and Quantifying Allele Specific Expression from RNA-Seq data',
     long_description=readme + '\n\n' + history,
     author='Kwangbom \"KB\" Choi, Ph.D.',
