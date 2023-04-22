@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-
 import sys
 import argparse
+from gbrs.version import __version__ as version
 import gbrs
 
-
-logo_text = """
+logo_text = (
+    """
         _
        | |
    __ _| |__  _ __ ___
@@ -15,18 +15,37 @@ logo_text = """
    __/ |
   |___/     Ver.:%s
 
-""" % gbrs.__version__
+"""
+    % version
+)
 
 
 #
 # Subcommand: hybridize
 #
 def add_subcommand_hybridize(subparsers):
-    subparser_hyb = subparsers.add_parser('hybridize')
-    subparser_hyb.add_argument('-F', '--target-files',  action='store', dest='fastalist', type=str, required=True)
-    subparser_hyb.add_argument('-s', '--suffices', action='store', dest='haplist', type=str, required=True)
-    subparser_hyb.add_argument('-o', action='store', dest='outfile', type=str, default='gbrs.hybridized.targets.fa')
-    subparser_hyb.add_argument('--build-bowtie-index', action='store_true', dest='build_bowtie_index')
+    subparser_hyb = subparsers.add_parser("hybridize")
+    subparser_hyb.add_argument(
+        "-F",
+        "--target-files",
+        action="store",
+        dest="fastalist",
+        type=str,
+        required=True,
+    )
+    subparser_hyb.add_argument(
+        "-s", "--suffices", action="store", dest="haplist", type=str, required=True
+    )
+    subparser_hyb.add_argument(
+        "-o",
+        action="store",
+        dest="outfile",
+        type=str,
+        default="gbrs.hybridized.targets.fa",
+    )
+    subparser_hyb.add_argument(
+        "--build-bowtie-index", action="store_true", dest="build_bowtie_index"
+    )
     subparser_hyb.set_defaults(func=gbrs.emase_utils.hybridize)
 
 
@@ -34,7 +53,7 @@ def add_subcommand_hybridize(subparsers):
 # Subcommand: align
 #
 def add_subcommand_align(subparsers):
-    subparser_aln = subparsers.add_parser('align')
+    subparser_aln = subparsers.add_parser("align")
     subparser_aln.set_defaults(func=gbrs.emase_utils.align)
 
 
@@ -42,14 +61,33 @@ def add_subcommand_align(subparsers):
 # Subcommand: bam2emase
 #
 def add_subcommand_bam2emase(subparsers):
-    subparser_b2e = subparsers.add_parser('bam2emase')
-    subparser_b2e.add_argument('-i', '--bamfile', action='store', dest='alnfile', type=str, required=True)
-    subparser_b2e.add_argument('-m', '--locus-ids', action='store', dest='lidfile', type=str, default=None)
-    subparser_b2e.add_argument('-s', '--haplotype-codes', action='store', dest='haplogypes', type=str, default=tuple())
-    subparser_b2e.add_argument('-o', action='store', dest='outfile', type=str, default=None)
-    subparser_b2e.add_argument('--delim', action='store', dest='delim', type=str, default='_')
-    subparser_b2e.add_argument('--index-dtype', action='store', dest='index_dtype', type=str, default='uint32')
-    subparser_b2e.add_argument('--data-dtype', action='store', dest='data_dtype', type=str, default='uint8')
+    subparser_b2e = subparsers.add_parser("bam2emase")
+    subparser_b2e.add_argument(
+        "-i", "--bamfile", action="store", dest="alnfile", type=str, required=True
+    )
+    subparser_b2e.add_argument(
+        "-m", "--locus-ids", action="store", dest="lidfile", type=str, default=None
+    )
+    subparser_b2e.add_argument(
+        "-s",
+        "--haplotype-codes",
+        action="store",
+        dest="haplogypes",
+        type=str,
+        default=tuple(),
+    )
+    subparser_b2e.add_argument(
+        "-o", action="store", dest="outfile", type=str, default=None
+    )
+    subparser_b2e.add_argument(
+        "--delim", action="store", dest="delim", type=str, default="_"
+    )
+    subparser_b2e.add_argument(
+        "--index-dtype", action="store", dest="index_dtype", type=str, default="uint32"
+    )
+    subparser_b2e.add_argument(
+        "--data-dtype", action="store", dest="data_dtype", type=str, default="uint8"
+    )
     subparser_b2e.set_defaults(func=gbrs.emase_utils.bam2emase)
 
 
@@ -57,10 +95,21 @@ def add_subcommand_bam2emase(subparsers):
 # Subcommand: intersect
 #
 def add_subcommand_intersect(subparsers):
-    subparser_isect = subparsers.add_parser('intersect')
-    subparser_isect.add_argument('-i', '--emase-files', action='store', dest='emasefiles', type=str, required=True)
-    subparser_isect.add_argument('-o', action='store', dest='outfile', type=str, required=True)
-    subparser_isect.add_argument('-c', action='store', dest='complib', type=str, default='zlib')
+    subparser_isect = subparsers.add_parser("intersect")
+    subparser_isect.add_argument(
+        "-i",
+        "--emase-files",
+        action="store",
+        dest="emasefiles",
+        type=str,
+        required=True,
+    )
+    subparser_isect.add_argument(
+        "-o", action="store", dest="outfile", type=str, required=True
+    )
+    subparser_isect.add_argument(
+        "-c", action="store", dest="complib", type=str, default="zlib"
+    )
     subparser_isect.set_defaults(func=gbrs.emase_utils.intersect)
 
 
@@ -68,10 +117,21 @@ def add_subcommand_intersect(subparsers):
 # Subcommand: emase2ec
 #
 def add_subcommand_compress(subparsers):
-    subparser_press = subparsers.add_parser('compress')
-    subparser_press.add_argument('-i', '--emase-files', action='store', dest='emasefiles', type=str, required=True)
-    subparser_press.add_argument('-o', action='store', dest='outfile', type=str, required=True)
-    subparser_press.add_argument('-c', action='store', dest='complib', type=str, default='zlib')
+    subparser_press = subparsers.add_parser("compress")
+    subparser_press.add_argument(
+        "-i",
+        "--emase-files",
+        action="store",
+        dest="emasefiles",
+        type=str,
+        required=True,
+    )
+    subparser_press.add_argument(
+        "-o", action="store", dest="outfile", type=str, required=True
+    )
+    subparser_press.add_argument(
+        "-c", action="store", dest="complib", type=str, default="zlib"
+    )
     subparser_press.set_defaults(func=gbrs.emase_utils.compress)
 
 
@@ -79,10 +139,16 @@ def add_subcommand_compress(subparsers):
 # Subcommand: get-alignment-spec
 #
 def add_subcommand_aspec(subparsers):
-    subparser_aspec = subparsers.add_parser('get-alignment-spec')
-    subparser_aspec.add_argument('-i', '--sample-file', action='store', dest='smpfile', type=str, required=True)
-    subparser_aspec.add_argument('-s', '--parental-strains', action='store', dest='haps', type=str, required=True)
-    subparser_aspec.add_argument('-m', '--min-expr', action='store', dest='min_expr', type=float, default=2.0)
+    subparser_aspec = subparsers.add_parser("get-alignment-spec")
+    subparser_aspec.add_argument(
+        "-i", "--sample-file", action="store", dest="smpfile", type=str, required=True
+    )
+    subparser_aspec.add_argument(
+        "-s", "--parental-strains", action="store", dest="haps", type=str, required=True
+    )
+    subparser_aspec.add_argument(
+        "-m", "--min-expr", action="store", dest="min_expr", type=float, default=2.0
+    )
     subparser_aspec.set_defaults(func=gbrs.commands.get_alignment_spec)
 
 
@@ -90,13 +156,40 @@ def add_subcommand_aspec(subparsers):
 # Subcommand: get-transition-prob
 #
 def add_subcommand_tprob(subparsers):
-    subparser_tprob = subparsers.add_parser('get-transition-prob')
-    subparser_tprob.add_argument('-i', '--marker-file', action='store', dest='mkrfile', type=str, required=True)
-    subparser_tprob.add_argument('-s', '--haplotypes', action='store', dest='haps', type=str, default='A,B')
-    subparser_tprob.add_argument('-m', '--mating-scheme', action='store', dest='mating_scheme', type=str, default='RI')
-    subparser_tprob.add_argument('-g', '--gamma-scale', action='store', dest='gamma_scale', type=float, default=0.01)
-    subparser_tprob.add_argument('-e', '--epsilon', action='store', dest='epsilon', type=float, default=0.000001)
-    subparser_tprob.add_argument('-o', '--outfile', action='store', dest='outfile', type=str, default='tranprob.npz')
+    subparser_tprob = subparsers.add_parser("get-transition-prob")
+    subparser_tprob.add_argument(
+        "-i", "--marker-file", action="store", dest="mkrfile", type=str, required=True
+    )
+    subparser_tprob.add_argument(
+        "-s", "--haplotypes", action="store", dest="haps", type=str, default="A,B"
+    )
+    subparser_tprob.add_argument(
+        "-m",
+        "--mating-scheme",
+        action="store",
+        dest="mating_scheme",
+        type=str,
+        default="RI",
+    )
+    subparser_tprob.add_argument(
+        "-g",
+        "--gamma-scale",
+        action="store",
+        dest="gamma_scale",
+        type=float,
+        default=0.01,
+    )
+    subparser_tprob.add_argument(
+        "-e", "--epsilon", action="store", dest="epsilon", type=float, default=0.000001
+    )
+    subparser_tprob.add_argument(
+        "-o",
+        "--outfile",
+        action="store",
+        dest="outfile",
+        type=str,
+        default="tranprob.npz",
+    )
     subparser_tprob.set_defaults(func=gbrs.commands.get_transition_prob)
 
 
@@ -104,18 +197,63 @@ def add_subcommand_tprob(subparsers):
 # Subcommand: quantify
 #
 def add_subcommand_quantify(subparsers):
-    subparser_quan = subparsers.add_parser('quantify')
-    subparser_quan.add_argument('-i', '--alignment-file', action='store', dest='alnfile', type=str, required=True)
-    subparser_quan.add_argument('-g', '--group-file', action='store', dest='grpfile', type=str, required=True)
-    subparser_quan.add_argument('-L', '--length-file', action='store', dest='lenfile', type=str, default=None)
-    subparser_quan.add_argument('-G', '--genotype', action='store', dest='gtypefile', type=str, default=None)
-    subparser_quan.add_argument('-M', '--multiread-model', action='store', dest='multiread_model', type=int, default=4)
-    subparser_quan.add_argument('-o', action='store', dest='outbase', type=str, default='gbrs.quantified')
-    subparser_quan.add_argument('-p', '--pseudocount', action='store', dest='pseudocount', type=float, default=0.0)
-    subparser_quan.add_argument('-m', '--max-iters', action='store', dest='max_iters', type=int, default=999)
-    subparser_quan.add_argument('-t', '--tolerance', action='store', dest='tolerance', type=float, default=0.0001)
-    subparser_quan.add_argument('-a', '--report-alignment-counts', action='store_true', dest='report_alignment_counts')
-    subparser_quan.add_argument('-w', '--report-posterior', action='store_true', dest='report_posterior')
+    subparser_quan = subparsers.add_parser("quantify")
+    subparser_quan.add_argument(
+        "-i",
+        "--alignment-file",
+        action="store",
+        dest="alnfile",
+        type=str,
+        required=True,
+    )
+    subparser_quan.add_argument(
+        "-g", "--group-file", action="store", dest="grpfile", type=str, required=True
+    )
+    subparser_quan.add_argument(
+        "-L", "--length-file", action="store", dest="lenfile", type=str, default=None
+    )
+    subparser_quan.add_argument(
+        "-G", "--genotype", action="store", dest="gtypefile", type=str, default=None
+    )
+    subparser_quan.add_argument(
+        "-M",
+        "--multiread-model",
+        action="store",
+        dest="multiread_model",
+        type=int,
+        default=4,
+    )
+    subparser_quan.add_argument(
+        "-o", action="store", dest="outbase", type=str, default="gbrs.quantified"
+    )
+    subparser_quan.add_argument(
+        "-p",
+        "--pseudocount",
+        action="store",
+        dest="pseudocount",
+        type=float,
+        default=0.0,
+    )
+    subparser_quan.add_argument(
+        "-m", "--max-iters", action="store", dest="max_iters", type=int, default=999
+    )
+    subparser_quan.add_argument(
+        "-t",
+        "--tolerance",
+        action="store",
+        dest="tolerance",
+        type=float,
+        default=0.0001,
+    )
+    subparser_quan.add_argument(
+        "-a",
+        "--report-alignment-counts",
+        action="store_true",
+        dest="report_alignment_counts",
+    )
+    subparser_quan.add_argument(
+        "-w", "--report-posterior", action="store_true", dest="report_posterior"
+    )
     subparser_quan.set_defaults(func=gbrs.emase_utils.quantify)
 
 
@@ -123,11 +261,19 @@ def add_subcommand_quantify(subparsers):
 # Subcommand: stencil
 #
 def add_subcommand_stencil(subparsers):
-    subparser_stenc = subparsers.add_parser('stencil')
-    subparser_stenc.add_argument('-i', action='store', dest='alnfile', type=str, required=True)
-    subparser_stenc.add_argument('-G', '--genotype', action='store', dest='gtypefile', type=str, required=True)
-    subparser_stenc.add_argument('-g', action='store', dest='grpfile', type=str, default=None)
-    subparser_stenc.add_argument('-o', action='store', dest='outfile', type=str, default=None)
+    subparser_stenc = subparsers.add_parser("stencil")
+    subparser_stenc.add_argument(
+        "-i", action="store", dest="alnfile", type=str, required=True
+    )
+    subparser_stenc.add_argument(
+        "-G", "--genotype", action="store", dest="gtypefile", type=str, required=True
+    )
+    subparser_stenc.add_argument(
+        "-g", action="store", dest="grpfile", type=str, default=None
+    )
+    subparser_stenc.add_argument(
+        "-o", action="store", dest="outfile", type=str, default=None
+    )
     subparser_stenc.set_defaults(func=gbrs.emase_utils.stencil)
 
 
@@ -135,14 +281,28 @@ def add_subcommand_stencil(subparsers):
 # Subcommand: reconstruct
 #
 def add_subcommand_reconstruct(subparsers):
-    subparser_rec = subparsers.add_parser('reconstruct')
-    subparser_rec.add_argument('-e', action='store', dest='exprfile', type=str, required=True)
-    subparser_rec.add_argument('-t', action='store', dest='tprobfile', type=str, required=True)
-    subparser_rec.add_argument('-x', action='store', dest='avecfile', type=str, default=None)
-    subparser_rec.add_argument('-g', action='store', dest='gposfile', type=str, default=None)
-    subparser_rec.add_argument('-c', action='store', dest='expr_threshold', type=float, default=1.5)
-    subparser_rec.add_argument('-s', action='store', dest='sigma', type=float, default=0.12)
-    subparser_rec.add_argument('-o', action='store', dest='outbase', type=str, default=None)
+    subparser_rec = subparsers.add_parser("reconstruct")
+    subparser_rec.add_argument(
+        "-e", action="store", dest="exprfile", type=str, required=True
+    )
+    subparser_rec.add_argument(
+        "-t", action="store", dest="tprobfile", type=str, required=True
+    )
+    subparser_rec.add_argument(
+        "-x", action="store", dest="avecfile", type=str, default=None
+    )
+    subparser_rec.add_argument(
+        "-g", action="store", dest="gposfile", type=str, default=None
+    )
+    subparser_rec.add_argument(
+        "-c", action="store", dest="expr_threshold", type=float, default=1.5
+    )
+    subparser_rec.add_argument(
+        "-s", action="store", dest="sigma", type=float, default=0.12
+    )
+    subparser_rec.add_argument(
+        "-o", action="store", dest="outbase", type=str, default=None
+    )
     subparser_rec.set_defaults(func=gbrs.commands.reconstruct)
 
 
@@ -150,11 +310,19 @@ def add_subcommand_reconstruct(subparsers):
 # Subcommand: interpolate
 #
 def add_subcommand_interpolate(subparsers):
-    subparser_interp = subparsers.add_parser('interpolate')
-    subparser_interp.add_argument('-i', action='store', dest='probfile', type=str, required=True)
-    subparser_interp.add_argument('-g', action='store', dest='gridfile', type=str, default=None)
-    subparser_interp.add_argument('-p', action='store', dest='gposfile', type=str, default=None)
-    subparser_interp.add_argument('-o', action='store', dest='outfile', type=str, default=None)
+    subparser_interp = subparsers.add_parser("interpolate")
+    subparser_interp.add_argument(
+        "-i", action="store", dest="probfile", type=str, required=True
+    )
+    subparser_interp.add_argument(
+        "-g", action="store", dest="gridfile", type=str, default=None
+    )
+    subparser_interp.add_argument(
+        "-p", action="store", dest="gposfile", type=str, default=None
+    )
+    subparser_interp.add_argument(
+        "-o", action="store", dest="outfile", type=str, default=None
+    )
     subparser_interp.set_defaults(func=gbrs.commands.interpolate)
 
 
@@ -162,9 +330,18 @@ def add_subcommand_interpolate(subparsers):
 # Subcommand: combine
 #
 def add_subcommand_combine(subparsers):
-    subparser_comb = subparsers.add_parser('combine')
-    subparser_comb.add_argument('-i', '--genoprob-files', action='store', dest='probfiles', type=str, required=True)
-    subparser_comb.add_argument('-o', action='store', dest='outfile', type=str, default=None)
+    subparser_comb = subparsers.add_parser("combine")
+    subparser_comb.add_argument(
+        "-i",
+        "--genoprob-files",
+        action="store",
+        dest="probfiles",
+        type=str,
+        required=True,
+    )
+    subparser_comb.add_argument(
+        "-o", action="store", dest="outfile", type=str, default=None
+    )
     subparser_comb.set_defaults(func=gbrs.commands.combine)
 
 
@@ -172,25 +349,38 @@ def add_subcommand_combine(subparsers):
 # Subcommand: plot
 #
 def add_subcommand_plot(subparsers):
-    subparser_plot = subparsers.add_parser('plot')
-    subparser_plot.add_argument('-i', '--genoprob', action='store', dest='gpbfile', type=str, required=True)
-    subparser_plot.add_argument('-o', '--outfile', action='store', dest='outfile', type=str, default=None)
-    subparser_plot.add_argument('-n', '--sample-name', action='store', dest='sample_name', type=str, default='')
-    subparser_plot.add_argument('--num-grids', action='store', dest='grid_size', type=int, default=2)
-    subparser_plot.add_argument('--xt-max', action='store', dest='xt_max', type=int, default=5000)
-    subparser_plot.add_argument('--xt-size', action='store', dest='xt_size', type=int, default=500)
-    subparser_plot.add_argument('--grid-width', action='store', dest='width', type=float, default=0.01)
+    subparser_plot = subparsers.add_parser("plot")
+    subparser_plot.add_argument(
+        "-i", "--genoprob", action="store", dest="gpbfile", type=str, required=True
+    )
+    subparser_plot.add_argument(
+        "-o", "--outfile", action="store", dest="outfile", type=str, default=None
+    )
+    subparser_plot.add_argument(
+        "-n", "--sample-name", action="store", dest="sample_name", type=str, default=""
+    )
+    subparser_plot.add_argument(
+        "--num-grids", action="store", dest="grid_size", type=int, default=2
+    )
+    subparser_plot.add_argument(
+        "--xt-max", action="store", dest="xt_max", type=int, default=5000
+    )
+    subparser_plot.add_argument(
+        "--xt-size", action="store", dest="xt_size", type=int, default=500
+    )
+    subparser_plot.add_argument(
+        "--grid-width", action="store", dest="width", type=float, default=0.01
+    )
     subparser_plot.set_defaults(func=gbrs.commands.plot)
 
 
 def main():
-
     #
     # Main command parser
     #
 
-    parser = argparse.ArgumentParser(version=gbrs.__version__)
-    subparsers = parser.add_subparsers(dest='action')
+    parser = argparse.ArgumentParser(version=version)
+    subparsers = parser.add_subparsers(dest="action")
 
     #
     # Add sub-commands

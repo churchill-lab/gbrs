@@ -1,39 +1,59 @@
 #!/usr/bin/env python
-
-import os
-import sys
-import argparse
-import logging
-import numpy as np
 from collections import OrderedDict
 from itertools import combinations_with_replacement
+import argparse
+import logging
+import os
+import sys
 
-DATA_DIR = os.getenv('GBRS_DATA', '.')
+import numpy as np
+
+DATA_DIR = os.getenv("GBRS_DATA", ".")
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", '--genoprob-file', action='store', dest='gprobfile', type=str, required=True)
-    parser.add_argument('-s', '--strains', action='store', dest='strains', type=str, required=True)
-    parser.add_argument('-g', '--grid-file', action='store', dest='gridfile', type=str, default=None)
-    parser.add_argument('-f', '--in-numpy-format', action='store_true')  # file format
-    parser.add_argument('-c', '--by-chromosomes', action='store_true')  # row dimension
-    parser.add_argument('-p', '--by-strains', action='store_false')  # column dimension
-    parser.add_argument("-o", action='store', dest='outfile', type=str, default=None)
-    parser.add_argument("-v", "--verbose", help="Toggle DEBUG verbosity", action="store_true")
+    parser.add_argument(
+        "-i",
+        "--genoprob-file",
+        action="store",
+        dest="gprobfile",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "-s", "--strains", action="store", dest="strains", type=str, required=True
+    )
+    parser.add_argument(
+        "-g", "--grid-file", action="store", dest="gridfile", type=str, default=None
+    )
+    parser.add_argument(
+        "-f", "--in-numpy-format", action="store_true"  # file format
+    )
+    parser.add_argument(
+        "-c", "--by-chromosomes", action="store_true"  # row dimension
+    )
+    parser.add_argument(
+        "-p", "--by-strains", action="store_false"  # column dimension
+    )
+    parser.add_argument(
+        "-o", action="store", dest="outfile", type=str, default=None
+    )
+    parser.add_argument(
+        "-v", "--verbose", help="Toggle DEBUG verbosity", action="store_true"
+    )
     return parser.parse_args()
 
 
 def main(args, loglevel):
-
     logging.basicConfig(format="[gbrs::%(levelname)s] %(message)s", level=loglevel)
     logging.debug("Conversion requested: %s" % args.gprobfile)
 
     logging.info("Getting suffices for strains...")
-    strains = args.strains.split(',')
+    strains = args.strains.split(",")
     num_strains = len(strains)
     hid = dict(zip(strains, np.arange(num_strains)))
-    genotypes = [ h1+h2 for h1, h2 in combinations_with_replacement(strains, 2) ]
+    genotypes = [h1 + h2 for h1, h2 in combinations_with_replacement(strains, 2)]
     num_genotypes = len(genotypes)
     convmat = np.zeros((num_genotypes, num_strains))
     for g in range(num_genotypes):
@@ -43,19 +63,19 @@ def main(args, loglevel):
     convmat *= 0.5
 
     if args.gridfile is None:
-        args.gridfile = os.path.join(DATA_DIR, 'ref.genome_grid.64k.txt')
+        args.gridfile = os.path.join(DATA_DIR, "ref.genome_grid.64k.txt")
     with open(args.gridfile) as fh:
         fh.next()
         grid = OrderedDict()
         for curline in fh:
-            item = curline.rstrip().split('\t')
+            item = curline.rstrip().split("\t")
             chro = item[1]
             if grid.has_key(chro):
                 grid[chro] += 1
             else:
                 grid[chro] = 1
     num_grids = sum(grid.values())
-    logging.info("There were %d grids." % num_grids)
+    logging.info(f"There were {num_grids} grids.")
 
     logging.info("Reading in GBRS genotype probability file")
     gprob = np.load(args.gprobfile)
@@ -69,13 +89,19 @@ def main(args, loglevel):
 
     logging.info("Exporting to GBRS quant format")
     if args.outfile is None:
-        args.outfile = os.path.splitext(args.gprobfile)[0] + '.tsv'
-    np.savetxt(args.outfile, gprob_mat_converted, fmt='%.6f', delimiter='\t', header='\t'.join(strains))
+        args.outfile = os.path.splitext(args.gprobfile)[0] + ".tsv"
+    np.savetxt(
+        args.outfile,
+        gprob_mat_converted,
+        fmt="%.6f",
+        delimiter="\t",
+        header="\t".join(strains),
+    )
 
     logging.info("DONE")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     arguments = parse_args()
     # Setup logging
     if arguments.verbose:

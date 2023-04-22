@@ -1,9 +1,10 @@
-import os
-import sys
-import numpy as np
-import subprocess
 from itertools import dropwhile
 from collections import defaultdict
+import os
+import subprocess
+import sys
+
+import numpy as np
 import emase
 
 
@@ -40,7 +41,7 @@ def hybridize(**kwargs):
     fastalist = kwargs.get("fastalist").split(",")
     haplist = kwargs.get("haplist").split(",")
     num_haps = len(fastalist)
-    lenfile = outbase + ".info"
+    lenfile = f"{outbase}.info"
     seqout = open(outfile, "w")
     lenout = open(lenfile, "w")
     for hid in range(num_haps):
@@ -52,30 +53,31 @@ def hybridize(**kwargs):
         )
         fh = open(fasta)
         curline = fh.readline()  # The first fasta header
-        curline = curline.rstrip().split()[0] + "_" + hapname
-        seqout.write("%s\n" % curline)
-        lenout.write("%s\t" % curline[1:])
+        curline = f"{curline.rstrip().split()[0]}_{hapname}"
+        seqout.write(f"{curline}\n")
+        lenout.write(f"curline[1:]\t")
         seqlen = 0
         for curline in fh:
             if curline[0] == ">":
                 curline = curline.rstrip().split()[0] + "_" + hapname + "\n"
-                lenout.write("%d\n%s\t" % (seqlen, curline[1:].rstrip()))
+                lenout.write(f"{seqlen}\n{curline[1:].rstrip()}\t")
                 seqlen = 0
             else:
                 seqlen += len(curline.rstrip())
             seqout.write(curline)
         fh.close()
-        lenout.write("%d\n" % seqlen)
+        lenout.write(f"{seqlen}\n")
     seqout.close()
     lenout.close()
 
     # Build bowtie index for the pooled transcriptome
     build_bowtie_index = kwargs.get("build_bowtie_index")
     if build_bowtie_index:
-        out_index = outbase + ".bowtie1"
+        out_index = f"{outbase}.bowtie1"
         print("[gbrs::hybridize] Building bowtie1 index", file=sys.stderr)
         status = subprocess.call(
-            "bowtie-build %s %s" % (outfile, out_index), shell=True
+            f"bowtie-build outfile out_index",
+            shell=True
         )
 
 

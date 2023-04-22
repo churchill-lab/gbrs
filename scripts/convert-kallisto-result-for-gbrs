@@ -7,38 +7,49 @@ import logging
 from scipy.sparse import lil_matrix
 import numpy as np
 
-DATA_DIR = os.getenv('GBRS_DATA', '.')
+DATA_DIR = os.getenv("GBRS_DATA", ".")
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", '--quant-file', action='store', dest='quantfile', type=str, required=True)
-    parser.add_argument('-s', '--strains', action='store', dest='strains', type=str, required=True)
-    parser.add_argument('-t', '--tid-file', action='store', dest='tidfile', type=str, default=None)
-    parser.add_argument('-g', '--group-file', action='store', dest='grpfile', type=str, default=None)
-    parser.add_argument("-o", action='store', dest='outbase', type=str, default=None)
-    parser.add_argument("-v", "--verbose", help="Toggle DEBUG verbosity", action="store_true")
+    parser.add_argument(
+        "-i", "--quant-file", action="store", dest="quantfile", type=str, required=True
+    )
+    parser.add_argument(
+        "-s", "--strains", action="store", dest="strains", type=str, required=True
+    )
+    parser.add_argument(
+        "-t", "--tid-file", action="store", dest="tidfile", type=str, default=None
+    )
+    parser.add_argument(
+        "-g", "--group-file", action="store", dest="grpfile", type=str, default=None
+    )
+    parser.add_argument(
+        "-o", action="store", dest="outbase", type=str, default=None
+    )
+    parser.add_argument(
+        "-v", "--verbose", help="Toggle DEBUG verbosity", action="store_true"
+    )
     return parser.parse_args()
 
 
 def main(args, loglevel):
-
     logging.basicConfig(format="[gbrs::%(levelname)s] %(message)s", level=loglevel)
-    logging.debug("Conversion requested: %s" % args.quantfile)
+    logging.debug(f"Conversion requested: {args.quantfile}")
 
     logging.info("Reading in transcript IDs...")
-    tname = np.loadtxt(args.tidfile, usecols=(0,), dtype='string')
+    tname = np.loadtxt(args.tidfile, usecols=(0,), dtype="string")
     num_transcripts = len(tname)
     tid = dict(zip(tname, np.arange(num_transcripts)))
 
     logging.info("Getting suffices for strains...")
-    strains = args.strains.split(',')
+    strains = args.strains.split(",")
     num_strains = len(strains)
     hid = dict(zip(strains, np.arange(num_strains)))
 
     logging.info("Processing group file...")
     if args.grpfile is None:
-        grpfile = os.path.join(DATA_DIR, 'ref.gene2transcripts.tsv')
+        grpfile = os.path.join(DATA_DIR, "ref.gene2transcripts.tsv")
     else:
         grpfile = args.grpfile
     gname = list()
@@ -61,30 +72,40 @@ def main(args, loglevel):
     with open(args.quantfile) as fh:
         fh.next()  # header
         for curline in fh:
-            item = curline.rstrip().split('\t')
-            t, h = item[0].split('_')
+            item = curline.rstrip().split("\t")
+            t, h = item[0].split("_")
             tmat[tid[t], hid[h]] = float(item[4])
     tmat = np.column_stack((tmat, tmat.sum(axis=1)))
 
     logging.info("Exporting to GBRS quant format...")
     if args.outbase is None:
-        outbase = 'kallisto.abundance'
+        outbase = "kallisto.abundance"
     else:
         outbase = args.outbase
-    toutfile = outbase + ".isoforms"
+    toutfile = f"{outbase}.isoforms"
     theader = "\t".join(["Transcript_ID"] + strains + ["Total"])
-    np.savetxt(toutfile, np.column_stack((tname, np.char.mod('%f', tmat))), \
-               header=theader, fmt='%s', delimiter='\t')
+    np.savetxt(
+        toutfile,
+        np.column_stack((tname, np.char.mod("%f", tmat))),
+        header=theader,
+        fmt="%s",
+        delimiter="\t",
+    )
     gmat = grp_conv_mat.transpose() * tmat
-    goutfile = outbase + '.genes'
+    goutfile = f"{outbase}.genes"
     gheader = "\t".join(["Gene_ID"] + strains + ["Total"])
-    np.savetxt(goutfile, np.column_stack((gname, np.char.mod('%f', gmat))), \
-               header=gheader, fmt='%s', delimiter='\t')
+    np.savetxt(
+        goutfile,
+        np.column_stack((gname, np.char.mod("%f", gmat))),
+        header=gheader,
+        fmt="%s",
+        delimiter="\t",
+    )
 
     logging.info("DONE")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     arguments = parse_args()
     # Setup logging
     if arguments.verbose:
