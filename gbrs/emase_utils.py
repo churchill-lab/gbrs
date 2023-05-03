@@ -169,7 +169,7 @@ def compress(**kwargs):
         for h in range(alnmat_ec.num_haplotypes):
             nzlocs_h = nzlocs[h]
             if nzlocs_h != "":
-                nzinds = np.array(map(np.int, nzlocs_h.split(",")))
+                nzinds = np.array(list(map(int, nzlocs_h.split(","))))
                 alnmat_ec.data[h][row_id, nzinds] = 1
     alnmat_ec.finalize()
     alnmat_ec.save(h5file=outfile, complib=complib)
