@@ -20,6 +20,8 @@ def get_chromosome_info(caller="gbrs"):
         print(f"[{caller}] Make sure if $GBRS_DATA is set correctly. Currently it is {DATA_DIR}", file=sys.stderr)
         raise
     else:
+        # convert from bytes to string
+        chrlens = OrderedDict({k.decode(): v for k, v in chrlens.items()})
         return chrlens
 
 
@@ -292,7 +294,7 @@ def reconstruct(**kwargs):
     gene_pos = np.load(gposfile)
     gid_genome_order = dict.fromkeys(gene_pos.files)
     for c in gene_pos.files:
-        gid_genome_order[c] = np.array([g for g, p in gene_pos[c]])
+        gid_genome_order[c] = np.array([g.decode() for g, p in gene_pos[c]])
 
     # Load expression level
     expr = dict()
@@ -304,7 +306,7 @@ def reconstruct(**kwargs):
         num_genos = len(genotypes)
         for curline in fh:
             item = curline.rstrip().split("\t")
-            expr[item[0]] = np.array(map(float, item[1:-1]))
+            expr[item[0]] = np.array(list(map(float, item[1:-1])))
 
     # Get null model probability
     init_vec = []
@@ -351,7 +353,8 @@ def reconstruct(**kwargs):
                 alpha_scaler_c[i] = -normalizer
             alpha[c] = alpha_c
             alpha_scaler[c] = alpha_scaler_c
-
+    print(alpha)
+    print(alpha_scaler)
     # Get backward probability
     beta = dict()
     for c in chrs:

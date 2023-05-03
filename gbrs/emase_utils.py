@@ -305,6 +305,7 @@ def quantify(**kwargs):
                 gtmask[np.meshgrid(hid2set, tid2set)] = 1.0
                 for t in tid2set:
                     gtcall_t[alnmat.lname[t]] = gt
+
         alnmat.multiply(gtmask, axis=2)
         for h in range(alnmat.num_haplotypes):
             alnmat.data[h].eliminate_zeros()
