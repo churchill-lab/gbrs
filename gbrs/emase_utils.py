@@ -290,11 +290,21 @@ def quantify(**kwargs):
     # Load genotype calls
     if gtypefile is not None:  # Genotype calls are at the gene level
         outbase = outbase + ".diploid"
+        # haplotype as key and number as value
         hid = dict(zip(alnmat.hname, np.arange(alnmat.num_haplotypes)))
+        # gene id as key and number as value
         gid = dict(zip(alnmat.gname, np.arange(len(alnmat.gname))))
         gtmask = np.zeros((alnmat.num_haplotypes, alnmat.num_loci))
+        # genome genotype calls, gene_id as key
         gtcall_g = dict.fromkeys(alnmat.gname)
+        # transcript genotype calls, transcript_id as key
         gtcall_t = dict.fromkeys(alnmat.lname)
+        #count = 0
+        #for k, v in gtcall_t.items():
+        #    print(k, v)
+        #    if count > 10:
+        #        break
+        #    count += 1
         with open(gtypefile) as fh:
             for curline in dropwhile(is_comment, fh):
                 item = curline.rstrip().split("\t")
@@ -302,7 +312,7 @@ def quantify(**kwargs):
                 gtcall_g[g] = gt
                 hid2set = np.array([hid[c] for c in gt])
                 tid2set = np.array(alnmat.groups[gid[g]])
-                gtmask[np.meshgrid(hid2set, tid2set)] = 1.0
+                gtmask[tuple(np.meshgrid(hid2set, tid2set))] = 1.0
                 for t in tid2set:
                     gtcall_t[alnmat.lname[t]] = gt
 

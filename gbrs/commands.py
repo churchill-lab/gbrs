@@ -28,7 +28,7 @@ def get_chromosome_info(caller="gbrs"):
 def get_founder_info(caller="gbrs"):
     fcofile = os.path.join(DATA_DIR, "founder.hexcolor.info")
     try:
-        fcolors = OrderedDict(np.loadtxt(fcofile, usecols=(0, 1), dtype="string", delimiter="\t", comments=None))
+        fcolors = OrderedDict(np.loadtxt(fcofile, usecols=(0, 1), dtype="str", delimiter="\t", comments=None))
     except:
         print(f"[{caller}] Make sure if $GBRS_DATA is set correctly. Currently it is {DATA_DIR}", file=sys.stderr)
         raise
@@ -549,11 +549,11 @@ def plot(**kwargs):
         ax.get_xaxis().tick_bottom()
         ax.get_yaxis().tick_right()
         ax.get_yaxis().tick_left()
-        ax.get_yaxis().set_ticks([])
-        ax.set_yticklabels(chrs)
-        pyplot.yticks(np.arange(num_chrs*4+1, 1, -4), fontsize=14)
-        ax.set_xticklabels(["%dcM" % xt for xt in np.arange(0, xt_max*grid_size/100, xt_size*grid_size/100)])
-        pyplot.xticks(np.arange(0, xt_max*width, xt_size*width))
+        #ax.get_yaxis().set_ticks([])
+        #ax.set_yticklabels(list(chrs))
+        pyplot.yticks(ticks=np.arange(num_chrs*4+1, 1, -4), labels=list(chrs), fontsize=14)
+        #ax.set_xticklabels(["%dcM" % xt for xt in np.arange(0, xt_max*grid_size/100, xt_size*grid_size/100)])
+        pyplot.xticks(ticks=np.arange(0, xt_max*width, xt_size*width), labels=["%dcM" % xt for xt in np.arange(0, xt_max*grid_size/100, xt_size*grid_size/100)])
         title_txt = f"Genome reconstruction: {sample_name}"
         title_txt += f"\n(Total {num_recomb_total} recombinations)"
         ax.set_title(title_txt, fontsize=18, loc='center')

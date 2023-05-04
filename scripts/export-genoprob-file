@@ -47,7 +47,7 @@ def parse_args():
 
 def main(args, loglevel):
     logging.basicConfig(format="[gbrs::%(levelname)s] %(message)s", level=loglevel)
-    logging.debug("Conversion requested: %s" % args.gprobfile)
+    logging.debug(f"Conversion requested: {args.gprobfile}")
 
     logging.info("Getting suffices for strains...")
     strains = args.strains.split(",")
@@ -65,12 +65,12 @@ def main(args, loglevel):
     if args.gridfile is None:
         args.gridfile = os.path.join(DATA_DIR, "ref.genome_grid.64k.txt")
     with open(args.gridfile) as fh:
-        fh.next()
+        next(fh)
         grid = OrderedDict()
         for curline in fh:
             item = curline.rstrip().split("\t")
             chro = item[1]
-            if grid.has_key(chro):
+            if chro in grid:
                 grid[chro] += 1
             else:
                 grid[chro] = 1
@@ -79,7 +79,7 @@ def main(args, loglevel):
 
     logging.info("Reading in GBRS genotype probability file")
     gprob = np.load(args.gprobfile)
-    chromosomes = grid.keys()
+    chromosomes = list(grid.keys())
     gprob_mat = gprob[chromosomes[0]].transpose()
     for c in chromosomes[1:]:
         gprob_mat = np.vstack((gprob_mat, gprob[c].transpose()))
@@ -89,7 +89,7 @@ def main(args, loglevel):
 
     logging.info("Exporting to GBRS quant format")
     if args.outfile is None:
-        args.outfile = os.path.splitext(args.gprobfile)[0] + ".tsv"
+        args.outfile = f"{os.path.splitext(args.gprobfile)[0]}.tsv"
     np.savetxt(
         args.outfile,
         gprob_mat_converted,
