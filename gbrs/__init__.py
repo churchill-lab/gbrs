@@ -1,2 +1,2 @@
 from gbrs.commands import plot
-from gbrs.emase_utils import hybridize, align, bam2emase, quantify
+from gbrs.emase_utils import hybridize, bam2emase, quantify
