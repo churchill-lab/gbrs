@@ -140,8 +140,8 @@ def quantify(
 def reconstruct(
     expression_file: Annotated[Path, typer.Option('-e', '--expr-file', exists=True, dir_okay=False, resolve_path=True, help='file containing gene-level TPM quantities')],
     tprob_file: Annotated[Path, typer.Option('-t', '--tprob-file', exists=True, dir_okay=False, resolve_path=True, help='transition probabilities file')],
-    avec_file: Annotated[Path, typer.Option('-x', '--avec-file', exists=True, dir_okay=False, resolve_path=True)] = None,
-    gpos_file: Annotated[Path, typer.Option('-g', '--gpos-file', exists=True, dir_okay=False, resolve_path=True)] = None,
+    avec_file: Annotated[Path, typer.Option('-x', '--avec-file', exists=True, dir_okay=False, resolve_path=True, help='alignment specificity file')] = None,
+    gpos_file: Annotated[Path, typer.Option('-g', '--gpos-file', exists=True, dir_okay=False, resolve_path=True, help='meta information for genes (chrom, id, location)')] = None,
     expr_threshold: Annotated[float, typer.Option('-c', '--expr-threshold')] = 1.5,
     sigma: Annotated[float, typer.Option('-s', '--sigma')] = 0.12,
     outbase: Annotated[str, typer.Option('-o', '--outbase', help='basename of all the generated output files')] = None,
@@ -168,20 +168,20 @@ def reconstruct(
 
 @app.command(help="interpolate probability on a decently-spaced grid")
 def interpolate(
-    probability_file: Annotated[Path, typer.Option('-i', '--probability-file', exists=True, dir_okay=False, resolve_path=True)],
-    grid_file: Annotated[Path, typer.Option('-g', '--grid-file', exists=True, dir_okay=False, resolve_path=True)] = None,
-    gpos_file: Annotated[Path, typer.Option('-p', '--gpos-file', exists=True, dir_okay=False, resolve_path=True)] = None,
-    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = None,
+    genoprob_file: Annotated[Path, typer.Option('-i', '--genoprob-file', exists=True, dir_okay=False, resolve_path=True, help='genotype probability file')],
+    grid_file: Annotated[Path, typer.Option('-g', '--grid-file', exists=True, dir_okay=False, resolve_path=True, help='grid file (i.e, ref.genome_grid.64k.txt)')] = None,
+    gpos_file: Annotated[Path, typer.Option('-p', '--gpos-file', exists=True, dir_okay=False, resolve_path=True, help='meta information for genes (chrom, id, location)')] = None,
+    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='output file in GBRS quant format')] = None,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
     logger = gbrs_utils.configure_logging(verbose)
     logger.debug('interpolate')
     try:
         gbrs_utils.interpolate(
-            probability_file=probability_file,
+            genoprob_file=genoprob_file,
             grid_file=grid_file,
             gpos_file=gpos_file,
-            out_file=out_file
+            output_file=output_file
         )
     except Exception as e:
         if logger.level == logging.DEBUG:
@@ -192,10 +192,10 @@ def interpolate(
 
 @app.command(help="export to GBRS quant format")
 def export(
-    genoprob_file: Annotated[Path, typer.Option('-i', '--genoprob-file', exists=True, dir_okay=False, resolve_path=True)],
+    genoprob_file: Annotated[Path, typer.Option('-i', '--genoprob-file', exists=True, dir_okay=False, resolve_path=True, help='genotype probability file')],
     strains: Annotated[list[str], typer.Option('-s', '--strains', help='strain, either one per -s option, i.e. -h A -h B -h C, or a shortcut -s A,B,C')],
-    grid_file: Annotated[Path, typer.Option('-g', '--grid-file', exists=True, dir_okay=False, resolve_path=True)] = None,
-    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = None,
+    grid_file: Annotated[Path, typer.Option('-g', '--grid-file', exists=True, dir_okay=False, resolve_path=True, help='grid file (i.e, ref.genome_grid.64k.txt)')] = None,
+    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='output file in GBRS quant format')] = None,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
     logger = gbrs_utils.configure_logging(verbose)
@@ -212,7 +212,7 @@ def export(
             genoprob_file=genoprob_file,
             strains=all_strains,
             grid_file=grid_file,
-            out_file=out_file
+            output_file=output_file
         )
     except Exception as e:
         if logger.level == logging.DEBUG:

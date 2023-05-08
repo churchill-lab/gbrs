@@ -421,11 +421,11 @@ def reconstruct(
     Args:
         expression_file: file containing gene-level TPM quantities
         tprob_file: transition probabilities file
-        avec_file:
-        gpos_file:
+        avec_file: alignment specificity file
+        gpos_file: meta information for genes (chrom, id, location)
         expr_threshold:
         sigma:
-        outbase:
+        outbase: base output
 
     Returns:
 
@@ -434,10 +434,10 @@ def reconstruct(
         out_gtype = 'gbrs.reconstructed.genotypes.tsv'
         out_gprob = 'gbrs.reconstructed.genoprobs.npz'
     else:
-        out_gtype = outbase + '.genotypes.tsv'
-        out_gprob = outbase + '.genoprobs.npz'
+        out_gtype = f'{outbase}.genotypes.tsv'
+        out_gprob = f'{outbase}.genoprobs.npz'
 
-    out_gtype_ordered = os.path.splitext(out_gtype)[0] + '.npz'
+    out_gtype_ordered = f'{os.path.splitext(out_gtype)[0]}.npz'
 
     if avec_file is None:
         avec_file = os.path.join(DATA_DIR, 'avecs.npz')
@@ -448,7 +448,7 @@ def reconstruct(
     logger.info(f'Expression File: {expression_file}')
     logger.info(f'Transition Probabilities File: {tprob_file}')
     logger.info(f'Alignment Specificity File: {avec_file}')
-    logger.info(f'Meta Info File: {gpos_file}')
+    logger.info(f'Gene Position File: {gpos_file}')
     logger.info(f'Expression Threshold: {expr_threshold}')
     logger.info(f'Sigma: {sigma}')
     logger.info(f'Outbase: {outbase}')
@@ -462,8 +462,12 @@ def reconstruct(
     avecs = np.load(avec_file)
 
     # Load meta info
-    logger.info(f'Loading meta data: {gpos_file}')
+    logger.info(f'Loading gene meta data: {gpos_file}')
     gene_pos = np.load(gpos_file)
+
+    # gid_genome_order is a dictionary
+    # with keys being chromosomes
+    # and values being a list of gene ids and their position
     gid_genome_order = dict.fromkeys(gene_pos.files)
     for c in gene_pos.files:
         gid_genome_order[c] = np.array([g.decode() for g, p in gene_pos[c]])
@@ -629,11 +633,18 @@ def reconstruct(
 
 
 def interpolate(
-    probability_file: Path | str,
+    genoprob_file: Path | str,
     grid_file: Path | str = None,
     gpos_file: Path | str = None,
-    out_file: Path | str = None,
-):
+    output_file: Path | str = None,
+) -> None:
+    """
+    Args:
+        genoprob_file: the EMASE genotype probability file
+        grid_file: grid file (i.e, ref.genome_grid.64k.txt)
+        gpos_file: meta information for genes (chrom, id, location)
+        output_file: the PDF file
+    """
     if gpos_file is None:
         gpos_file = os.path.join(DATA_DIR, 'ref.gene_pos.ordered.npz')
         try:
@@ -651,13 +662,13 @@ def interpolate(
     if grid_file is None:
         grid_file = os.path.join(DATA_DIR, 'ref.genome_grid.64k.txt')
 
-    if out_file is None:
-        out_file = f'gbrs.interpolated.{os.path.basename(probability_file)}'
+    if output_file is None:
+        output_file = f'gbrs.interpolated.{os.path.basename(genoprob_file)}'
 
-    logger.info(f'Probability File: {probability_file}')
+    logger.info(f'Genotype Probability File: {genoprob_file}')
     logger.info(f'Grid File: {grid_file}')
-    logger.info(f'Meta Info File: {gpos_file}')
-    logger.info(f'Output File: {out_file}')
+    logger.info(f'Gene Position File: {gpos_file}')
+    logger.info(f'Output File: {output_file}')
 
     logger.info('Loading chromosome information')
     chrlens = get_chromosome_info()
@@ -691,8 +702,8 @@ def interpolate(
             )  # Do we have chromosome length in cM?
             x_gene_extended[c] = x
 
-    logger.info(f'Loading GBRS genotype probability file: {probability_file}')
-    gamma_gene = np.load(probability_file)
+    logger.info(f'Loading GBRS genotype probability file: {genoprob_file}')
+    gamma_gene = np.load(genoprob_file)
     gene_model_chr = dict()
     gene_intrp_chr = dict()
     for c in x_grid.keys():
@@ -704,8 +715,8 @@ def interpolate(
             gene_model_chr[c] = interp1d(x_gene_extended[c], y, axis=1)
             gene_intrp_chr[c] = gene_model_chr[c](x_grid[c])
 
-    logger.info(f'Saving interpolate probability file: {out_file}')
-    np.savez_compressed(out_file, **gene_intrp_chr)
+    logger.info(f'Saving interpolate probability file: {output_file}')
+    np.savez_compressed(output_file, **gene_intrp_chr)
     logger.info('Done')
 
 
@@ -864,7 +875,7 @@ def export(
     genoprob_file: Path | str,
     strains: list[str],
     grid_file: Path | str = None,
-    out_file: Path | str = None,
+    output_file: Path | str = None,
 ) -> None:
     """
     Export genotypes probability file in in GBRS quant format.
@@ -873,18 +884,18 @@ def export(
         genoprob_file: genotype probability file
         strains: list of strains
         grid_file: grid file (i.e, ref.genome_grid.64k.txt)
-        out_file: output file in GBRS quant format
+        output_file: output file in GBRS quant format
     """
     if grid_file is None:
         grid_file = os.path.join(DATA_DIR, 'ref.genome_grid.64k.txt')
 
-    if out_file is None:
-        out_file = f'{os.path.splitext(genoprob_file)[0]}.tsv'
+    if output_file is None:
+        output_file = f'{os.path.splitext(genoprob_file)[0]}.tsv'
 
     logger.info(f'Genotype Probabilities File: {genoprob_file}')
     logger.info(f'Strains: {strains}')
     logger.info(f'Grid File: {grid_file}')
-    logger.info(f'Output File: {out_file}')
+    logger.info(f'Output File: {output_file}')
 
     logger.info('Getting suffices for strains')
     num_strains = len(strains)
@@ -926,9 +937,9 @@ def export(
     logger.info('Converting genotype probability')
     gprob_mat_converted = np.dot(gprob_mat, convmat)
 
-    logger.info(f'Saving GBRS quant format: {out_file}')
+    logger.info(f'Saving GBRS quant format: {output_file}')
     np.savetxt(
-        out_file,
+        output_file,
         gprob_mat_converted,
         fmt='%.6f',
         delimiter='\t',
