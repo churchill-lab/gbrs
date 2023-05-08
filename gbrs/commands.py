@@ -167,7 +167,8 @@ def export(
         # -s A,B,C,D -s E -s F -s G,H
         all_strains: list[str] = []
         for x in strains:
-            strains.extend(x.split(','))
+            all_strains.extend(x.split(','))
+
         gbrs_utils.export(
             genoprob_file=genoprob_file,
             strains=all_strains,
