@@ -57,8 +57,12 @@ setup(
         'Natural Language :: English',
         'Programming Language :: Python :: 3.10',
     ],
-    scripts=['scripts/gbrs',
-             'scripts/export-genoprob-file',
+    entry_points={
+        "console_scripts": [
+            "gbrs = gbrs.commands:app",
+        ]
+    },
+    scripts=['scripts/export-genoprob-file',
              'scripts/convert-kallisto-result-for-gbrs',
              'scripts/convert-salmon-result-for-gbrs',
              'scripts/run_gbrs_on_cluster.sh'],

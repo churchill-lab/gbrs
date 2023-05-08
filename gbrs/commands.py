@@ -1,561 +1,349 @@
-import os
-import sys
-import numpy as np
-from itertools import combinations_with_replacement, product
-from collections import defaultdict, OrderedDict
-from scipy.interpolate import interp1d
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as pyplot
+# standard library imports
+from pathlib import Path
+from typing import Annotated
+import logging
+
+# 3rd party library imports
+from rich.logging import RichHandler
+import typer
+
+# local library imports
+from gbrs import emase_utils
+from gbrs import gbrs_utils
 
 
-DATA_DIR = os.getenv('GBRS_DATA', '.')
+ch1 = RichHandler(level=logging.NOTSET, show_level=True, show_time=True, show_path=False, omit_repeated_times=False)
+ch1.addFilter(gbrs_utils.NoDebugLogFilter())
+ch2 = RichHandler(level=logging.NOTSET, show_level=True, show_time=True, show_path=True, omit_repeated_times=False)
+ch2.addFilter(gbrs_utils.DebugLogFilter())
+
+logging.basicConfig(
+    level="NOTSET",
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[ch1, ch2]
+)
+
+app = typer.Typer()
 
 
-def get_chromosome_info(caller="gbrs"):
-    faifile = os.path.join(DATA_DIR, "ref.fa.fai")
+@app.command()
+def hybridize(
+    fasta_list: Annotated[list[Path], typer.Option('-F', '--target-files', exists=True, dir_okay=False, resolve_path=True)],
+    hap_list: Annotated[str, typer.Option('-s', '--suffices')],
+    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = 'gbrs.hybridized.targets.fa',
+    build_bowtie_index: bool = False,
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True)] = 0
+) -> None:
+    logger = gbrs_utils.configure_logging(verbose)
+    logger.debug('hybridize')
     try:
-        chrlens = OrderedDict(np.loadtxt(faifile, usecols=(0, 1), dtype="|S8,<i4"))
-    except:
-        print(f"[{caller}] Make sure if $GBRS_DATA is set correctly. Currently it is {DATA_DIR}", file=sys.stderr)
-        raise
-    else:
-        # convert from bytes to string
-        chrlens = OrderedDict({k.decode(): v for k, v in chrlens.items()})
-        return chrlens
+        emase_utils.hybridize(
+            fasta_list=fasta_list,
+            hap_list=hap_list,
+            out_file=str(out_file),
+            build_bowtie_index=build_bowtie_index
+        )
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
+        else:
+            logger.error(e)
 
 
-def get_founder_info(caller="gbrs"):
-    fcofile = os.path.join(DATA_DIR, "founder.hexcolor.info")
+@app.command(help="convert a BAM file to EMASE format")
+def bam2emase(
+    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help="alignment incidence file (h5)")],
+    haplotypes: Annotated[str, typer.Option('-s', '--haplotype-codes')],
+    locusid_file: Annotated[Path, typer.Option('-m', '--locus-ids', exists=True, dir_okay=False, resolve_path=True)] = None,
+    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = None,
+    delim: Annotated[str, typer.Option('-d', '--delim')] = '_',
+    index_dtype: Annotated[str, typer.Option('--index-dtype')] = 'uint32',
+    data_dtype: Annotated[str, typer.Option('--data-dtype')] = 'uint8',
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True)] = 0
+) -> None:
+    logger = gbrs_utils.configure_logging(verbose)
+    logger.debug('bam2emase')
     try:
-        fcolors = OrderedDict(np.loadtxt(fcofile, usecols=(0, 1), dtype="str", delimiter="\t", comments=None))
-    except:
-        print(f"[{caller}] Make sure if $GBRS_DATA is set correctly. Currently it is {DATA_DIR}", file=sys.stderr)
-        raise
-    else:
-        return fcolors
-
-
-def unit_vector(vector):
-    if sum(vector) > 1e-6:
-        return vector / np.linalg.norm(vector)
-    else:
-        return vector
-
-
-def print_vecs(vecs, format_str="%10.1f", show_sum=False):
-    for i in range(vecs.shape[0]):
-        v = vecs[i]
-        print(" ".join( format_str % elem for elem in v ))
-        if show_sum:
-            print("\t=>", format_str % sum(v))
+        emase_utils.bam2emase(
+            alignment_file=alignment_file,
+            haplotypes=haplotypes,
+            locusid_file=locusid_file,
+            out_file=out_file,
+            delim=delim,
+            index_dtype=index_dtype,
+            data_dtype=data_dtype
+        )
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
         else:
-            print
+            logger.error(e)
 
 
-def get_genotype_probability(aln_profile, aln_specificity, sigma=0.12):
-    # 'aln_specificity' should be a set of unit vectors (at least one of the entry is larger than 1.)
-    num_haps = len(aln_profile)
-    aln_vec = unit_vector(aln_profile)
-    genoprob = []
-    for i in range(num_haps):
-        v1 = unit_vector(aln_specificity[i])
-        for j in range(i, num_haps):
-            if j == i:
-                genoprob.append(sum(np.power(aln_vec - v1, 2))) # homozygotes
-            else:
-                v2 = unit_vector(aln_specificity[j])
-                geno_vec = unit_vector(v1 + v2)
-                # compute directional similarity
-                genoprob.append(sum(np.power(aln_vec - geno_vec, 2))) # for heterozygotes
-    genoprob = np.exp(np.array(genoprob) / (-2 * sigma * sigma))
-    return np.array(genoprob / sum(genoprob))
-
-
-def ris_step(gen_left, gen_right, rec_frac, haps=('A', 'B'), gamma_scale=0.1, is_x_chr=False, forward_direction=True):
-    """
-    Log transition probability for RIL by sib-mating
-    Originally part of r/qtl2 designed/coded by Karl Broman (http://kbroman.org/qtl2/)
-    Ported to python by Karl Broman (https://gist.github.com/kbroman/14984b40b0eab71e51891aceaabec850)
-    Extended to open the possibility of heterogyzosity by KB Choi
-
-    :param gen_left: left genotype
-    :param gen_right: right genotype
-    :param rec_frac: interval distance (cM)
-    :param haps: list of parental strain
-    :param gamma_scale: amount we allow heterozygosity
-    :param is_x_chr: whether it is 'X' chromosome
-    :param forward_direction: direction of intervals
-    :return: log_e transition probability
-    """
-    it = combinations_with_replacement(haps, 2)
-    diplotype = ["%s%s" % (ht1, ht2) for ht1, ht2 in it]
-
-    if is_x_chr:
-        R = (2*rec_frac)/(1.0 + 4.0*rec_frac)
-        gamma = R * gamma_scale
-        if forward_direction:
-            if gen_left == diplotype[0]:
-                if gen_right == diplotype[0]:
-                    return np.log(1.0-R) - np.log(1+gamma)
-                elif gen_right == diplotype[1]:
-                    return np.log(gamma) - np.log(1+gamma)
-                elif gen_right == diplotype[2]:
-                    return np.log(R) - np.log(1+gamma)
-            elif gen_left == diplotype[1]:
-                return np.log(1/3.0)
-            if gen_left == diplotype[2]:
-                if gen_right == diplotype[0]:
-                    return np.log(2.0*R) - np.log(1+gamma)
-                elif gen_right == diplotype[1]:
-                    return np.log(gamma) - np.log(1+gamma)
-                elif gen_right == diplotype[2]:
-                    return np.log(1.0-2.0*R) - np.log(1+gamma)
-        else:  # backward direction
-            if gen_left == diplotype[0]:
-                if gen_right == diplotype[0]:
-                    return np.log(1.0-2.0*R) - np.log(1+gamma)
-                elif gen_right == diplotype[1]:
-                    return np.log(gamma) - np.log(1+gamma)
-                elif gen_right == diplotype[2]:
-                    return np.log(2.0*R) - np.log(1+gamma)
-            elif gen_left == diplotype[1]:
-                return np.log(1/3.0)
-            elif gen_left == diplotype[2]:
-                if gen_right == diplotype[0]:
-                    return np.log(R) - np.log(1+gamma)
-                elif gen_right == diplotype[1]:
-                    return np.log(gamma) - np.log(1+gamma)
-                elif gen_right == diplotype[2]:
-                    return np.log(1.0-R) - np.log(1+gamma)
-
-    else:  # autosome
-        R = 4.0*rec_frac/(1+6.0*rec_frac)
-        gamma = R * gamma_scale
-        if gen_left == diplotype[0]:
-            if gen_right == diplotype[0]:
-                return np.log(1.0-R) - np.log(1+gamma)
-            elif gen_right == diplotype[1]:
-                return np.log(gamma) - np.log(1+gamma)
-            elif gen_right == diplotype[2]:
-                return np.log(R) - np.log(1+gamma)
-        elif gen_left == diplotype[1]:
-            return np.log(1/3.0)
-        elif gen_left == diplotype[2]:
-            if gen_right == diplotype[0]:
-                return np.log(R) - np.log(1+gamma)
-            elif gen_right == diplotype[1]:
-                return np.log(gamma) - np.log(1+gamma)
-            elif gen_right == diplotype[2]:
-                return np.log(1.0-R) - np.log(1+gamma)
-
-
-def f2_step(gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True):
-    return NotImplementedError
-
-
-def cc_step(gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True):
-    return NotImplementedError
-
-
-def do_step(gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True):
-    return NotImplementedError
-
-
-def get_transition_prob(**kwargs):
-    haplotype = kwargs.get("haps").split(",")
-    num_haplotypes = len(haplotype)
-    it = combinations_with_replacement(haplotype, 2)
-    diplotype = ["%s%s" % (ht1, ht2) for ht1, ht2 in it]
-    num_diplotypes = len(diplotype)
-    diplotype_index = np.arange(num_diplotypes)
-
-    locs_by_chro = defaultdict(list)
-    gpos_by_chro = defaultdict(list)
-    with open(kwargs.get("mkrfile")) as fh:
-        for curline in fh:
-            item = curline.rstrip().split('\t')
-            locs_by_chro[item[1]].append((item[0], float(item[3])))
-            gpos_by_chro[item[1]].append((item[0], int(item[2])))
-    locs_by_chro = dict(locs_by_chro)
-    gpos_by_chro = dict(gpos_by_chro)
-    np.savez_compressed(os.path.join(DATA_DIR, "ref.gene_pos.ordered.npz"), **gpos_by_chro)
-
-    mating_scheme = kwargs.get("mating_scheme")
-    if mating_scheme == "RI":
-        stepfunc = ris_step
-    elif mating_scheme == "F2":
-        stepfunc = f2_step
-    elif mating_scheme == "CC":
-        stepfunc = cc_step
-    elif mating_scheme == "DO":
-        stepfunc = do_step
-
-    gamma_scale = kwargs.get("gamma_scale")
-    epsilon = kwargs.get("epsilon")
-    tprob = dict()
-    for c in locs_by_chro.keys():
-        is_x_chr = (c == "X")
-        pdiff = np.diff(np.array([e[1] for e in locs_by_chro[c]]))
-        pdiff[pdiff < epsilon] = epsilon
-        ndiff = len(pdiff)
-        tprob[c] = np.ndarray(shape=(ndiff, num_diplotypes, num_diplotypes), dtype=float)
-        for dt1id, dt2id in list(product(diplotype_index, repeat=2)):
-            dt1 = diplotype[dt1id]
-            dt2 = diplotype[dt2id]
-            for i, d in enumerate(pdiff):
-                tprob[c][i][dt1id, dt2id] = stepfunc(dt1, dt2, d, gamma_scale=gamma_scale, haps=haplotype, is_x_chr=is_x_chr)
-    np.savez_compressed(os.path.join(DATA_DIR, kwargs.get("outfile")), **tprob)
-
-
-def get_alignment_spec(**kwargs):
-    strains = kwargs.get("haps").split(",")
-    num_strains = len(strains)
-
-    gname = np.loadtxt(os.path.join(DATA_DIR, "ref.gene2transcripts.tsv"), usecols=(0,), dtype="string")
-    num_genes = len(gname)
-    gid = dict(zip(gname, np.arange(num_genes)))
-
-    flist = defaultdict(list)
-    with open(kwargs.get("smpfile")) as fh:
-        for curline in fh:
-            item = curline.rstrip().split("\t")
-            flist[item[0]].append(item[1])
-    flist = dict(flist)
-
-    dset = dict()
-    for st in strains:
-        dmat_strain = np.zeros((num_genes, num_strains))
-        for tpmfile in flist[st]:
-            dmat_sample = np.zeros((num_genes, num_strains))
-            if not os.path.isfile(tpmfile):
-                print(f"File {tpmfile} does not exist.")
-                continue
-            with open(tpmfile) as fh:
-                fh.readline()  # header
-                for curline in fh:
-                    item = curline.rstrip().split("\t")
-                    if item[0] in gid:
-                        row = gid[item[0]]
-                        dmat_sample[row, :] = map(float, item[1:(num_strains+1)])
-            dmat_strain += dmat_sample
-        dset[st] = dmat_strain / len(flist[st])
-    min_expr = kwargs.get("min_expr")
-    axes = dict()
-    ases = dict()
-    avecs = dict()
-    for g in gname:
-        axes[g] = np.zeros((num_strains, num_strains))
-        ases[g] = np.zeros((1, num_strains))
-        good = np.zeros(num_strains)
-        for i, st in enumerate(strains):
-            v = dset[st][gid[g], :]
-            axes[g][i, :] = v
-            ases[g][0, i] = sum(v)
-            if sum(v) > min_expr:
-                good[i] = 1.0
-        if sum(good) > 0:  # At least one strain expresses
-            avecs[g] = np.zeros((num_strains, num_strains))
-            for i in range(num_strains):
-                avecs[g][i, :] = unit_vector(axes[g][i, :])
-    np.savez_compressed(os.path.join(DATA_DIR, "axes.npz"), **axes)
-    np.savez_compressed(os.path.join(DATA_DIR, "ases.npz"), **ases)
-    np.savez_compressed(os.path.join(DATA_DIR, "avecs.npz"), **avecs)
-
-
-def reconstruct(**kwargs):
-    chrlens = get_chromosome_info(caller="gbrs::reconstruct")
-    chrs = chrlens.keys()
-
-    outbase = kwargs.get("outbase")
-    if outbase is None:
-        out_gtype = "gbrs.reconstructed.genotypes.tsv"
-        out_gprob = "gbrs.reconstructed.genoprobs.npz"
-    else:
-        out_gtype = outbase + ".genotypes.tsv"
-        out_gprob = outbase + ".genoprobs.npz"
-    out_gtype_ordered = os.path.splitext(out_gtype)[0] + ".npz"
-
-    tprobfile = kwargs.get("tprobfile")
-    exprfile = kwargs.get("exprfile")
-    expr_threshold = kwargs.get("expr_threshold")
-    sigma = kwargs.get("sigma")
-
-    # Load alignment specificity
-    avecfile = kwargs.get("avecfile")
-    if avecfile is None:
-        avecfile = os.path.join(DATA_DIR, "avecs.npz")
-    avecs = np.load(avecfile)
-
-    # Load meta info
-    gposfile = kwargs.get("gposfile")
-    if gposfile is None:
-        gposfile = os.path.join(DATA_DIR, "ref.gene_pos.ordered.npz")
-    gene_pos = np.load(gposfile)
-    gid_genome_order = dict.fromkeys(gene_pos.files)
-    for c in gene_pos.files:
-        gid_genome_order[c] = np.array([g.decode() for g, p in gene_pos[c]])
-
-    # Load expression level
-    expr = dict()
-    with open(exprfile) as fh:
-        curline = fh.readline()
-        haplotypes = curline.rstrip().split("\t")[1:-1]
-        num_haps = len(haplotypes)
-        genotypes = [h1+h2 for h1, h2 in combinations_with_replacement(haplotypes, 2)]
-        num_genos = len(genotypes)
-        for curline in fh:
-            item = curline.rstrip().split("\t")
-            expr[item[0]] = np.array(list(map(float, item[1:-1])))
-
-    # Get null model probability
-    init_vec = []
-    for h1, h2 in combinations_with_replacement(haplotypes, 2):
-        if h1 == h2:
-            init_vec.append(np.log(1.0/(num_haps*num_haps)))
+@app.command(help="compress EMASE format alignment incidence matrix")
+def compress(
+    emase_files: Annotated[list[Path], typer.Option('-i', '--emase-file', exists=True, dir_okay=False, resolve_path=True)],
+    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)],
+    comp_lib: Annotated[str, typer.Option('-c', '--comp-lib')] = 'zlib',
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True)] = 0
+) -> None:
+    logger = gbrs_utils.configure_logging(verbose)
+    logger.debug('compress')
+    try:
+        emase_utils.compress(
+            emase_files=emase_files,
+            out_file=out_file,
+            comp_lib=comp_lib
+        )
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
         else:
-            init_vec.append(np.log(2.0/(num_haps*num_haps)))
-    init_vec = np.array(init_vec)
+            logger.error(e)
 
-    # Get initial emission probability
-    naiv_avecs = np.eye(num_haps) + (np.ones((num_haps, num_haps)) - np.eye(num_haps)) * 0.0001
-    eprob = dict()
-    for gid, evec in expr.items():
-        if sum(evec) < expr_threshold:
-            eprob[gid] = init_vec
-        elif gid not in avecs.files:
-            eprob[gid] = np.log(get_genotype_probability(evec, naiv_avecs, sigma=0.450) + np.nextafter(0, 1))
+
+@app.command(help="quantify allele-specific expressions")
+def quantify(
+    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True)],
+    group_file: Annotated[Path, typer.Option('-g', '--group-file', exists=True, dir_okay=False, resolve_path=True)] = None,
+    length_file: Annotated[Path, typer.Option('-L', '--length-file', exists=True, dir_okay=False, resolve_path=True)] = None,
+    genotype_file: Annotated[Path, typer.Option('-G', '--genotype', exists=True, dir_okay=False, resolve_path=True)] = None,
+    outbase: Annotated[str, typer.Option('-o', '--outbase')] = 'gbrs.quantified',
+    multiread_model: Annotated[int, typer.Option('-M', '--multiread-model')] = 4,
+    pseudocount: Annotated[float, typer.Option('-p', '--pseudocount')] = 0.0,
+    max_iters: Annotated[int, typer.Option('-m', '--max-iters')] = 999,
+    tolerance: Annotated[float, typer.Option('-t', '--tolerance')] = 0.0001,
+    report_alignment_counts: Annotated[bool, typer.Option('-a', '--report-alignment-counts')] = False,
+    report_posterior: Annotated[bool, typer.Option('-w', '--report-alignment-counts')] = False,
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True)] = 0
+) -> None:
+    logger = gbrs_utils.configure_logging(verbose)
+    logger.debug('quantify')
+    try:
+        emase_utils.quantify(
+            alignment_file=alignment_file,
+            group_file=group_file,
+            length_file=length_file,
+            genotype_file=genotype_file,
+            outbase=outbase,
+            multiread_model=multiread_model,
+            pseudocount=pseudocount,
+            max_iters=max_iters,
+            tolerance=tolerance,
+            report_alignment_counts=report_alignment_counts,
+            report_posterior=report_posterior
+        )
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
         else:
-            eprob[gid] = np.log(get_genotype_probability(evec, avecs[gid], sigma=sigma) + np.nextafter(0, 1))
-
-    # Load transition probabilities
-    tprob = np.load(tprobfile)
-
-    # Get forward probability
-    alpha = dict()
-    alpha_scaler = dict()
-    for c in chrs:
-        if c in tprob.files:
-            tprob_c = tprob[c]
-            gid_genome_order_c = gid_genome_order[c]
-            num_genes_in_chr = len(gid_genome_order_c)
-            alpha_c = np.zeros((num_genos, num_genes_in_chr))
-            alpha_scaler_c = np.zeros(num_genes_in_chr)
-            alpha_c[:, 0] = init_vec + eprob[gid_genome_order_c[0]]
-            normalizer = np.log(sum(np.exp(alpha_c[:, 0])))
-            alpha_c[:, 0] -= normalizer # normalization
-            alpha_scaler_c[0] = -normalizer
-            for i in range(1, num_genes_in_chr):
-                alpha_c[:, i] = np.log(np.exp(alpha_c[:, i-1] + tprob_c[i-1]).sum(axis=1) + np.nextafter(0, 1)) + \
-                                eprob[gid_genome_order_c[i]]
-                normalizer = np.log(sum(np.exp(alpha_c[:, i])))
-                alpha_c[:, i] -= normalizer  # normalization
-                alpha_scaler_c[i] = -normalizer
-            alpha[c] = alpha_c
-            alpha_scaler[c] = alpha_scaler_c
-    print(alpha)
-    print(alpha_scaler)
-    # Get backward probability
-    beta = dict()
-    for c in chrs:
-        if c in tprob.files:
-            tprob_c = tprob[c]
-            gid_genome_order_c = gid_genome_order[c]
-            num_genes_in_chr = len(gid_genome_order_c)
-            beta_c = np.zeros((num_genos, num_genes_in_chr))
-            beta_c[:, -1] = alpha_scaler[c][-1]  #init_vec + eprob[gid_genome_order_c[-1]]
-            for i in range(num_genes_in_chr-2, -1, -1):
-                beta_c[:, i] = np.log(np.exp(tprob_c[i].transpose() +
-                                             beta_c[:, i+1] +
-                                             eprob[gid_genome_order_c[i+1]] +
-                                             alpha_scaler[c][i]).sum(axis=1))
-            beta[c] = beta_c
-
-    # Get forward-backward probability
-    gamma = dict()
-    for c in chrs:
-        if c in tprob.files:
-            gamma_c = np.exp(alpha[c] + beta[c])
-            normalizer = gamma_c.sum(axis=0)
-            gamma[c] = gamma_c / normalizer
-    np.savez_compressed(out_gprob, **gamma)
-
-    # Run Viterbi
-    delta = dict()
-    for c in chrs:
-        if c in tprob.files:
-            tprob_c = tprob[c]
-            gid_genome_order_c = gid_genome_order[c]
-            num_genes_in_chr = len(gid_genome_order_c)
-            delta_c = np.zeros((num_genos, num_genes_in_chr))
-            delta_c[:, 0] = init_vec + eprob[gid_genome_order_c[0]]
-            for i in range(1, num_genes_in_chr):
-                delta_c[:, i] = (delta_c[:, i-1] + tprob_c[i-1]).max(axis=1) + eprob[gid_genome_order_c[i]]
-            delta[c] = delta_c
-    viterbi_states = defaultdict(list)
-    gtcall_g = dict()
-    for c in chrs:
-        if c in tprob.files:
-            tprob_c = tprob[c]
-            gid_genome_order_c = gid_genome_order[c]
-            num_genes_in_chr = len(gid_genome_order_c)
-            sid = delta[c][:, num_genes_in_chr-1].argmax()
-            viterbi_states[c].append(genotypes[sid])
-            for i in reversed(range(num_genes_in_chr-1)):
-                sid = (delta[c][:, i] + tprob_c[i][sid]).argmax()
-                viterbi_states[c].append(genotypes[sid])
-                gtcall_g[gid_genome_order_c[i]] = genotypes[sid]
-            viterbi_states[c].reverse()
-    viterbi_states = dict(viterbi_states)
-    np.savez_compressed(out_gtype_ordered, **viterbi_states)
-    with open(out_gtype, "w") as fhout:
-        fhout.write("#Gene_ID\tDiplotype\n")
-        for g in sorted(gtcall_g.keys()):
-            fhout.write(f"{g}\t{gtcall_g[g]}\n")
+            logger.error(e)
 
 
-def interpolate(**kwargs):
-    chrlens = get_chromosome_info(caller="gbrs::interpolate")
-    chrs = chrlens.keys()
-
-    probfile = kwargs.get("probfile")
-
-    gposfile = kwargs.get("gposfile")
-    if gposfile is None:  # if gposfile is not specified
-        gposfile = os.path.join(DATA_DIR, "ref.gene_pos.ordered.npz")
-        try:
-            x_gene = np.load(gposfile)
-        except:
-            print(f"[gbrs::interpolate] Please make sure if $GBRS_DATA is set correctly: {DATA_DIR}", file=sys.stderr)
-            raise
+@app.command(help="reconstruct the genome based upon gene-level TPM quantities")
+def reconstruct(
+    expression_file: Annotated[Path, typer.Option('-e', '--expr-file', exists=True, dir_okay=False, resolve_path=True)],
+    tprob_file: Annotated[Path, typer.Option('-t', '--tprob-file', exists=True, dir_okay=False, resolve_path=True)],
+    avec_file: Annotated[Path, typer.Option('-x', '--avec-file', exists=True, dir_okay=False, resolve_path=True)] = None,
+    gpos_file: Annotated[Path, typer.Option('-g', '--gpos-file', exists=True, dir_okay=False, resolve_path=True)] = None,
+    expr_threshold: Annotated[float, typer.Option('-c', '--expr-threshold')] = 1.5,
+    sigma: Annotated[float, typer.Option('-s', '--sigma')] = 0.12,
+    outbase: Annotated[str, typer.Option('-o', '--outbase')] = None,
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True)] = 0
+) -> None:
+    logger = gbrs_utils.configure_logging(verbose)
+    logger.debug('reconstruct')
+    try:
+        gbrs_utils.reconstruct(
+            expression_file=expression_file,
+            tprob_file=tprob_file,
+            avec_file=avec_file,
+            gpos_file=gpos_file,
+            expr_threshold=expr_threshold,
+            sigma=sigma,
+            outbase=outbase
+        )
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
         else:
-            pass
-    else:
-        x_gene = np.load(gposfile)
-
-    gridfile = kwargs.get("gridfile")
-    if gridfile is None:
-        gridfile = os.path.join(DATA_DIR, "ref.genome_grid.64k.txt")
-
-    outfile = kwargs.get("outfile")
-    if outfile is None:
-        outfile = "gbrs.interpolated." + os.path.basename(probfile)
-
-    x_grid = defaultdict(list)
-    with open(gridfile) as fh:
-        fh.readline()  # skip header (Assuming there is just one line of header)
-        for curline in fh:
-            item = curline.rstrip().split("\t")
-            x_grid[item[1]].append(float(item[3]))  # x_grid[chr] = [...positions in cM...]
-    x_grid = dict(x_grid)
-
-    x_gene_extended = dict()  # Adding end points in case we have to extrapolate at the 1st or last grid
-    for c in x_grid.keys():
-        if c in x_gene.files:
-            x = [float(coord) for m, coord in x_gene[c]]
-            #x_min = min(x_grid[c][0]-100.0, 0.0)
-            #x_max = max(x_grid[c][-1]+1.0, chrlens[c])
-            #x = np.append([x_min], x)
-            #x = np.append(x, [x_max])
-            x = np.append([0.0], x)
-            x = np.append(x, [x_grid[c][-1]+1.0])  # Do we have chromosome length in cM?
-            x_gene_extended[c] = x
-
-    gamma_gene = np.load(probfile)
-    gene_model_chr = dict()
-    gene_intrp_chr = dict()
-    for c in x_grid.keys():
-        if c in gamma_gene.files:
-            gamma_gene_c = gamma_gene[c]
-            y = np.hstack((gamma_gene_c[:, 0][:, np.newaxis], gamma_gene_c))
-            y = np.hstack((y, y[:, -1][:, np.newaxis]))
-            gene_model_chr[c] = interp1d(x_gene_extended[c], y, axis=1)
-            gene_intrp_chr[c] = gene_model_chr[c](x_grid[c])
-    np.savez_compressed(outfile, **gene_intrp_chr)
+            logger.error(e)
 
 
-def combine(**kwargs):
-    raise NotImplementedError
+@app.command(help="interpolate probability on a decently-spaced grid")
+def interpolate(
+    probability_file: Annotated[Path, typer.Option('-i', '--probability-file', exists=True, dir_okay=False, resolve_path=True)],
+    grid_file: Annotated[Path, typer.Option('-g', '--grid-file', exists=True, dir_okay=False, resolve_path=True)] = None,
+    gpos_file: Annotated[Path, typer.Option('-p', '--gpos-file', exists=True, dir_okay=False, resolve_path=True)] = None,
+    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = None,
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True)] = 0
+) -> None:
+    logger = gbrs_utils.configure_logging(verbose)
+    logger.debug('interpolate')
+    try:
+        gbrs_utils.interpolate(
+            probability_file=probability_file,
+            grid_file=grid_file,
+            gpos_file=gpos_file,
+            out_file=out_file
+        )
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
+        else:
+            logger.error(e)
 
 
-def plot(**kwargs):
-    chrlens = get_chromosome_info(caller="gbrs::plot")
-    chrs = chrlens.keys()
-    num_chrs = len(chrs)
+@app.command(help="export to GBRS quant format")
+def export(
+    genoprob_file: Annotated[Path, typer.Option('-i', '--genoprob-file', exists=True, dir_okay=False, resolve_path=True)],
+    strains: Annotated[str, typer.Option('-s', '--strains')],
+    grid_file: Annotated[Path, typer.Option('-g', '--grid-file', exists=True, dir_okay=False, resolve_path=True)] = None,
+    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = None,
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True)] = 0
+) -> None:
+    logger = gbrs_utils.configure_logging(verbose)
+    logger.debug('export')
+    try:
+        gbrs_utils.export(
+            genoprob_file=genoprob_file,
+            strains=strains,
+            grid_file=grid_file,
+            out_file=out_file
+        )
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
+        else:
+            logger.error(e)
 
-    gpbfile = kwargs.get("gpbfile")
-    outfile = kwargs.get("outfile")
-    if outfile is None:
-        outfile = "gbrs.plotted." + os.path.splitext(os.path.basename(gpbfile))[0] + ".pdf"
 
-    sample_name = kwargs.get("sample_name")
-    grid_size = kwargs.get("grid_size")
-    xt_max = kwargs.get("xt_max")
-    xt_size = kwargs.get("xt_size")
-    width = kwargs.get("width")
+@app.command(help="plot a reconstructed genome")
+def plot(
+    genoprob_file: Annotated[Path, typer.Option('-i', '--genoprob-file', exists=True, dir_okay=False, resolve_path=True)],
+    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = None,
+    sample_name: Annotated[str, typer.Option('-n', '--sample_name')] = None,
+    grid_size: Annotated[int, typer.Option('-g', '--num-grids')] = 2,
+    xt_max: Annotated[int, typer.Option('-m', '--xt-max')] = 5000,
+    xt_size: Annotated[int, typer.Option('-s', '--xt_size')] = 500,
+    grid_width: Annotated[float, typer.Option('-w', '--grid-width')] = 0.01,
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True)] = 0
+):
+    logger = gbrs_utils.configure_logging(verbose)
+    logger.debug('plot')
+    try:
+        gbrs_utils.plot(
+            genoprob_file=genoprob_file,
+            out_file=out_file,
+            sample_name=sample_name,
+            grid_size=grid_size,
+            xt_max=xt_max,
+            xt_size=xt_size,
+            grid_width=grid_width
+        )
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
+        else:
+            logger.error(e)
 
-    hcolors = get_founder_info(caller="gbrs::plot")
-    haplotypes = hcolors.keys()
-    hid = dict(zip(haplotypes, np.arange(8)))
-    genotypes = np.array([h1+h2 for h1, h2 in combinations_with_replacement(haplotypes, 2)])
 
-    #
-    # Main body
-    #
-    genoprob = np.load(gpbfile)
-    fig = pyplot.figure()
-    fig.set_size_inches((16, 16))
-    ax = fig.add_subplot(111)
-    ax.set_xlim(0, xt_max*width+width)
-    ax.set_ylim(1, 95)
-    num_recomb_total = 0
-    for cid, c in enumerate(chrs):
-        if c in genoprob.files:  # Skip drawing Y chromosome if the sample is female
-            genotype_calls = genotypes[genoprob[c].argmax(axis=0)]
-            hap = []
-            col1 = []
-            col2 = []
-            oldcol1 = "NA"
-            oldcol2 = "NA"
-            num_recomb = 0
-            num_genes_in_chr = len(genotype_calls)
-            for i in range(num_genes_in_chr):
-                hap.append((i*width, width))
-                c1 = hcolors[genotype_calls[i][0]]
-                c2 = hcolors[genotype_calls[i][1]]
-                if i > 0:
-                    if c1 == c2:
-                        if col1[-1] != col2[-1]:  # When homozygous region starts, remember the most recent het
-                            oldcol1 = col1[-1]
-                            oldcol2 = col2[-1]
-                    else:
-                        if col1[-1] == col2[-1]:  # When heterozygous region starts
-                            if c1 == oldcol2 or c2 == oldcol1:
-                                c1, c2 = c2, c1
-                        elif c1 == col2[-1] or c2 == col1[-1]:
-                            c1, c2 = c2, c1
-                    if c1 != col1[-1] or c2 != col2[-1]:
-                        num_recomb += 1
-                col1.append(c1)
-                col2.append(c2)
-            num_recomb_total += num_recomb
-            # plot
-            ax.broken_barh(hap, (num_chrs*4-cid*4+1, 1), facecolors=col1, edgecolor="face")
-            ax.broken_barh(hap, (num_chrs*4-cid*4, 1), facecolors=col2, edgecolor="face")
-            ax.text((num_genes_in_chr+50)*width, num_chrs*4-cid*4+0.5, f"({num_recomb})")
-        ax.spines["top"].set_visible(False)
-        ax.spines["bottom"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.get_xaxis().tick_bottom()
-        ax.get_yaxis().tick_right()
-        ax.get_yaxis().tick_left()
-        #ax.get_yaxis().set_ticks([])
-        #ax.set_yticklabels(list(chrs))
-        pyplot.yticks(ticks=np.arange(num_chrs*4+1, 1, -4), labels=list(chrs), fontsize=14)
-        #ax.set_xticklabels(["%dcM" % xt for xt in np.arange(0, xt_max*grid_size/100, xt_size*grid_size/100)])
-        pyplot.xticks(ticks=np.arange(0, xt_max*width, xt_size*width), labels=["%dcM" % xt for xt in np.arange(0, xt_max*grid_size/100, xt_size*grid_size/100)])
-        title_txt = f"Genome reconstruction: {sample_name}"
-        title_txt += f"\n(Total {num_recomb_total} recombinations)"
-        ax.set_title(title_txt, fontsize=18, loc='center')
-    fig.savefig(outfile, dpi=300)
-    pyplot.close(fig)
+@app.command()
+def get_transition_prob(
+    marker_file: Annotated[Path, typer.Option('-i', '--marker-file', exists=True, dir_okay=False, resolve_path=True)],
+    haplotypes: Annotated[str, typer.Option('-s', '--haplotypes')] = 'A,B',
+    mating_scheme: Annotated[str, typer.Option('-m', '--mating-scheme')] = 'RI',
+    gamma_scale: Annotated[float, typer.Option('-g', '--gamma-scale')] = 0.01,
+    epsilon: Annotated[float, typer.Option('-e', '--epsilon')] = 0.000001,
+    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = 'tranprob.npz',
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True)] = 0
+) -> None:
+    logger = gbrs_utils.configure_logging(verbose)
+    logger.debug('get-transition-prob')
+    try:
+        gbrs_utils.get_transition_prob(
+            marker_file=marker_file,
+            haplotypes=haplotypes,
+            mating_scheme=mating_scheme,
+            gamma_scale=gamma_scale,
+            epsilon=epsilon,
+            out_file=out_file
+        )
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
+        else:
+            logger.error(e)
+
+
+@app.command()
+def get_alignment_spec(
+    sample_file: Annotated[Path, typer.Option('-i', '--sample-file', exists=True, dir_okay=False, resolve_path=True)],
+    haplotypes: Annotated[str, typer.Option('-s', '--parental-strains')],
+    min_expr: Annotated[float, typer.Option('-m', '--min-expr')] = 2.0,
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True)] = 0
+) -> None:
+    logger = gbrs_utils.configure_logging(verbose)
+    logger.debug('get_alignment_spec')
+    try:
+        gbrs_utils.get_alignment_spec(
+            sample_file=sample_file,
+            haplotypes=haplotypes,
+            min_expr=min_expr
+        )
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
+        else:
+            logger.error(e)
+
+
+@app.command(help="apply genotype calls to multi-way alignment incidence matrix")
+def stencil(
+    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help="alignment incidence file (h5)")],
+    genotype_file: Annotated[Path, typer.Option('-G', '--genotype', exists=True, dir_okay=False, resolve_path=True, help="genotype calls by GBRS (tsv)")],
+    group_file: Annotated[Path, typer.Option('-g', '--group-file', exists=True, dir_okay=False, resolve_path=True, help="gene ID to isoform ID mapping info (tsv)")] = None,
+    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help="enotyped version of alignment incidence file (h5)")] = None,
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
+) -> None:
+    logger = gbrs_utils.configure_logging(verbose)
+    logger.debug('stencil')
+    try:
+        emase_utils.stencil(
+            alignment_file=alignment_file,
+            genotype_file=genotype_file,
+            group_file=group_file,
+            out_file=out_file
+        )
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
+        else:
+            logger.error(e)
+
+
+@app.command()
+def intersect(
+    emase_files: Annotated[list[Path], typer.Option('-i', '--emase-file', exists=True, dir_okay=False, resolve_path=True)],
+    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = None,
+    comp_lib: Annotated[str, typer.Option('-c', '--comp-lib')] = 'zlib',
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True)] = 0
+) -> None:
+    logger = gbrs_utils.configure_logging(verbose)
+    logger.debug('intersect')
+    try:
+        emase_utils.intersect(
+            emase_files=emase_files,
+            out_file=out_file,
+            comp_lib=comp_lib
+        )
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
+        else:
+            logger.error(e)
+
+
+if __name__ == '__main__':
+    app()
