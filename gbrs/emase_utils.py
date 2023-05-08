@@ -5,7 +5,6 @@ from pathlib import Path
 import logging
 import os
 import subprocess
-import sys
 
 # 3rd party library imports
 import emase
@@ -59,14 +58,16 @@ def hybridize(
     lenfile = f'{outbase}.info'
     seqout = open(out_file, 'w')
     lenout = open(lenfile, 'w')
+
+    logger.debug('Looping through haplotypes')
     for hid in range(num_haps):
         fasta = fasta_list[hid]
         hapname = hap_list[hid]
-        logger.warning(
-            f"[gbrs::hybridize] Adding suffix '_{hapname}' to the sequence ID's of {fasta}"
+        logger.info(
+            f'Adding suffix "_{hapname}" to the sequence ID\'s of {fasta}'
         )
         fh = open(fasta)
-        line = fh.readline()  # The first fasta header
+        line = fh.readline()  # the first fasta header
         line = f'{line.rstrip().split()[0]}_{hapname}'
         seqout.write(f'{line}\n')
         lenout.write(f'{line[1:]}\t')
@@ -87,8 +88,10 @@ def hybridize(
     # Build bowtie index for the pooled transcriptome
     if build_bowtie_index:
         out_index = f'{outbase}.bowtie1'
-        logger.warning('[gbrs::hybridize] Building bowtie1 index')
-        status = subprocess.call(f'bowtie-build outfile out_index', shell=True)
+        logger.info('Building bowtie1 index (could take some time)')
+        status = subprocess.call(f'bowtie-build {out_file} {out_index}', shell=True)
+
+    logger.info('Done')
 
 
 def bam2emase(
@@ -125,7 +128,7 @@ def bam2emase(
             f'{os.path.splitext(os.path.basename(alignment_file))[0]}.h5'
         )
 
-    logger.info(f'Alignment File: {alignment_file}')
+    logger.info(f'BAM File: {alignment_file}')
     logger.info(f'Locus ID File: {locusid_file}')
     logger.info(f'Output File: {out_file}')
     logger.info(f'Haplotypes: {haplotypes}')
@@ -133,19 +136,21 @@ def bam2emase(
     logger.info(f'Index dtype: {index_dtype}')
     logger.info(f'Data dtype: {data_dtype}')
 
+    logger.info(f'Parsing Locus ID File: {locusid_file}')
     loci = get_names(locusid_file)
 
-    logger.debug('Constructing AMF')
+    logger.info(f'Parsing BAM File: {alignment_file}')
     alignmat_factory = emase.AlignmentMatrixFactory(alignment_file)
     alignmat_factory.prepare(
         haplotypes, loci, delim=delim, outdir=os.path.dirname(out_file)
     )
+
+    logger.info(f'Saving EMASE Formatted File: {out_file}')
     alignmat_factory.produce(
         out_file, index_dtype=index_dtype, data_dtype=data_dtype
     )
     alignmat_factory.cleanup()
-
-    logger.debug('Done')
+    logger.info('Done')
 
 
 def intersect(
@@ -154,26 +159,37 @@ def intersect(
     comp_lib: str = 'zlib'
 ) -> None:
     if out_file is None:
-        out_file = 'gbrs.intersected.' + os.path.basename(emase_files[0])
+        out_file = f'gbrs.intersected.{os.path.basename(emase_files[0])}'
 
     for x in emase_files:
         logger.info(f'EMASE file: {x}')
     logger.info(f'Output File: {out_file}')
     logger.info(f'Compression Library: {comp_lib}')
 
-    logger.info(f'Loading {emase_files[0]}')
+    logger.info(f'Loading EMASE file: {emase_files[0]}')
     aln_mat = emase.AlignmentPropertyMatrix(h5file=emase_files[0])
-    for f in emase_files[1:]:
-        logger.info(f'Loading {f}')
-        alnmat_next = emase.AlignmentPropertyMatrix(h5file=f)
+    logger.debug(f'Number Loci: {aln_mat.num_loci}')
+    logger.debug(f'Number Haplotypes: {aln_mat.num_haplotypes}')
+    logger.debug(f'Number Reads: {aln_mat.num_reads}')
 
-        if np.all(aln_mat.rname == alnmat_next.rname):
-            aln_mat = aln_mat * alnmat_next
+    for f in emase_files[1:]:
+        logger.info(f'Loading EMASE file: {f}')
+        aln_mat_next = emase.AlignmentPropertyMatrix(h5file=f)
+        logger.debug(f'Number Loci: {aln_mat_next.num_loci}')
+        logger.debug(f'Number Haplotypes: {aln_mat_next.num_haplotypes}')
+        logger.debug(f'Number Reads: {aln_mat_next.num_reads}')
+
+        if np.all(aln_mat.rname == aln_mat_next.rname):
+            aln_mat = aln_mat * aln_mat_next
         else:
             logger.error('The read ID\'s are not compatible.')
             raise ValueError('The read ID\'s are not compatible.')
 
-    logger.info(f'Saving {out_file}')
+        logger.debug(f'Total Number Loci: {aln_mat.num_loci}')
+        logger.debug(f'Total Number Haplotypes: {aln_mat.num_haplotypes}')
+        logger.debug(f'Total Number Reads: {aln_mat.num_reads}')
+
+    logger.info(f'Saving EMASE Formatted File: {out_file}')
     aln_mat.save(h5file=out_file, complib=comp_lib)
     logger.info('Done')
 
@@ -188,7 +204,7 @@ def compress(
 
     Args:
         emase_files: list of EMASE files to compress
-        out_file: name of the compressed EMASE file'
+        out_file: name of the compressed EMASE file
         comp_lib: compression library to use
     """
     for x in emase_files:
@@ -203,8 +219,7 @@ def compress(
 
     ec = defaultdict(int)
     for aln_file in emase_files:
-        logger.info(f'Loading {aln_file}')
-
+        logger.info(f'Loading EMASE file: {aln_file}')
         alnmat_rd = emase.AlignmentPropertyMatrix(h5file=aln_file)
 
         logger.debug(f'Number Loci: {alnmat_rd.num_loci}')
@@ -223,6 +238,7 @@ def compress(
         if alnmat_rd.count is None:
             alnmat_rd.count = np.ones(alnmat_rd.num_reads)
 
+        logger.debug('Creating unique ECs')
         for cur_ind in range(alnmat_rd.num_reads):
             ec_key = []
             for h in range(alnmat_rd.num_haplotypes):
@@ -238,7 +254,7 @@ def compress(
     ec = dict(ec)
     num_ecs = len(ec)
 
-    logger.debug('Constructing APM')
+    logger.info('Constructing APM')
     logger.debug(f'Number Loci: {num_loci}')
     logger.debug(f'Number Haplotypes: {num_haplotypes}')
     logger.debug(f'Number ECs: {num_ecs}')
@@ -250,6 +266,7 @@ def compress(
     alnmat_ec.lname = names_loci
     alnmat_ec.count = np.zeros(num_ecs)
 
+    logger.debug('Adding data to APM')
     for row_id, ec_key in enumerate(ec):
         alnmat_ec.count[row_id] = ec[ec_key]
         nzlocs = ec_key.split(':')
@@ -259,9 +276,10 @@ def compress(
                 nzinds = np.array(list(map(int, nzlocs_h.split(','))))
                 alnmat_ec.data[h][row_id, nzinds] = 1
     alnmat_ec.finalize()
-    alnmat_ec.save(h5file=out_file, complib=comp_lib)
 
-    logger.debug('Done')
+    logger.info(f'Saving EMASE Formatted File: {out_file}')
+    alnmat_ec.save(h5file=out_file, complib=comp_lib)
+    logger.info('Done')
 
 
 def stencil(
@@ -271,14 +289,14 @@ def stencil(
     out_file: Path | str
 ):
     """
-    Applying genotype calls to multi-way alignment incidence matrix
+    Applying genotype calls to multi-way alignment incidence matrix.
 
-    :param alnfile: alignment incidence file (h5),
-    :param gtypefile: genotype calls by GBRS (tsv),
-    :param grpfile: gene ID to isoform ID mapping info (tsv)
-    :return: genotyped version of alignment incidence file (h5)
+    Args:
+        alignment_file:
+        genotype_file:
+        group_file:
+        out_file:
     """
-
     if group_file is None:
         group_file = os.path.join(DATA_DIR, 'ref.gene2transcripts.tsv')
         if not os.path.exists(group_file):
@@ -293,11 +311,14 @@ def stencil(
     logger.info(f'Output File: {out_file}')
 
     # Load alignment incidence matrix ('alnfile' is assumed to be in multiway transcriptome)
-    logger.info(f'Loading {alignment_file}')
+    logger.info(f'Loading EMASE file: {alignment_file}')
     aln_mat = emase.AlignmentPropertyMatrix(h5file=alignment_file, grpfile=group_file)
+    logger.debug(f'Number Loci: {aln_mat.num_loci}')
+    logger.debug(f'Number Haplotypes: {aln_mat.num_haplotypes}')
+    logger.debug(f'Number Reads: {aln_mat.num_reads}')
 
     # Load genotype calls
-    logger.info(f'Loading and processing genotype calls {genotype_file}')
+    logger.info(f'Loading and processing genotype calls from: {genotype_file}')
     hid = dict(zip(aln_mat.hname, np.arange(aln_mat.num_haplotypes)))
     gid = dict(zip(aln_mat.gname, np.arange(len(aln_mat.gname))))
     gtmask = np.zeros((aln_mat.num_haplotypes, aln_mat.num_loci))
@@ -326,7 +347,7 @@ def stencil(
     for h in range(aln_mat.num_haplotypes):
         aln_mat.data[h].eliminate_zeros()
 
-    logger.info(f'Saving {out_file}')
+    logger.info(f'Saving EMASE Formatted File: {out_file}')
     aln_mat.save(h5file=out_file)
     logger.info('Done')
 
@@ -387,13 +408,12 @@ def quantify(
     logger.info(f'Report Posterior: {report_posterior}')
 
     # load alignment incidence matrix ('alignment_file' is assumed to be in multiway transcriptome)
-    logger.debug('Loading APM')
+    logger.info(f'Loading EMASE file: {alignment_file}')
     aln_mat = emase.AlignmentPropertyMatrix(h5file=alignment_file, grpfile=group_file)
 
     # Load genotype calls
     if genotype_file is not None:
         # Genotype calls are at the gene level
-        logger.debug('Loading genotype calls')
         outbase = f'{outbase}.diploid'
         logger.debug(f'Outbase now: {outbase}')
         # haplotype as key and number as value
@@ -411,6 +431,7 @@ def quantify(
         #    if count > 10:
         #        break
         #    count += 1
+        logger.info(f'Loading and processing genotype calls from: {genotype_file}')
         with open(genotype_file) as fh:
             for curline in dropwhile(is_comment, fh):
                 item = curline.rstrip().split('\t')
@@ -432,40 +453,53 @@ def quantify(
         gtcall_t = None
 
     # Run emase
-    logger.debug('Running emase')
+    logger.info('Running EMASE')
     em_factory = emase.EMfactory(aln_mat)
     em_factory.prepare(pseudocount=pseudocount, lenfile=length_file)
     em_factory.run(
         model=multiread_model, tol=tolerance, max_iters=max_iters, verbose=True
     )
+
+    logger.info(f'Generating isoform TPMs: {outbase}.isoforms.tpm')
     em_factory.report_depths(
         filename=f'{outbase}.isoforms.tpm', tpm=True, notes=gtcall_t
     )
+
+    logger.info(f'Generating isoform Read Counts: {outbase}.isoforms.expected_read_counts')
     em_factory.report_read_counts(
         filename=f'{outbase}.isoforms.expected_read_counts', notes=gtcall_t
     )
     if report_posterior:
+        logger.info(f'Generating Posterior Probabilities: {outbase}.posterior.h5')
         em_factory.export_posterior_probability(
             filename=f'{outbase}.posterior.h5'
         )
     if report_group_counts:
+        logger.info(f'Generating gene TPMs: {outbase}.genes.tpm')
         em_factory.report_depths(
             filename=f'{outbase}.genes.tpm',
             tpm=True,
             grp_wise=True,
             notes=gtcall_g,
         )
+
+        logger.info(f'Generating gene Read Counts: {outbase}.genes.expected_read_counts')
         em_factory.report_read_counts(
             filename=f'{outbase}.genes.expected_read_counts',
             grp_wise=True,
             notes=gtcall_g,
         )
+
     if report_alignment_counts:
         alnmat = emase.AlignmentPropertyMatrix(h5file=alignment_file, grpfile=group_file)
+
+        logger.info(f'Generating isoform Alignment Counts: {outbase}.isoforms.alignment_counts')
         alnmat.report_alignment_counts(
             filename=f'{outbase}.isoforms.alignment_counts'
         )
+
         if report_group_counts:
+            logger.info(f'Generating gene Alignment Counts: {outbase}.genes.alignment_counts')
             alnmat._bundle_inline(reset=True)
             alnmat.report_alignment_counts(
                 filename=f'{outbase}.genes.alignment_counts'

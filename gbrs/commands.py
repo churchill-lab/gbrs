@@ -54,7 +54,7 @@ def hybridize(
 @app.command(help="convert a BAM file to EMASE format")
 def bam2emase(
     alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help="bam file to convert")],
-    haplotypes: Annotated[list[str], typer.Option('-h', '--haplotype-char', help='haplotype, one per -h option, i.e. -h A -h B -h C, also a shortcut can be -h A,B,C')],
+    haplotypes: Annotated[list[str], typer.Option('-h', '--haplotype-char', help='haplotype, either one per -h option, i.e. -h A -h B -h C, or a shortcut -h A,B,C')],
     locusid_file: Annotated[Path, typer.Option('-m', '--locus-ids', exists=True, dir_okay=False, resolve_path=True, help='filename for the locus (usually transcripts) info')] = None,
     out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help="EMASE file (hdf5 format)")] = None,
     delim: Annotated[str, typer.Option('-d', '--delim', help='delimiter string between locus and haplotype in BAM file')] = '_',
@@ -216,7 +216,7 @@ def interpolate(
 @app.command(help="export to GBRS quant format")
 def export(
     genoprob_file: Annotated[Path, typer.Option('-i', '--genoprob-file', exists=True, dir_okay=False, resolve_path=True)],
-    strains: Annotated[str, typer.Option('-s', '--strains')],
+    strains: Annotated[list[str], typer.Option('-s', '--strains', help='strain, either one per -s option, i.e. -h A -h B -h C, or a shortcut -s A,B,C')],
     grid_file: Annotated[Path, typer.Option('-g', '--grid-file', exists=True, dir_okay=False, resolve_path=True)] = None,
     out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = None,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
@@ -224,9 +224,15 @@ def export(
     logger = gbrs_utils.configure_logging(verbose)
     logger.debug('export')
     try:
+        # strains shortcut: the following command line options are all equal
+        # -s A,B,C,D,E,F,G,H
+        # -s A,B,C,D -s E -s F -s G,H
+        all_strains: list[str] = []
+        for x in strains:
+            strains.extend(x.split(','))
         gbrs_utils.export(
             genoprob_file=genoprob_file,
-            strains=strains,
+            strains=all_strains,
             grid_file=grid_file,
             out_file=out_file
         )
@@ -298,16 +304,24 @@ def get_transition_prob(
 @app.command()
 def get_alignment_spec(
     sample_file: Annotated[Path, typer.Option('-i', '--sample-file', exists=True, dir_okay=False, resolve_path=True)],
-    haplotypes: Annotated[str, typer.Option('-s', '--parental-strains')],
+    haplotypes: Annotated[list[str], typer.Option('-s', '--parental-strains')],
     min_expr: Annotated[float, typer.Option('-m', '--min-expr')] = 2.0,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
     logger = gbrs_utils.configure_logging(verbose)
     logger.debug('get_alignment_spec')
     try:
+        # haplotype shortcut: the following command line options are all equal
+        # -h A,B,C,D,E,F,G,H
+        # -h A -h B -h C -h D -h E -h F -h G -h H
+        # -h A,B,C,D -h E -h F -h G,H
+        all_haplotypes: list[str] = []
+        for x in haplotypes:
+            all_haplotypes.extend(x.split(','))
+
         gbrs_utils.get_alignment_spec(
             sample_file=sample_file,
-            haplotypes=haplotypes,
+            haplotypes=all_haplotypes,
             min_expr=min_expr
         )
     except Exception as e:

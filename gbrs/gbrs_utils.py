@@ -4,7 +4,6 @@ from itertools import combinations_with_replacement, product
 from pathlib import Path
 import logging
 import os
-import sys
 
 # 3rd party library imports
 from scipy.interpolate import interp1d
@@ -41,13 +40,13 @@ def configure_logging(level: int = 0) -> logging.Logger:
     Configure the logger with the specified `level`. Valid `level` values
     are:
 
-    ======  =================================
+    ======  =========================
     level   logging value
-    ======  =================================
-    0       logging.WARNING is informational
-    1       logging.INFO is user debug
-    2+      logging.DEBUG is developer debug
-    ======  =================================
+    ======  =========================
+    0       WARNING is informational
+    1       INFO is user debug
+    2+      DEBUG is developer debug
+    ======  =========================
 
     Anything greater than 2 is treated as 2.
 
@@ -330,7 +329,7 @@ def get_transition_prob(
 
 def get_alignment_spec(
     sample_file: Path | str,
-    haplotypes: str,
+    haplotypes: list[str],
     min_expr: float = 2.0
 
 ):
@@ -338,8 +337,7 @@ def get_alignment_spec(
     logger.info(f'Haplotypes: {haplotypes}')
     logger.info(f'Min Expression: {min_expr}')
 
-    strains = haplotypes.split(',')
-    num_strains = len(strains)
+    num_strains = len(haplotypes)
 
     logger.info(f'Loading {os.path.join(DATA_DIR, "ref.gene2transcripts.tsv")}')
     gname = np.loadtxt(
@@ -359,7 +357,7 @@ def get_alignment_spec(
     flist = dict(flist)
 
     dset = dict()
-    for st in strains:
+    for st in haplotypes:
         dmat_strain = np.zeros((num_genes, num_strains))
         for tpmfile in flist[st]:
             logger.debug(f'Working on {tpmfile}')
@@ -374,7 +372,7 @@ def get_alignment_spec(
                     if item[0] in gid:
                         row = gid[item[0]]
                         dmat_sample[row, :] = map(
-                            float, item[1 : (num_strains + 1)]
+                            float, item[1: (num_strains + 1)]
                         )
             dmat_strain += dmat_sample
         dset[st] = dmat_strain / len(flist[st])
@@ -386,7 +384,7 @@ def get_alignment_spec(
         axes[g] = np.zeros((num_strains, num_strains))
         ases[g] = np.zeros((1, num_strains))
         good = np.zeros(num_strains)
-        for i, st in enumerate(strains):
+        for i, st in enumerate(haplotypes):
             v = dset[st][gid[g], :]
             axes[g][i, :] = v
             ases[g][0, i] = sum(v)
@@ -580,6 +578,8 @@ def reconstruct(
             gamma_c = np.exp(alpha[c] + beta[c])
             normalizer = gamma_c.sum(axis=0)
             gamma[c] = gamma_c / normalizer
+
+    logger.info(f'Saving Reconstructed Genotype Probabilities: {out_gprob}')
     np.savez_compressed(out_gprob, **gamma)
 
     # Run Viterbi
@@ -614,15 +614,14 @@ def reconstruct(
 
     viterbi_states = dict(viterbi_states)
 
-    logger.info(f'Saving: {out_gtype}')
+    logger.info(f'Saving Reconstructed Genotypes: {out_gtype}')
     with open(out_gtype, 'w') as fhout:
         fhout.write('#Gene_ID\tDiplotype\n')
         for g in sorted(gtcall_g.keys()):
             fhout.write(f'{g}\t{gtcall_g[g]}\n')
 
-    logger.info(f'Saving: {out_gtype_ordered}')
+    logger.info(f'Saving Reconstructed Ordered Genotypes: {out_gtype_ordered}')
     np.savez_compressed(out_gtype_ordered, **viterbi_states)
-
     logger.info('Done')
 
 
@@ -650,14 +649,14 @@ def interpolate(
         grid_file = os.path.join(DATA_DIR, 'ref.genome_grid.64k.txt')
 
     if out_file is None:
-        outfile = f'gbrs.interpolated.{os.path.basename(probability_file)}'
+        out_file = f'gbrs.interpolated.{os.path.basename(probability_file)}'
 
     logger.info(f'Probability File: {probability_file}')
     logger.info(f'Grid File: {grid_file}')
     logger.info(f'Meta Info File: {gpos_file}')
     logger.info(f'Output File: {out_file}')
 
-    logger.debug('Loading chromosomes')
+    logger.info('Loading chromosome information')
     chrlens = get_chromosome_info(caller='gbrs::interpolate')
     chrs = chrlens.keys()
 
@@ -689,19 +688,20 @@ def interpolate(
             )  # Do we have chromosome length in cM?
             x_gene_extended[c] = x
 
-    logger.info(f'Loading probability file: {probability_file}')
+    logger.info(f'Loading GBRS genotype probability file: {probability_file}')
     gamma_gene = np.load(probability_file)
     gene_model_chr = dict()
     gene_intrp_chr = dict()
     for c in x_grid.keys():
         if c in gamma_gene.files:
+            logger.debug(f'Working on {c}')
             gamma_gene_c = gamma_gene[c]
             y = np.hstack((gamma_gene_c[:, 0][:, np.newaxis], gamma_gene_c))
             y = np.hstack((y, y[:, -1][:, np.newaxis]))
             gene_model_chr[c] = interp1d(x_gene_extended[c], y, axis=1)
             gene_intrp_chr[c] = gene_model_chr[c](x_grid[c])
 
-    logger.info(f'Saving: {out_file}')
+    logger.info(f'Saving interpolate probability file: {out_file}')
     np.savez_compressed(out_file, **gene_intrp_chr)
     logger.info('Done')
 
@@ -735,7 +735,7 @@ def plot(
     chrs = chrlens.keys()
     num_chrs = len(chrs)
 
-    logger.info('Get founder colors')
+    logger.info('Loading founder colors')
     hcolors = get_founder_info(caller='gbrs::plot')
     haplotypes = hcolors.keys()
     hid = dict(zip(haplotypes, np.arange(8)))
@@ -746,7 +746,7 @@ def plot(
     #
     # Main body
     #
-    logger.info(f'Loading genotype probabilities: {genoprob_file}')
+    logger.info(f'Loading GBRS genotype probability file: {genoprob_file}')
     genoprob = np.load(genoprob_file)
     fig = pyplot.figure()
     fig.set_size_inches((16, 16))
@@ -836,16 +836,15 @@ def plot(
         title_txt += f'\n(Total {num_recomb_total} recombinations)'
         ax.set_title(title_txt, fontsize=18, loc='center')
 
-    logger.info(f'Saving file:{out_file}')
+    logger.info(f'Saving generated plot: {out_file}')
     fig.savefig(out_file, dpi=300)
     pyplot.close(fig)
-
     logger.info('Done')
 
 
 def export(
     genoprob_file: Path | str,
-    strains: str,
+    strains: list[str],
     grid_file: Path | str = None,
     out_file: Path | str = None,
 ) -> None:
@@ -861,7 +860,6 @@ def export(
     logger.info(f'Output File: {out_file}')
 
     logger.info('Getting suffices for strains')
-    strains = strains.split(',')
     num_strains = len(strains)
     hid = dict(zip(strains, np.arange(num_strains)))
     genotypes = [
@@ -901,7 +899,7 @@ def export(
     logger.info('Converting genotype probability')
     gprob_mat_converted = np.dot(gprob_mat, convmat)
 
-    logger.info('Exporting to GBRS quant format')
+    logger.info(f'Saving GBRS quant format: {out_file}')
     np.savetxt(
         out_file,
         gprob_mat_converted,
