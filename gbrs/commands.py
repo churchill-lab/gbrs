@@ -25,7 +25,7 @@ logging.basicConfig(
     handlers=[ch1, ch2]
 )
 
-app = typer.Typer()
+app = typer.Typer(help="GBRS")
 
 
 @app.command(help="convert a BAM file to EMASE format")
@@ -64,6 +64,7 @@ def bam2emase(
             logger.exception(e)
         else:
             logger.error(e)
+
 
 @app.command(help="compress EMASE format alignment incidence matrix")
 def compress(
@@ -112,7 +113,7 @@ def quantify(
     logger = gbrs_utils.configure_logging(verbose)
     logger.debug('quantify')
     try:
-        if not multiread_model in (1, 2, 3, 4):
+        if multiread_model not in (1, 2, 3, 4):
             raise typer.Abort(f'-M, --multiread-model must be one of 1, 2, 3, or 4')
 
         emase_utils.quantify(
@@ -222,13 +223,14 @@ def export(
 
 @app.command(help="plot a reconstructed genome")
 def plot(
-    genoprob_file: Annotated[Path, typer.Option('-i', '--genoprob-file', exists=True, dir_okay=False, resolve_path=True)],
-    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = None,
-    sample_name: Annotated[str, typer.Option('-n', '--sample_name')] = None,
-    grid_size: Annotated[int, typer.Option('-g', '--num-grids')] = 2,
-    xt_max: Annotated[int, typer.Option('-m', '--xt-max')] = 5000,
-    xt_size: Annotated[int, typer.Option('-s', '--xt_size')] = 500,
-    grid_width: Annotated[float, typer.Option('-w', '--grid-width')] = 0.01,
+    genoprob_file: Annotated[Path, typer.Option('-i', '--genoprob-file', exists=True, dir_okay=False, resolve_path=True, help='EMASE genoprobs file')],
+    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='name of output file')] = None,
+    output_format: Annotated[str, typer.Option('-f', '--format', help='output file format')] = 'pdf',
+    sample_name: Annotated[str, typer.Option('-n', '--sample_name', help='name of the sample')] = None,
+    grid_size: Annotated[int, typer.Option('-g', '--num-grids', hidden=True)] = 2,
+    xt_max: Annotated[int, typer.Option('-m', '--xt-max', hidden=True)] = 5000,
+    xt_size: Annotated[int, typer.Option('-s', '--xt_size', hidden=True)] = 500,
+    grid_width: Annotated[float, typer.Option('-w', '--grid-width', hidden=True)] = 0.01,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ):
     logger = gbrs_utils.configure_logging(verbose)
@@ -236,7 +238,8 @@ def plot(
     try:
         gbrs_utils.plot(
             genoprob_file=genoprob_file,
-            out_file=out_file,
+            output_file=output_file,
+            output_format=output_format,
             sample_name=sample_name,
             grid_size=grid_size,
             xt_max=xt_max,
@@ -313,7 +316,7 @@ def stencil(
     alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help="alignment incidence file (h5)")],
     genotype_file: Annotated[Path, typer.Option('-G', '--genotype', exists=True, dir_okay=False, resolve_path=True, help="genotype calls by GBRS (tsv)")],
     group_file: Annotated[Path, typer.Option('-g', '--group-file', exists=True, dir_okay=False, resolve_path=True, help="gene ID to isoform ID mapping info (tsv)")] = None,
-    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help="enotyped version of alignment incidence file (h5)")] = None,
+    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help="genotyped version of alignment incidence file (h5)")] = None,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
     logger = gbrs_utils.configure_logging(verbose)
@@ -330,8 +333,6 @@ def stencil(
             logger.exception(e)
         else:
             logger.error(e)
-
-
 
 
 if __name__ == '__main__':

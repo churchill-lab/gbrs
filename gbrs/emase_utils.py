@@ -17,16 +17,16 @@ DATA_DIR = os.getenv('GBRS_DATA', '.')
 logger = logging.getLogger(__name__)
 
 
-def is_comment(s):
+def is_comment(s: str) -> bool:
     return s.startswith('#')
 
 
-def get_names(idfile):
+def get_names(id_file: str) -> list[str]:
     ids = dict()
     master_id = 0
-    with open(idfile) as fh:
-        for curline in fh:
-            item = curline.rstrip().split('\t')
+    with open(id_file) as fh:
+        for line in fh:
+            item = line.rstrip().split('\t')
             g = item[0]
             if g not in ids:
                 ids[g] = master_id
@@ -62,36 +62,36 @@ def compress(
     ec = defaultdict(int)
     for aln_file in emase_files:
         logger.info(f'Loading EMASE file: {aln_file}')
-        alnmat_rd = emase.AlignmentPropertyMatrix(h5file=aln_file)
+        aln_mat_rd = emase.AlignmentPropertyMatrix(h5file=aln_file)
 
-        logger.debug(f'Number Loci: {alnmat_rd.num_loci}')
-        logger.debug(f'Number Haplotypes: {alnmat_rd.num_haplotypes}')
-        logger.debug(f'Number Reads: {alnmat_rd.num_reads}')
+        logger.debug(f'Number Loci: {aln_mat_rd.num_loci}')
+        logger.debug(f'Number Haplotypes: {aln_mat_rd.num_haplotypes}')
+        logger.debug(f'Number Reads: {aln_mat_rd.num_reads}')
 
         # each file should be the same
-        num_loci = alnmat_rd.num_loci
-        num_haplotypes = alnmat_rd.num_haplotypes
-        names_loci = alnmat_rd.lname
-        names_haplotypes = alnmat_rd.hname
+        num_loci = aln_mat_rd.num_loci
+        num_haplotypes = aln_mat_rd.num_haplotypes
+        names_loci = aln_mat_rd.lname
+        names_haplotypes = aln_mat_rd.hname
 
-        for h in range(alnmat_rd.num_haplotypes):
-            alnmat_rd.data[h] = alnmat_rd.data[h].tocsr()
+        for h in range(aln_mat_rd.num_haplotypes):
+            aln_mat_rd.data[h] = aln_mat_rd.data[h].tocsr()
 
-        if alnmat_rd.count is None:
-            alnmat_rd.count = np.ones(alnmat_rd.num_reads)
+        if aln_mat_rd.count is None:
+            aln_mat_rd.count = np.ones(aln_mat_rd.num_reads)
 
         logger.debug('Creating unique ECs')
-        for cur_ind in range(alnmat_rd.num_reads):
+        for cur_ind in range(aln_mat_rd.num_reads):
             ec_key = []
-            for h in range(alnmat_rd.num_haplotypes):
-                i0 = alnmat_rd.data[h].indptr[cur_ind]
-                i1 = alnmat_rd.data[h].indptr[cur_ind + 1]
+            for h in range(aln_mat_rd.num_haplotypes):
+                i0 = aln_mat_rd.data[h].indptr[cur_ind]
+                i1 = aln_mat_rd.data[h].indptr[cur_ind + 1]
                 ec_key.append(
                     ','.join(
-                        map(str, sorted(alnmat_rd.data[h].indices[i0:i1]))
+                        map(str, sorted(aln_mat_rd.data[h].indices[i0:i1]))
                     )
                 )
-            ec[':'.join(ec_key)] += alnmat_rd.count[cur_ind]
+            ec[':'.join(ec_key)] += aln_mat_rd.count[cur_ind]
 
     ec = dict(ec)
     num_ecs = len(ec)
@@ -101,43 +101,43 @@ def compress(
     logger.debug(f'Number Haplotypes: {num_haplotypes}')
     logger.debug(f'Number ECs: {num_ecs}')
 
-    alnmat_ec = emase.AlignmentPropertyMatrix(
+    aln_mat_ec = emase.AlignmentPropertyMatrix(
         shape=(num_loci, num_haplotypes, num_ecs)
     )
-    alnmat_ec.hname = names_haplotypes
-    alnmat_ec.lname = names_loci
-    alnmat_ec.count = np.zeros(num_ecs)
+    aln_mat_ec.hname = names_haplotypes
+    aln_mat_ec.lname = names_loci
+    aln_mat_ec.count = np.zeros(num_ecs)
 
     logger.debug('Adding data to APM')
     for row_id, ec_key in enumerate(ec):
-        alnmat_ec.count[row_id] = ec[ec_key]
+        aln_mat_ec.count[row_id] = ec[ec_key]
         nzlocs = ec_key.split(':')
-        for h in range(alnmat_ec.num_haplotypes):
+        for h in range(aln_mat_ec.num_haplotypes):
             nzlocs_h = nzlocs[h]
             if nzlocs_h != '':
                 nzinds = np.array(list(map(int, nzlocs_h.split(','))))
-                alnmat_ec.data[h][row_id, nzinds] = 1
-    alnmat_ec.finalize()
+                aln_mat_ec.data[h][row_id, nzinds] = 1
+    aln_mat_ec.finalize()
 
     logger.info(f'Saving EMASE Formatted File: {out_file}')
-    alnmat_ec.save(h5file=out_file, complib=comp_lib)
+    aln_mat_ec.save(h5file=out_file, complib=comp_lib)
     logger.info('Done')
 
 
 def stencil(
     alignment_file: Path | str,
     genotype_file: Path | str,
-    group_file: Path | str,
-    out_file: Path | str
-):
+    group_file: Path | str = None,
+    out_file: Path | str = None
+) -> None:
     """
     Applying genotype calls to multi-way alignment incidence matrix.
 
     Args:
-        alignment_file:
-        genotype_file:
-        group_file:
-        out_file:
+        alignment_file: alignment incidence file (h5)
+        genotype_file: genotype calls by GBRS (tsv)
+        group_file: gene ID to isoform ID mapping info (tsv)
+        out_file: genotyped version of alignment incidence file (h5)
     """
     if group_file is None:
         group_file = os.path.join(DATA_DIR, 'ref.gene2transcripts.tsv')
@@ -152,7 +152,7 @@ def stencil(
     logger.info(f'Group File: {group_file}')
     logger.info(f'Output File: {out_file}')
 
-    # Load alignment incidence matrix ('alnfile' is assumed to be in multiway transcriptome)
+    # Load alignment incidence matrix ('alignment_file' is assumed to be in multiway transcriptome)
     logger.info(f'Loading EMASE file: {alignment_file}')
     aln_mat = emase.AlignmentPropertyMatrix(h5file=alignment_file, grpfile=group_file)
     logger.debug(f'Number Loci: {aln_mat.num_loci}')

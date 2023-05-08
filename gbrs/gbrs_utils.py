@@ -68,43 +68,43 @@ def configure_logging(level: int = 0) -> logging.Logger:
     return log
 
 
-def get_chromosome_info(caller='gbrs'):
+def get_chromosome_info() -> OrderedDict[str, int]:
     fai_file = os.path.join(DATA_DIR, 'ref.fa.fai')
     try:
         chr_lens = OrderedDict(
             np.loadtxt(fai_file, usecols=(0, 1), dtype='|S8,<i4')
         )
-    except FileNotFoundError:
-        raise ValueError(
-            f'[{caller}] Make sure if $GBRS_DATA is set correctly. Currently '
-            f'it is {DATA_DIR}'
-        )
-    else:
+
         # convert from bytes to string
         chr_lens = OrderedDict({k.decode(): v for k, v in chr_lens.items()})
         return chr_lens
+    except FileNotFoundError:
+        raise ValueError(
+            'Make sure if $GBRS_DATA is set correctly. Currently it is: '
+            f'{DATA_DIR}'
+        )
 
 
-def get_founder_info(caller='gbrs'):
-    fcofile = os.path.join(DATA_DIR, 'founder.hexcolor.info')
+def get_founder_info():
+    color_file = os.path.join(DATA_DIR, 'founder.hexcolor.info')
 
     try:
-        fcolors = OrderedDict(
+        founder_colors = OrderedDict(
             np.loadtxt(
-                fcofile,
+                color_file,
                 usecols=(0, 1),
                 dtype='str',
                 delimiter='\t',
                 comments=None,
             )
         )
+
+        return founder_colors
     except FileNotFoundError:
         raise ValueError(
-            f'[{caller}] Make sure if $GBRS_DATA is set correctly. Currently '
-            f'it is {DATA_DIR}'
+            f'Make sure if $GBRS_DATA is set correctly. Currently it is: '
+            f'{DATA_DIR}'
         )
-    else:
-        return fcolors
 
 
 def unit_vector(vector):
@@ -114,14 +114,14 @@ def unit_vector(vector):
         return vector
 
 
-def print_vecs(vecs, format_str='%10.1f', show_sum=False):
+def print_vecs(vecs, format_str='%10.1f', show_sum=False) -> None:
     for i in range(vecs.shape[0]):
         v = vecs[i]
         print(' '.join(format_str % elem for elem in v))
         if show_sum:
             print('\t=>', format_str % sum(v))
         else:
-            print
+            print()
 
 
 def get_genotype_probability(aln_profile, aln_specificity, sigma=0.12):
@@ -160,14 +160,17 @@ def ris_step(
     Ported to python by Karl Broman (https://gist.github.com/kbroman/14984b40b0eab71e51891aceaabec850)
     Extended to open the possibility of heterogyzosity by KB Choi
 
-    :param gen_left: left genotype
-    :param gen_right: right genotype
-    :param rec_frac: interval distance (cM)
-    :param haps: list of parental strain
-    :param gamma_scale: amount we allow heterozygosity
-    :param is_x_chr: whether it is 'X' chromosome
-    :param forward_direction: direction of intervals
-    :return: log_e transition probability
+    Args:
+        gen_left: left genotype
+        gen_right: right genotype
+        rec_frac: interval distance (cM)
+        haps: list of parental strain
+        gamma_scale: amount we allow heterozygosity
+        is_x_chr: whether it is 'X' chromosome
+        forward_direction: direction of intervals
+
+    Returns:
+        log_e transition probability
     """
     it = combinations_with_replacement(haps, 2)
     diplotype = [f'{ht1}{ht2}' for ht1, ht2 in it]
@@ -451,7 +454,7 @@ def reconstruct(
     logger.info(f'Outbase: {outbase}')
 
     logger.info('Loading chromosome information')
-    chrlens = get_chromosome_info(caller='gbrs::reconstruct')
+    chrlens = get_chromosome_info()
     chrs = chrlens.keys()
 
     # Load alignment specificity
@@ -657,7 +660,7 @@ def interpolate(
     logger.info(f'Output File: {out_file}')
 
     logger.info('Loading chromosome information')
-    chrlens = get_chromosome_info(caller='gbrs::interpolate')
+    chrlens = get_chromosome_info()
     chrs = chrlens.keys()
 
     logger.info(f'Loading grid file: {grid_file}')
@@ -712,18 +715,35 @@ def combine():
 
 def plot(
     genoprob_file: Path | str,
-    out_file: Path | str = None,
+    output_file: Path | str = None,
+    output_format: str = 'pdf',
     sample_name: str = '',
     grid_size: int = 2,
     xt_max: int = 5000,
     xt_size: int = 500,
     grid_width: float = 0.01,
-):
-    if out_file is None:
-        out_file = f'gbrs.plotted.{os.path.splitext(os.path.basename(genoprob_file))[0]}.pdf'
+) -> None:
+    """
+    Plot a reconstructed genome.
+
+    Args:
+        genoprob_file: the EMASE genotype probability file
+        output_file: the PDF file
+        output_format: The file format, e.g. 'png', 'pdf', 'svg', ... The
+            behavior when this is unset is documented under *fname*
+        sample_name: the sample name
+        grid_size: size of the grid (advanced)
+        xt_max: size of xt (advanced)
+        xt_size: max xt (advanced)
+        grid_width: grid width (advanced)
+    """
+    if output_file is None:
+        output_file = os.path.splitext(os.path.basename(genoprob_file))[0]
+        output_file = f'gbrs.plotted.{output_file}.{output_format}'
 
     logger.info(f'Genotype Probabilities File: {genoprob_file}')
-    logger.info(f'Output File: {out_file}')
+    logger.info(f'Output File: {output_file}')
+    logger.info(f'Output File: {output_format}')
     logger.info(f'Sample Name: {sample_name}')
     logger.info(f'Grid Size: {grid_size}')
     logger.info(f'XT Max: {xt_max}')
@@ -731,12 +751,12 @@ def plot(
     logger.info(f'Grid Width: {grid_width}')
 
     logger.info('Loading chromosome information')
-    chrlens = get_chromosome_info(caller='gbrs::reconstruct')
+    chrlens = get_chromosome_info()
     chrs = chrlens.keys()
     num_chrs = len(chrs)
 
     logger.info('Loading founder colors')
-    hcolors = get_founder_info(caller='gbrs::plot')
+    hcolors = get_founder_info()
     haplotypes = hcolors.keys()
     hid = dict(zip(haplotypes, np.arange(8)))
     genotypes = np.array(
@@ -775,7 +795,8 @@ def plot(
                     if c1 == c2:
                         if (
                             col1[-1] != col2[-1]
-                        ):  # When homozygous region starts, remember the most recent het
+                        ):  # When homozygous region starts, remember the
+                            # most recent het
                             oldcol1 = col1[-1]
                             oldcol2 = col2[-1]
                     else:
@@ -815,14 +836,11 @@ def plot(
         ax.get_xaxis().tick_bottom()
         ax.get_yaxis().tick_right()
         ax.get_yaxis().tick_left()
-        # ax.get_yaxis().set_ticks([])
-        # ax.set_yticklabels(list(chrs))
         pyplot.yticks(
             ticks=np.arange(num_chrs * 4 + 1, 1, -4),
             labels=list(chrs),
             fontsize=14,
         )
-        # ax.set_xticklabels(["%dcM" % xt for xt in np.arange(0, xt_max*grid_size/100, xt_size*grid_size/100)])
         pyplot.xticks(
             ticks=np.arange(0, xt_max * grid_width, xt_size * grid_width),
             labels=[
@@ -836,8 +854,8 @@ def plot(
         title_txt += f'\n(Total {num_recomb_total} recombinations)'
         ax.set_title(title_txt, fontsize=18, loc='center')
 
-    logger.info(f'Saving generated plot: {out_file}')
-    fig.savefig(out_file, dpi=300)
+    logger.info(f'Saving generated plot: {output_file}')
+    fig.savefig(output_file, dpi=600, format=output_format)
     pyplot.close(fig)
     logger.info('Done')
 
@@ -848,6 +866,15 @@ def export(
     grid_file: Path | str = None,
     out_file: Path | str = None,
 ) -> None:
+    """
+    Export genotypes probability file in in GBRS quant format.
+
+    Args:
+        genoprob_file: genotype probability file
+        strains: list of strains
+        grid_file: grid file (i.e, ref.genome_grid.64k.txt)
+        out_file: output file in GBRS quant format
+    """
     if grid_file is None:
         grid_file = os.path.join(DATA_DIR, 'ref.genome_grid.64k.txt')
 
