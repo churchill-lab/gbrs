@@ -414,6 +414,21 @@ def reconstruct(
     sigma: float = 0.12,
     outbase: str = None,
 ) -> None:
+    """
+    Reconstruct the genome based upon gene-level TPM quantities.
+
+    Args:
+        expression_file: file containing gene-level TPM quantities
+        tprob_file: transition probabilities file
+        avec_file:
+        gpos_file:
+        expr_threshold:
+        sigma:
+        outbase:
+
+    Returns:
+
+    """
     if outbase is None:
         out_gtype = 'gbrs.reconstructed.genotypes.tsv'
         out_gprob = 'gbrs.reconstructed.genoprobs.npz'

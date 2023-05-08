@@ -93,13 +93,26 @@ def hybridize(
 
 def bam2emase(
     alignment_file: Path | str,
-    haplotypes: str,
+    haplotypes: list[str],
     locusid_file: Path | str = None,
     out_file: Path | str = None,
     delim: str = '_',
     index_dtype: str = 'uint32',
     data_dtype: str = 'uint8'
 ) -> None:
+    """
+    Convert BAM file to EMASE format (hdf5).
+
+    Args:
+        alignment_file: The BAM file
+        haplotypes: tuple or list of haplotypes
+        locusid_file: filename for the locus (usually transcripts) info
+        out_file: file name of the output file, if not specified one will be
+            generated
+        delim: delimiter string between locus and haplotype in BAM file
+        index_dtype: data type of indices ptr, defaults to uint32
+        data_dtype: data type of the stored value, defaults to uint8
+    """
 
     if locusid_file is None:
         locusid_file = os.path.join(DATA_DIR, 'ref.transcripts.info')
@@ -120,7 +133,6 @@ def bam2emase(
     logger.info(f'Index dtype: {index_dtype}')
     logger.info(f'Data dtype: {data_dtype}')
 
-    haplotypes = tuple(haplotypes.split(','))
     loci = get_names(locusid_file)
 
     logger.debug('Constructing AMF')
@@ -171,6 +183,14 @@ def compress(
     out_file: Path | str,
     comp_lib: str = 'zlib'
 ) -> None:
+    """
+    Compress EMASE file to alignment incidence matrix
+
+    Args:
+        emase_files: list of EMASE files to compress
+        out_file: name of the compressed EMASE file'
+        comp_lib: compression library to use
+    """
     for x in emase_files:
         logger.info(f'EMASE file: {x}')
     logger.info(f'Output File: {out_file}')
@@ -325,18 +345,20 @@ def quantify(
     report_posterior: bool = False
 ) -> None:
     """
-    Quantify expected read counts
+    Quantify expected read counts.
 
-    :param alnfile: alignment incidence file (h5)
-    :param grpfile: gene ID to isoform ID mapping info (tsv)
-    :param lenfile: transcript lengths (tsv)
-    :param multiread_model: emase model (default: 4)
-    :param pseudocount: prior read count (default: 0.0)
-    :param tolerance: tolerance for EM termination (default: 0.0001 in TPM)
-    :param max_iters: maximum iterations for EM iteration
-    :param report_alignment_counts: whether to report alignment counts (default: False)
-    :param report_posterior:
-    :return: Expected read counts (tsv)
+    Args:
+        alignment_file: EMASE alignment incidence file (in hdf5 format)
+        group_file: gene ID to isoform ID mapping info (tsv)
+        length_file: transcript lengths (tsv)
+        genotype_file: tab delimited file of locus and diplotype
+        outbase: basename of all the generated output files
+        multiread_model: EMASE model (default: 4)
+        pseudocount: prior read count (default: 0.0)
+        max_iters: maximum iterations for EM iteration
+        tolerance: tolerance for EM termination (default: 0.0001 in TPM)
+        report_alignment_counts: whether to report alignment counts
+        report_posterior: whether to report posterior probabilities
     """
     if group_file is None:
         group_file = os.path.join(DATA_DIR, 'ref.gene2transcripts.tsv')
@@ -346,7 +368,7 @@ def quantify(
     if length_file is None:
         length_file = os.path.join(DATA_DIR, 'gbrs.hybridized.targets.info')
         if not os.path.exists(length_file):
-            logger.warning('A length file is not given. Transcript length adjustment will *not* be performed.',)
+            logger.warning('A length file is not given. Transcript length adjustment will *not* be performed.')
 
     # If group_file exist, always report groupwise results too
     report_group_counts = (
