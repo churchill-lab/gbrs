@@ -4,26 +4,13 @@ from typing import Annotated
 import logging
 
 # 3rd party library imports
-from rich.logging import RichHandler
 import typer
 
 # local library imports
-from emase.emase_utils import bam2emase as emase_bam2emase
-from gbrs import emase_utils
-from gbrs import gbrs_utils
-
-
-ch1 = RichHandler(level=logging.NOTSET, show_level=True, show_time=True, show_path=False, omit_repeated_times=False)
-ch1.addFilter(gbrs_utils.NoDebugLogFilter())
-ch2 = RichHandler(level=logging.NOTSET, show_level=True, show_time=True, show_path=True, omit_repeated_times=False)
-ch2.addFilter(gbrs_utils.DebugLogFilter())
-
-logging.basicConfig(
-    level="NOTSET",
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[ch1, ch2]
-)
+from gbrs.emase.emase_utils import bam2emase as emase_bam2emase
+from gbrs.gbrs import emase_utils
+from gbrs.gbrs import gbrs_utils
+from gbrs import utils
 
 app = typer.Typer(help="GBRS")
 
@@ -33,13 +20,13 @@ def bam2emase(
     alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help="bam file to convert")],
     haplotypes: Annotated[list[str], typer.Option('-h', '--haplotype-char', help='haplotype, either one per -h option, i.e. -h A -h B -h C, or a shortcut -h A,B,C')],
     locusid_file: Annotated[Path, typer.Option('-m', '--locus-ids', exists=True, dir_okay=False, resolve_path=True, help='filename for the locus (usually transcripts) info')],
-    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help="EMASE file (hdf5 format)")] = None,
+    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help="EMASE file (hdf5 format)")] = None,
     delim: Annotated[str, typer.Option('-d', '--delim', help='delimiter string between locus and haplotype in BAM file')] = '_',
-    index_dtype: Annotated[str, typer.Option('--index-dtype', help='advanced option, see internal code')] = 'uint32',
-    data_dtype: Annotated[str, typer.Option('--data-dtype', help='advanced_option, see internal code')] = 'uint8',
+    index_dtype: Annotated[str, typer.Option('--index-dtype', hidden=True, help='advanced option, see internal code')] = 'uint32',
+    data_dtype: Annotated[str, typer.Option('--data-dtype', hidden=True, help='advanced_option, see internal code')] = 'uint8',
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = gbrs_utils.configure_logging(verbose)
+    logger = utils.configure_logging(verbose)
     logger.debug('bam2emase')
     try:
         # haplotype shortcut: the following command line options are all equal
@@ -54,7 +41,7 @@ def bam2emase(
             alignment_file=alignment_file,
             haplotypes=all_haplotypes,
             locusid_file=locusid_file,
-            out_file=out_file,
+            output_file=output_file,
             delim=delim,
             index_dtype=index_dtype,
             data_dtype=data_dtype
@@ -68,12 +55,12 @@ def bam2emase(
 
 @app.command(help="compress EMASE format alignment incidence matrix")
 def compress(
-    emase_files: Annotated[list[Path], typer.Option('-i', '--emase-file', exists=True, dir_okay=False, resolve_path=True, help='EMASE file to compress, can seperate files by "," or have multiple -i')],
-    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='name of the compressed EMASE file')],
+    emase_files: Annotated[list[Path], typer.Option('-i', '--emase-file', exists=False, dir_okay=False, resolve_path=True, help='EMASE file to compress, can seperate files by "," or have multiple -i')],
+    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='name of the compressed EMASE file')],
     comp_lib: Annotated[str, typer.Option('-c', '--comp-lib', help='compression library to use')] = 'zlib',
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = gbrs_utils.configure_logging(verbose)
+    logger = utils.configure_logging(verbose)
     logger.debug('compress')
     try:
         # file shortcut: the following command line options are all equal
@@ -83,9 +70,12 @@ def compress(
         for x in emase_files:
             all_emase_files.extend(str(x).split(','))
 
+        for i, f in enumerate(all_emase_files):
+            all_emase_files[i] = utils.check_file(f, 'r')
+
         emase_utils.compress(
             emase_files=all_emase_files,
-            out_file=out_file,
+            output_file=output_file,
             comp_lib=comp_lib
         )
     except Exception as e:
@@ -107,14 +97,14 @@ def quantify(
     max_iters: Annotated[int, typer.Option('-m', '--max-iters', help='maximum iterations for EM iteration')] = 999,
     tolerance: Annotated[float, typer.Option('-t', '--tolerance', help='tolerance for EM termination (default: 0.0001 in TPM)')] = 0.0001,
     report_alignment_counts: Annotated[bool, typer.Option('-a', '--report-alignment-counts', help='whether to report alignment counts')] = False,
-    report_posterior: Annotated[bool, typer.Option('-w', '--report-alignment-counts', help='whether to report posterior probabilities')] = False,
+    report_posterior: Annotated[bool, typer.Option('-w', '--report-posterior', help='whether to report posterior probabilities')] = False,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = gbrs_utils.configure_logging(verbose)
+    logger = utils.configure_logging(verbose)
     logger.debug('quantify')
     try:
         if multiread_model not in (1, 2, 3, 4):
-            raise typer.Abort(f'-M, --multiread-model must be one of 1, 2, 3, or 4')
+            raise typer.Abort('-M, --multiread-model must be one of 1, 2, 3, or 4')
 
         emase_utils.quantify(
             alignment_file=alignment_file,
@@ -147,7 +137,7 @@ def reconstruct(
     outbase: Annotated[str, typer.Option('-o', '--outbase', help='basename of all the generated output files')] = None,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = gbrs_utils.configure_logging(verbose)
+    logger = utils.configure_logging(verbose)
     logger.debug('reconstruct')
     try:
         gbrs_utils.reconstruct(
@@ -174,7 +164,7 @@ def interpolate(
     output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='output file in GBRS quant format')] = None,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = gbrs_utils.configure_logging(verbose)
+    logger = utils.configure_logging(verbose)
     logger.debug('interpolate')
     try:
         gbrs_utils.interpolate(
@@ -198,7 +188,7 @@ def export(
     output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='output file in GBRS quant format')] = None,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = gbrs_utils.configure_logging(verbose)
+    logger = utils.configure_logging(verbose)
     logger.debug('export')
     try:
         # strains shortcut: the following command line options are all equal
@@ -233,7 +223,7 @@ def plot(
     grid_width: Annotated[float, typer.Option('-w', '--grid-width', hidden=True)] = 0.01,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ):
-    logger = gbrs_utils.configure_logging(verbose)
+    logger = utils.configure_logging(verbose)
     logger.debug('plot')
     try:
         gbrs_utils.plot(
@@ -263,7 +253,7 @@ def get_transition_prob(
     out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = 'tranprob.npz',
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = gbrs_utils.configure_logging(verbose)
+    logger = utils.configure_logging(verbose)
     logger.debug('get-transition-prob')
     try:
         gbrs_utils.get_transition_prob(
@@ -288,7 +278,7 @@ def get_alignment_spec(
     min_expr: Annotated[float, typer.Option('-m', '--min-expr')] = 2.0,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = gbrs_utils.configure_logging(verbose)
+    logger = utils.configure_logging(verbose)
     logger.debug('get_alignment_spec')
     try:
         # haplotype shortcut: the following command line options are all equal
@@ -316,17 +306,17 @@ def stencil(
     alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help="alignment incidence file (h5)")],
     genotype_file: Annotated[Path, typer.Option('-G', '--genotype', exists=True, dir_okay=False, resolve_path=True, help="genotype calls by GBRS (tsv)")],
     group_file: Annotated[Path, typer.Option('-g', '--group-file', exists=True, dir_okay=False, resolve_path=True, help="gene ID to isoform ID mapping info (tsv)")] = None,
-    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help="genotyped version of alignment incidence file (h5)")] = None,
+    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help="genotyped version of alignment incidence file (h5)")] = None,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = gbrs_utils.configure_logging(verbose)
+    logger = utils.configure_logging(verbose)
     logger.debug('stencil')
     try:
         emase_utils.stencil(
             alignment_file=alignment_file,
             genotype_file=genotype_file,
             group_file=group_file,
-            out_file=out_file
+            output_file=output_file
         )
     except Exception as e:
         if logger.level == logging.DEBUG:

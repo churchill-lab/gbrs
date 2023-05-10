@@ -4,17 +4,17 @@ from itertools import dropwhile
 from pathlib import Path
 import logging
 import os
-import subprocess
 
 # 3rd party library imports
-import emase
 import numpy as np
 
 # local library imports
-#
+from gbrs.emase.AlignmentPropertyMatrix import AlignmentPropertyMatrix
+from gbrs.emase.EMfactory import EMfactory
+
 
 DATA_DIR = os.getenv('GBRS_DATA', '.')
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('gbrs')
 
 
 def is_comment(s: str) -> bool:
@@ -38,7 +38,7 @@ def get_names(id_file: str) -> list[str]:
 
 def compress(
     emase_files: list[Path | str],
-    out_file: Path | str,
+    output_file: Path | str,
     comp_lib: str = 'zlib'
 ) -> None:
     """
@@ -46,12 +46,12 @@ def compress(
 
     Args:
         emase_files: list of EMASE files to compress
-        out_file: name of the compressed EMASE file
+        output_file: name of the compressed EMASE file
         comp_lib: compression library to use
     """
     for x in emase_files:
         logger.info(f'EMASE file: {x}')
-    logger.info(f'Output File: {out_file}')
+    logger.info(f'Output File: {output_file}')
     logger.info(f'Compression Library: {comp_lib}')
 
     num_loci = None
@@ -62,7 +62,7 @@ def compress(
     ec = defaultdict(int)
     for aln_file in emase_files:
         logger.info(f'Loading EMASE file: {aln_file}')
-        aln_mat_rd = emase.AlignmentPropertyMatrix(h5file=aln_file)
+        aln_mat_rd = AlignmentPropertyMatrix(h5file=aln_file)
 
         logger.debug(f'Number Loci: {aln_mat_rd.num_loci}')
         logger.debug(f'Number Haplotypes: {aln_mat_rd.num_haplotypes}')
@@ -101,7 +101,7 @@ def compress(
     logger.debug(f'Number Haplotypes: {num_haplotypes}')
     logger.debug(f'Number ECs: {num_ecs}')
 
-    aln_mat_ec = emase.AlignmentPropertyMatrix(
+    aln_mat_ec = AlignmentPropertyMatrix(
         shape=(num_loci, num_haplotypes, num_ecs)
     )
     aln_mat_ec.hname = names_haplotypes
@@ -119,8 +119,8 @@ def compress(
                 aln_mat_ec.data[h][row_id, nzinds] = 1
     aln_mat_ec.finalize()
 
-    logger.info(f'Saving EMASE Formatted File: {out_file}')
-    aln_mat_ec.save(h5file=out_file, complib=comp_lib)
+    logger.info(f'Saving EMASE Formatted File: {output_file}')
+    aln_mat_ec.save(h5file=output_file, complib=comp_lib)
     logger.info('Done')
 
 
@@ -128,7 +128,7 @@ def stencil(
     alignment_file: Path | str,
     genotype_file: Path | str,
     group_file: Path | str = None,
-    out_file: Path | str = None
+    output_file: Path | str = None
 ) -> None:
     """
     Applying genotype calls to multi-way alignment incidence matrix.
@@ -137,24 +137,24 @@ def stencil(
         alignment_file: alignment incidence file (h5)
         genotype_file: genotype calls by GBRS (tsv)
         group_file: gene ID to isoform ID mapping info (tsv)
-        out_file: genotyped version of alignment incidence file (h5)
+        output_file: genotyped version of alignment incidence file (h5)
     """
     if group_file is None:
         group_file = os.path.join(DATA_DIR, 'ref.gene2transcripts.tsv')
         if not os.path.exists(group_file):
             logger.info('A group file is *not* given. Genotype will be stenciled as is.')
 
-    if out_file is None:
+    if output_file is None:
         out_file = f'gbrs.stenciled.{os.path.basename(alignment_file)}'
 
     logger.info(f'Alignment File: {alignment_file}')
     logger.info(f'Genotype File: {genotype_file}')
     logger.info(f'Group File: {group_file}')
-    logger.info(f'Output File: {out_file}')
+    logger.info(f'Output File: {output_file}')
 
     # Load alignment incidence matrix ('alignment_file' is assumed to be in multiway transcriptome)
     logger.info(f'Loading EMASE file: {alignment_file}')
-    aln_mat = emase.AlignmentPropertyMatrix(h5file=alignment_file, grpfile=group_file)
+    aln_mat = AlignmentPropertyMatrix(h5file=alignment_file, grpfile=group_file)
     logger.debug(f'Number Loci: {aln_mat.num_loci}')
     logger.debug(f'Number Haplotypes: {aln_mat.num_haplotypes}')
     logger.debug(f'Number Reads: {aln_mat.num_reads}')
@@ -189,8 +189,8 @@ def stencil(
     for h in range(aln_mat.num_haplotypes):
         aln_mat.data[h].eliminate_zeros()
 
-    logger.info(f'Saving EMASE Formatted File: {out_file}')
-    aln_mat.save(h5file=out_file)
+    logger.info(f'Saving EMASE Formatted File: {output_file}')
+    aln_mat.save(h5file=output_file)
     logger.info('Done')
 
 
@@ -251,7 +251,7 @@ def quantify(
 
     # load alignment incidence matrix ('alignment_file' is assumed to be in multiway transcriptome)
     logger.info(f'Loading EMASE file: {alignment_file}')
-    aln_mat = emase.AlignmentPropertyMatrix(h5file=alignment_file, grpfile=group_file)
+    aln_mat = AlignmentPropertyMatrix(h5file=alignment_file, grpfile=group_file)
 
     # Load genotype calls
     if genotype_file is not None:
@@ -296,7 +296,7 @@ def quantify(
 
     # Run emase
     logger.info('Running EMASE')
-    em_factory = emase.EMfactory(aln_mat)
+    em_factory = EMfactory(aln_mat)
     em_factory.prepare(pseudocount=pseudocount, lenfile=length_file)
     em_factory.run(
         model=multiread_model, tol=tolerance, max_iters=max_iters, verbose=True
@@ -333,7 +333,7 @@ def quantify(
         )
 
     if report_alignment_counts:
-        alnmat = emase.AlignmentPropertyMatrix(h5file=alignment_file, grpfile=group_file)
+        alnmat = AlignmentPropertyMatrix(h5file=alignment_file, grpfile=group_file)
 
         logger.info(f'Generating isoform Alignment Counts: {outbase}.isoforms.alignment_counts')
         alnmat.report_alignment_counts(

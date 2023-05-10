@@ -32,6 +32,7 @@ test_requirements = [
     'pytest'
 ]
 
+
 setup(
     name='gbrs',
     version=get_gbrs_version(),
@@ -59,13 +60,27 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "gbrs = gbrs.commands:app",
+            "gbrs = gbrs.gbrs.commands:app",
+            "emase = gbrs.emase.commands:app",
         ]
     },
-    scripts=['scripts/export-genoprob-file',
-             'scripts/convert-kallisto-result-for-gbrs',
-             'scripts/convert-salmon-result-for-gbrs',
-             'scripts/run_gbrs_on_cluster.sh'],
+    scripts=[
+        'scripts/export-genoprob-file',
+        'scripts/convert-kallisto-result-for-gbrs',
+        'scripts/convert-salmon-result-for-gbrs',
+        'scripts/run_gbrs_on_cluster.sh',
+        "scripts/prepare-emase",
+        "scripts/create-hybrid",
+        "scripts/bam-to-emase",
+        "scripts/combine-emase-files",
+        "scripts/run-emase",
+        "scripts/count-alignments",
+        "scripts/get-common-alignments",
+        "scripts/pull-out-unique-reads",
+        "scripts/count-shared-multireads-pairwise",
+        "scripts/simulate-reads",
+
+    ],
     test_suite='tests',
     tests_require=test_requirements
 )

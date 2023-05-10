@@ -1,6 +1,13 @@
-__author__ = "Kwangbom 'KB' Choi, Ph.D."
-__email__ = "kb.choi@jax.org"
-__version__ = "0.2.0"
+__version__ = "1.0.0"
+
+__creator__ = "Kwangbom 'KB' Choi, Ph.D."
+
+__developers__ = [
+    "KC Choi",
+    "Matthew Vincent <matt.vincent@jax.org>",
+    "Mike Lloyd <mike.lloyd@jax.org>"
+]
+
 __logo_text__ = (
 f"""
         _
@@ -8,8 +15,9 @@ f"""
    __ _| |__  _ __ ___
   / _` | '_ \| '__/ __|
  | (_| | |_) | |  \__ \\
-  \__, |_.__/|_|  |___/
+  \__, |_.__/|_|  |___/   WITH EMASE
    __/ |
   |___/     Ver.:{__version__}
 
 """)
+

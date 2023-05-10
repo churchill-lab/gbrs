@@ -1,5 +1,5 @@
 #!/usr/bin/env python
 if __name__ == "__main__":
     print('*** ERROR ***')
-    print('Please use "gbrs export"')
+    print('Please use "emase combine"')
     print('*** ERROR ***')

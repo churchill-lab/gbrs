@@ -21,53 +21,6 @@ DATA_DIR = os.getenv('GBRS_DATA', '.')
 logger = logging.getLogger('gbrs')
 
 
-class DebugLogFilter(logging.Filter):
-    def filter(self, record):
-        if record.levelno == logging.DEBUG:
-            return True
-        return False
-
-
-class NoDebugLogFilter(logging.Filter):
-    def filter(self, record):
-        if record.levelno != logging.DEBUG:
-            return True
-        return False
-
-
-def configure_logging(level: int = 0) -> logging.Logger:
-    """
-    Configure the logger with the specified `level`. Valid `level` values
-    are:
-
-    ======  =========================
-    level   logging value
-    ======  =========================
-    0       WARNING is informational
-    1       INFO is user debug
-    2+      DEBUG is developer debug
-    ======  =========================
-
-    Anything greater than 2 is treated as 2.
-
-    Args:
-        level: The logging level; defaults to 0.
-
-    Returns:
-        logging.Logger: The logging object.
-    """
-    log = logging.getLogger('gbrs')
-
-    if level == 0:
-        log.setLevel(logging.WARNING)
-    elif level == 1:
-        log.setLevel(logging.INFO)
-    elif level > 1:
-        log.setLevel(logging.DEBUG)
-
-    return log
-
-
 def get_chromosome_info() -> OrderedDict[str, int]:
     fai_file = os.path.join(DATA_DIR, 'ref.fa.fai')
     try:
@@ -114,7 +67,7 @@ def unit_vector(vector):
         return vector
 
 
-def print_vecs(vecs, format_str='%10.1f', show_sum=False) -> None:
+def print_vecs(vecs, format_str: str = '%10.1f', show_sum: bool = False) -> None:
     for i in range(vecs.shape[0]):
         v = vecs[i]
         print(' '.join(format_str % elem for elem in v))
