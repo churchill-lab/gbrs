@@ -11,9 +11,9 @@ from gbrs.emase.emase_utils import bam2emase as emase_bam2emase
 from gbrs.gbrs import emase_utils
 from gbrs.gbrs import gbrs_utils
 from gbrs import utils
-from gbrs.version import __version__, __logo_text__
+from gbrs.version import __logo_text__
 
-app = typer.Typer(help="GBRS")
+app = typer.Typer(help='GBRS')
 
 
 def version_callback(value: bool):

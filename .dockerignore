@@ -1,0 +1,8 @@
+.git
+.dockerignore
+logs/
+.git
+*.md
+.cache
+debug.txt
+

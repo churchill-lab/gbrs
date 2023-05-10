@@ -1,11 +1,7 @@
 #!/usr/bin/env python
 import os
 import sys
-
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
+from setuptools import setup, find_packages
 
 
 with open('README.rst') as readme_file:
@@ -41,11 +37,7 @@ setup(
     author='Kwangbom \"KB\" Choi, Ph.D.',
     author_email='kb.choi@jax.org',
     url='https://github.com/churchill-lab/gbrs',
-    packages=[
-        'gbrs',
-    ],
-    package_dir={'gbrs':
-                 'gbrs'},
+    packages=find_packages(),
     include_package_data=True,
     install_requires=requirements,
     license="MIT License",
@@ -61,7 +53,7 @@ setup(
     entry_points={
         "console_scripts": [
             "gbrs = gbrs.gbrs.commands:app",
-            "emase = gbrs.emase.commands:app",
+            "emase = gbrs.emase.commands:app"
         ]
     },
     scripts=[

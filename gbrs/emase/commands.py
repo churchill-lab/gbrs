@@ -9,9 +9,24 @@ import typer
 # local library imports
 from gbrs import utils
 from gbrs.emase import emase_utils
+from gbrs.version import __logo_text__
 
 
-app = typer.Typer()
+app = typer.Typer(help='EMASE')
+
+
+def version_callback(value: bool):
+    if value:
+        typer.echo(__logo_text__)
+        raise typer.Exit()
+
+
+@app.callback()
+def common(
+    ctx: typer.Context,
+    version: bool = typer.Option(None, "--version", callback=version_callback),
+):
+    pass
 
 
 @app.command(help="convert a BAM file to EMASE format")
