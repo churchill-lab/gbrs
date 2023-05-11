@@ -15,6 +15,7 @@ import tables
 # local library imports
 #
 
+
 class Sparse3DMatrix:
     """
     3-dim sparse matrix designed for "pooled" RNA-seq alignments
@@ -166,9 +167,8 @@ class Sparse3DMatrix:
         if self.finalized:
             dmat = self.__class__()
             dmat.shape = self.shape
-            if isinstance(
-                other, Sparse3DMatrix
-            ):  # element-wise multiplication between same kind
+            if isinstance(other, Sparse3DMatrix):
+                # element-wise multiplication between same kind
                 if other.finalized:
                     for hid in range(self.shape[1]):
                         dmat.data.append(
@@ -176,15 +176,13 @@ class Sparse3DMatrix:
                         )
                 else:
                     raise RuntimeError('Both matrices must be finalized.')
-            elif isinstance(
-                other, (np.ndarray, csc_matrix, csr_matrix)
-            ):  # matrix-matrix multiplication
+            elif isinstance(other, (np.ndarray, csc_matrix, csr_matrix)):
+                # matrix-matrix multiplication
                 for hid in range(self.shape[1]):
                     dmat.data.append(self.data[hid] * other)
                 dmat.shape = (other.shape[1], self.shape[1], self.shape[2])
-            elif isinstance(
-                other, (coo_matrix, lil_matrix)
-            ):  # matrix-matrix multiplication
+            elif isinstance(other, (coo_matrix, lil_matrix)):
+                # matrix-matrix multiplication
                 other_csc = other.tocsc()
                 for hid in range(self.shape[1]):
                     dmat.data.append(self.data[hid] * other_csc)

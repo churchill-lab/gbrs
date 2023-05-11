@@ -8,15 +8,16 @@ from rich.logging import RichHandler
 # local library imports
 from gbrs.emase import emase_utils
 
+
 class DebugLogFilter(logging.Filter):
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord):
         if record.levelno == logging.DEBUG:
             return True
         return False
 
 
 class NoDebugLogFilter(logging.Filter):
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord):
         if record.levelno != logging.DEBUG:
             return True
         return False
@@ -101,3 +102,40 @@ def check_file(file_name: str, mode: str | None = "r") -> str:
             return file_name
 
     raise OSError(f"Unspecified mode to open file, '{mode}'")
+
+
+def is_comment(s: str) -> bool:
+    """
+    Check if the line is a comment (starts with a #)
+
+    Args:
+        s: the string to check
+
+    Returns:
+        True if the string starts with a #.
+    """
+    return s.startswith('#')
+
+
+def get_names(id_file: str) -> list[str]:
+    """
+    Load a file and get the names.
+
+    Args:
+        id_file: the name of the file to open
+
+    Returns:
+        A list of the names in the file.
+    """
+    ids = dict()
+    master_id = 0
+    with open(id_file) as fh:
+        for line in fh:
+            item = line.rstrip().split('\t')
+            g = item[0]
+            if g not in ids:
+                ids[g] = master_id
+                master_id += 1
+    num_ids = len(ids)
+    names = {index: name for name, index in ids.items()}
+    return [names[k] for k in range(num_ids)]

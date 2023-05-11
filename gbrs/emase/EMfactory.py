@@ -6,6 +6,7 @@ from scipy.sparse import eye, lil_matrix
 import numpy as np
 
 # local library imports
+from gbrs import utils
 from gbrs.emase.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
 
 
@@ -21,12 +22,19 @@ class EMfactory:
         self.t2t_mat = None
         self.target_lengths = None
 
-    def prepare(self, pseudocount=0.0, lenfile=None, read_length=100):
+    def prepare(
+        self,
+        pseudocount: float = 0.0,
+        lenfile: str = None,
+        read_length: int = 100
+    ) -> None:
         """
         Initializes the probability of read origin according to the alignment profile
 
-        :param pseudocount: Uniform prior for allele specificity estimation
-        :return: Nothing (as it performs an in-place operations)
+        Args:
+            pseudocount: Uniform prior for allele specificity estimation
+            lenfile: lengths file
+            read_length: default read length
         """
         if self.probability.num_groups > 0:
             self.grp_conv_mat = lil_matrix(
@@ -100,12 +108,13 @@ class EMfactory:
                 orig_allelic_expression_sum / self.allelic_expression.sum()
             )  # original depth scale
 
-    def reset(self, pseudocount=0.0):
+    def reset(self, pseudocount: float = 0.0) -> None:
         """
-        Initializes the probability of read origin according to the alignment profile
+        Initializes the probability of read origin according to the alignment
+        profile.
 
-        :param pseudocount: Uniform prior for allele specificity estimation
-        :return: Nothing (as it performs an in-place operations)
+        Args:
+            pseudocount: Uniform prior for allele specificity estimation
         """
         self.probability.reset()
         self.probability.normalize_reads(
@@ -126,18 +135,24 @@ class EMfactory:
                 orig_allelic_expression_sum / self.allelic_expression.sum()
             )  # original depth scale
 
-    def get_allelic_expression(self, at_group_level=False):
+    def get_allelic_expression(self, at_group_level: bool = False):
         if at_group_level:
             return self.allelic_expression * self.grp_conv_mat
         else:
             return self.allelic_expression.copy()
 
-    def update_probability_at_read_level(self, model=3):
+    def update_probability_at_read_level(self, model: int = 3) -> None:
         """
         Updates the probability of read origin at read level
 
-        :param model: Normalization model (1: Gene->Allele->Isoform, 2: Gene->Isoform->Allele, 3: Gene->Isoform*Allele, 4: Gene*Isoform*Allele)
-        :return: Nothing (as it performs in-place operations)
+        Normalization model:
+            1: Gene->Allele->Isoform
+            2: Gene->Isoform->Allele
+            3: Gene->Isoform*Allele
+            4: Gene*Isoform*Allele
+
+        Args:
+            model: Normalization model
         """
         self.probability.reset()  # reset to alignment incidence matrix
         if model == 1:
@@ -194,12 +209,18 @@ class EMfactory:
                 'The read normalization model should be 1, 2, 3, or 4.'
             )
 
-    def update_allelic_expression(self, model=3):
+    def update_allelic_expression(self, model: int = 3) -> None:
         """
         A single EM step: Update probability at read level and then re-estimate allelic specific expression
 
-        :param model: Normalization model (1: Gene->Allele->Isoform, 2: Gene->Isoform->Allele, 3: Gene->Isoform*Allele, 4: Gene*Isoform*Allele)
-        :return: Nothing (as it performs in-place operations)
+        Normalization model:
+            1: Gene->Allele->Isoform
+            2: Gene->Isoform->Allele
+            3: Gene->Isoform*Allele
+            4: Gene*Isoform*Allele
+
+        Args:
+            model: Normalization model
         """
         self.update_probability_at_read_level(model)
         self.allelic_expression = self.probability.sum(axis=APM.Axis.READ)
@@ -208,22 +229,35 @@ class EMfactory:
                 self.allelic_expression, self.target_lengths
             )
 
-    def run(self, model, tol=0.001, max_iters=999, verbose=True):
+    def run(
+        self,
+        model: int,
+        tol: float = 0.001,
+        max_iters: int = 999,
+        verbose: bool = True
+    ) -> None:
         """
         Runs EM iterations
 
-        :param model: Normalization model (1: Gene->Allele->Isoform, 2: Gene->Isoform->Allele, 3: Gene->Isoform*Allele, 4: Gene*Isoform*Allele)
-        :param tol: Tolerance for termination
-        :param max_iters: Maximum number of iterations until termination
-        :param verbose: Display information on how EM is running
-        :return: Nothing (as it performs in-place operations)
+        Normalization model:
+            1: Gene->Allele->Isoform
+            2: Gene->Isoform->Allele
+            3: Gene->Isoform*Allele
+            4: Gene*Isoform*Allele
+
+        Args:
+            model: Normalization model
+            tol: Tolerance for termination
+            max_iters: Maximum number of iterations until termination
+            verbose: Display information on how EM is running
         """
         orig_err_states = np.seterr(all='raise')
         np.seterr(under='ignore')
         if verbose:
-            print()
+            print('')
             print('Iter No  Time (hh:mm:ss)    Total change (TPM)  ')
             print('-------  ---------------  ----------------------')
+
         num_iters = 0
         err_sum = 1000000.0
         time0 = time.time()
@@ -254,12 +288,14 @@ class EMfactory:
         self, filename, grp_wise=False, reorder='as-is', notes=None
     ):
         """
-        Exports expected read counts
+        Export read counts
 
-        :param filename: File name for output
-        :param grp_wise: whether the report is at isoform level or gene level
-        :param reorder: whether the report should be either 'decreasing' or 'increasing' order or just 'as-is'
-        :return: Nothing but the method writes a file
+        Args:
+            filename: file name for output
+            grp_wise: whether the report is at isoform level or gene level
+            reorder: whether the report should be either 'decreasing' or
+                'increasing' order or just 'as-is'
+            notes: notes for the group
         """
         expected_read_counts = self.probability.sum(axis=APM.Axis.READ)
         if grp_wise:
@@ -274,9 +310,8 @@ class EMfactory:
         elif reorder == 'increasing':
             report_order = np.argsort(total_read_counts.flatten())
         elif reorder == 'as-is':
-            report_order = np.arange(
-                len(lname)
-            )  # report in the original locus order
+            # report in the original locus order
+            report_order = np.arange(len(lname))
         cntdata = np.vstack((expected_read_counts, total_read_counts))
         fhout = open(filename, 'w')
         fhout.write('locus\t' + '\t'.join(self.probability.hname) + '\ttotal')
@@ -295,14 +330,17 @@ class EMfactory:
 
     def report_depths(
         self, filename, tpm=True, grp_wise=False, reorder='as-is', notes=None
-    ):
+    ) -> None:
         """
         Exports expected depths
 
-        :param filename: File name for output
-        :param grp_wise: whether the report is at isoform level or gene level
-        :param reorder: whether the report should be either 'decreasing' or 'increasing' order or just 'as-is'
-        :return: Nothing but the method writes a file
+        Args:
+            filename: file name for output
+            tpm: True for tpms
+            grp_wise: whether the report is at isoform level or gene level
+            reorder: whether the report should be either 'decreasing' or
+                'increasing' order or just 'as-is'
+            notes: notes for the group
         """
         if grp_wise:
             lname = self.probability.gname
@@ -319,9 +357,8 @@ class EMfactory:
         elif reorder == 'increasing':
             report_order = np.argsort(total_depths.flatten())
         elif reorder == 'as-is':
-            report_order = np.arange(
-                len(lname)
-            )  # report in the original locus order
+            # report in the original locus order
+            report_order = np.arange(len(lname))
         cntdata = np.vstack((depths, total_depths))
         fhout = open(filename, 'w')
         fhout.write('locus\t' + '\t'.join(self.probability.hname) + '\ttotal')
@@ -341,13 +378,13 @@ class EMfactory:
         fhout.close()
 
     def export_posterior_probability(
-        self, filename, title='Posterior Probability'
-    ):
+        self, filename: str, title: str = 'Posterior Probability'
+    ) -> None:
         """
-        Writes the posterior probability of read origin
+        Writes the posterior probability of read origin.
 
-        :param filename: File name for output
-        :param title: The title of the posterior probability matrix
-        :return: Nothing but the method writes a file in EMASE format (PyTables)
+        Args:
+            filename: File name for output
+            title: the title of the posterior probability matrix
         """
         self.probability.save(h5file=filename, title=title)

@@ -51,8 +51,11 @@ def bam2emase(
         for x in haplotypes:
             all_haplotypes.extend(x.split(','))
 
+        locusid_file = str(locusid_file) if locusid_file else None
+        output_file = str(output_file) if output_file else None
+
         emase_utils.bam2emase(
-            alignment_file=alignment_file,
+            alignment_file=str(alignment_file),
             haplotypes=all_haplotypes,
             locusid_file=locusid_file,
             output_file=output_file,
@@ -87,6 +90,8 @@ def combine(
         for i, f in enumerate(all_emase_files):
             all_emase_files[i] = utils.check_file(f, 'r')
 
+        output_file = str(output_file) if output_file else None
+
         emase_utils.combine(
             emase_files=all_emase_files,
             output_file=output_file,
@@ -110,8 +115,8 @@ def count_alignments(
     logger.debug('count_alignments')
     try:
         emase_utils.count_alignments(
-            alignment_file=alignment_file,
-            group_file=group_file,
+            alignment_file=str(alignment_file),
+            group_file=str(group_file),
             outbase=outbase
         )
     except Exception as e:
@@ -132,8 +137,8 @@ def count_shared_multireads_pairwise(
     logger.debug('count_shared_multireads_pairwise')
     try:
         emase_utils.count_shared_multireads_pairwise(
-            alignment_file=alignment_file,
-            group_file=group_file,
+            alignment_file=str(alignment_file),
+            group_file=str(group_file),
             outbase=outbase
         )
     except Exception as e:
@@ -172,6 +177,8 @@ def create_hybrid(
         for i, f in enumerate(all_fasta_files):
             all_fasta_files[i] = utils.check_file(f, 'r')
 
+        output_file = str(output_file) if output_file else None
+
         emase_utils.create_hybrid(
             fasta_list=all_fasta_files,
             haplotypes=all_haplotypes,
@@ -205,6 +212,8 @@ def get_common_alignments(
         for i, f in enumerate(all_emase_files):
             all_emase_files[i] = utils.check_file(f, 'r')
 
+        output_file = str(output_file) if output_file else None
+
         emase_utils.get_common_alignments(
             emase_files=all_emase_files,
             output_file=output_file,
@@ -229,8 +238,11 @@ def pull_out_unique_reads(
     logger = utils.configure_logging(verbose)
     logger.debug('pull_out_unique_reads')
     try:
+        output_file = str(output_file) if output_file else None
+        group_file = str(group_file) if group_file else None
+
         emase_utils.pull_out_unique_reads(
-            alignment_file=alignment_file,
+            alignment_file=str(alignment_file),
             group_file=group_file,
             output_file=output_file,
             shallow=shallow,
@@ -319,8 +331,11 @@ def run(
         if not multiread_model in (1, 2, 3, 4):
             raise typer.Abort(f'-M, --multiread-model must be one of 1, 2, 3, or 4')
 
+        group_file = str(group_file) if group_file else None
+        length_file = str(length_file) if length_file else None
+
         emase_utils.run(
-            alignment_file=alignment_file,
+            alignment_file=str(alignment_file),
             group_file=group_file,
             length_file=length_file,
             outbase=outbase,

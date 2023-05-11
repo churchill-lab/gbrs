@@ -1,7 +1,6 @@
 # standard library imports
 from collections import defaultdict
 from itertools import dropwhile
-from pathlib import Path
 import logging
 import os
 
@@ -9,6 +8,7 @@ import os
 import numpy as np
 
 # local library imports
+from gbrs import utils
 from gbrs.emase.AlignmentPropertyMatrix import AlignmentPropertyMatrix
 from gbrs.emase.EMfactory import EMfactory
 
@@ -17,28 +17,10 @@ DATA_DIR = os.getenv('GBRS_DATA', '.')
 logger = logging.getLogger('gbrs')
 
 
-def is_comment(s: str) -> bool:
-    return s.startswith('#')
-
-
-def get_names(id_file: str) -> list[str]:
-    ids = dict()
-    master_id = 0
-    with open(id_file) as fh:
-        for line in fh:
-            item = line.rstrip().split('\t')
-            g = item[0]
-            if g not in ids:
-                ids[g] = master_id
-                master_id += 1
-    num_ids = len(ids)
-    names = {index: name for name, index in ids.items()}
-    return [names[k] for k in range(num_ids)]
-
 
 def compress(
-    emase_files: list[Path | str],
-    output_file: Path | str,
+    emase_files: list[str],
+    output_file: str,
     comp_lib: str = 'zlib'
 ) -> None:
     """
@@ -125,10 +107,10 @@ def compress(
 
 
 def stencil(
-    alignment_file: Path | str,
-    genotype_file: Path | str,
-    group_file: Path | str = None,
-    output_file: Path | str = None
+    alignment_file: str,
+    genotype_file: str,
+    group_file: str = None,
+    output_file: str = None
 ) -> None:
     """
     Applying genotype calls to multi-way alignment incidence matrix.
@@ -168,7 +150,7 @@ def stencil(
     with open(genotype_file) as fh:
         if group_file is not None:
             gtcall_t = dict.fromkeys(aln_mat.lname)
-            for line in dropwhile(is_comment, fh):
+            for line in dropwhile(utils.is_comment, fh):
                 item = line.rstrip().split('\t')
                 g, gt = item[:2]
                 gtcall_g[g] = gt
@@ -178,7 +160,7 @@ def stencil(
                 for t in tid2set:
                     gtcall_t[aln_mat.lname[t]] = gt
         else:
-            for line in dropwhile(is_comment, fh):
+            for line in dropwhile(utils.is_comment, fh):
                 item = line.rstrip().split('\t')
                 g, gt = item[:2]
                 gtcall_g[g] = gt
@@ -195,10 +177,10 @@ def stencil(
 
 
 def quantify(
-    alignment_file: Path | str,
-    group_file: Path | str = None,
-    length_file: Path | str = None,
-    genotype_file: Path | str = None,
+    alignment_file: str,
+    group_file: str = None,
+    length_file: str = None,
+    genotype_file: str = None,
     outbase: str = 'gbrs.quantified',
     multiread_model: int = 4,
     pseudocount: float = 0.0,
@@ -275,7 +257,7 @@ def quantify(
         #    count += 1
         logger.info(f'Loading and processing genotype calls from: {genotype_file}')
         with open(genotype_file) as fh:
-            for curline in dropwhile(is_comment, fh):
+            for curline in dropwhile(utils.is_comment, fh):
                 item = curline.rstrip().split('\t')
                 g, gt = item[:2]
                 gtcall_g[g] = gt

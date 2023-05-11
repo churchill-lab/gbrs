@@ -1,7 +1,6 @@
 # standard library imports
 from collections import defaultdict, OrderedDict
 from itertools import combinations_with_replacement, product
-from pathlib import Path
 import logging
 import os
 
@@ -77,7 +76,7 @@ def print_vecs(vecs, format_str: str = '%10.1f', show_sum: bool = False) -> None
             print()
 
 
-def get_genotype_probability(aln_profile, aln_specificity, sigma=0.12):
+def get_genotype_probability(aln_profile, aln_specificity, sigma: float = 0.12):
     # 'aln_specificity' should be a set of unit vectors (at least one of the entry is larger than 1.)
     num_haps = len(aln_profile)
     aln_vec = unit_vector(aln_profile)
@@ -206,19 +205,30 @@ def do_step(
 
 
 def get_transition_prob(
-    marker_file: Path | str,
+    marker_file: str,
     haplotypes: str = 'A,B',
     mating_scheme: str = 'RI',
     gamma_scale: float = 0.01,
     epsilon: float = 0.000001,
-    out_file: Path | str = 'tranprob.npz'
-):
+    output_file: str = 'tranprob.npz'
+) -> None:
+    """
+    Calculate the transition probabilities.
+
+    Args:
+        marker_file: marker file
+        haplotypes: the haplotypes
+        mating_scheme: mating scheme to use
+        gamma_scale: scale for gamma
+        epsilon: epsilon value
+        output_file: output file
+    """
     logger.info(f'Marker File: {marker_file}')
     logger.info(f'Haplotypes: {haplotypes}')
     logger.info(f'Mating Scheme: {mating_scheme}')
     logger.info(f'Gama Scale: {gamma_scale}')
     logger.info(f'Epsilon: {epsilon}')
-    logger.info(f'Output File: {out_file}')
+    logger.info(f'Output File: {output_file}')
 
     haplotypes = haplotypes.split(',')
     num_haplotypes = len(haplotypes)
@@ -278,17 +288,26 @@ def get_transition_prob(
                     is_x_chr=is_x_chr,
                 )
 
-    logger.info(f'Saving {os.path.join(DATA_DIR, out_file)}')
-    np.savez_compressed(os.path.join(DATA_DIR, out_file), **tprob)
+    logger.info(f'Saving {os.path.join(DATA_DIR, output_file)}')
+    np.savez_compressed(os.path.join(DATA_DIR, output_file), **tprob)
     logger.info('Done')
 
 
 def get_alignment_spec(
-    sample_file: Path | str,
+    sample_file: str,
     haplotypes: list[str],
     min_expr: float = 2.0
+) -> None:
+    """
 
-):
+    Args:
+        sample_file:
+        haplotypes:
+        min_expr:
+
+    Returns:
+
+    """
     logger.info(f'Sample File: {sample_file}')
     logger.info(f'Haplotypes: {haplotypes}')
     logger.info(f'Min Expression: {min_expr}')
@@ -360,10 +379,10 @@ def get_alignment_spec(
 
 
 def reconstruct(
-    expression_file: Path | str,
-    tprob_file: Path | str,
-    avec_file: Path | str = None,
-    gpos_file: Path | str = None,
+    expression_file: str,
+    tprob_file: str,
+    avec_file: str = None,
+    gpos_file: str = None,
     expr_threshold: float = 1.5,
     sigma: float = 0.12,
     outbase: str = None,
@@ -379,9 +398,6 @@ def reconstruct(
         expr_threshold:
         sigma:
         outbase: base output
-
-    Returns:
-
     """
     if outbase is None:
         out_gtype = 'gbrs.reconstructed.genotypes.tsv'
@@ -586,10 +602,10 @@ def reconstruct(
 
 
 def interpolate(
-    genoprob_file: Path | str,
-    grid_file: Path | str = None,
-    gpos_file: Path | str = None,
-    output_file: Path | str = None,
+    genoprob_file: str,
+    grid_file: str = None,
+    gpos_file: str = None,
+    output_file: str = None,
 ) -> None:
     """
     Args:
@@ -678,8 +694,8 @@ def combine():
 
 
 def plot(
-    genoprob_file: Path | str,
-    output_file: Path | str = None,
+    genoprob_file: str,
+    output_file: str = None,
     output_format: str = 'pdf',
     sample_name: str = '',
     grid_size: int = 2,
@@ -825,10 +841,10 @@ def plot(
 
 
 def export(
-    genoprob_file: Path | str,
+    genoprob_file: str,
     strains: list[str],
-    grid_file: Path | str = None,
-    output_file: Path | str = None,
+    grid_file: str = None,
+    output_file: str = None,
 ) -> None:
     """
     Export genotypes probability file in in GBRS quant format.

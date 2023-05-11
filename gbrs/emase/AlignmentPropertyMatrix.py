@@ -1,4 +1,5 @@
 # standard library imports
+from enum import IntEnum
 import copy
 
 # 3rd party library imports
@@ -10,12 +11,16 @@ import tables
 from gbrs.emase.Sparse3DMatrix import Sparse3DMatrix
 
 
-def enum(**enums):
-    return type('Enum', (), enums)
+class AxisEnum(IntEnum):
+    LOCUS=0
+    HAPLOTYPE=1
+    READ=2
+    GROUP=3
+    HAPLOGROUP=4
 
 
 class AlignmentPropertyMatrix(Sparse3DMatrix):
-    Axis = enum(LOCUS=0, HAPLOTYPE=1, READ=2, GROUP=3, HAPLOGROUP=4)
+    Axis = AxisEnum
 
     def __init__(
         self,
@@ -51,9 +56,8 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         self.gname = None  # group name
         self.groups = None  # groups in terms of locus IDs
 
-        if (
-            other is not None
-        ):  # Use for copying from other existing AlignmentPropertyMatrix object
+        if other is not None:
+            # Use for copying from other existing AlignmentPropertyMatrix object
             if other.count is not None:
                 self.count = copy.copy(other.count)
             if not shallow:
@@ -182,12 +186,16 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
 
     def bundle(
         self, reset=False, shallow=False
-    ):  # Copies the original matrix (Use lots of memory)
+    ):
         """
-        Returns ``AlignmentPropertyMatrix`` object in which loci are bundled using grouping information.
+        Returns ``AlignmentPropertyMatrix`` object in which loci are bundled
+        using grouping information.
 
-        :param reset: whether to reset the values at the loci
-        :param shallow: whether to copy all the meta data
+        Copies the original matrix (Use lots of memory).
+
+        Args:
+            reset: whether to reset the values at the loci
+            shallow: whether to copy all the meta data
         """
         if self.finalized:
             # if self.num_groups > 0:
@@ -295,66 +303,63 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         """
         Read-wise normalization
 
-        :param axis: The dimension along which we want to normalize values
-        :param grouping_mat: An incidence matrix that specifies which isoforms are from a same gene
-        :return: Nothing (as the method performs in-place operations)
-        :rtype: None
+        Args:
+            axis: The dimension along which we want to normalize values
+            grouping_mat: An incidence matrix that specifies which isoforms
+                are from a same gene
+
         """
         if self.finalized:
-            if (
-                axis == self.Axis.LOCUS
-            ):  # Locus-wise normalization on each read
-                normalizer = self.sum(
-                    axis=self.Axis.HAPLOTYPE
-                )  # Sparse matrix of |reads| x |loci|
+            if axis == self.Axis.LOCUS:
+                # Locus-wise normalization on each read
+                # Sparse matrix of |reads| x |loci|
+                normalizer = self.sum(axis=self.Axis.HAPLOTYPE)
                 normalizer.eliminate_zeros()
+
                 for hid in range(self.num_haplotypes):
-                    self.data[
-                        hid
-                    ].eliminate_zeros()  # Trying to avoid numerical problem (inf or nan)
-                    self.data[hid] = np.divide(
-                        self.data[hid], normalizer
-                    )  # element-wise division
-            elif (
-                axis == self.Axis.HAPLOTYPE
-            ):  # haplotype-wise normalization on each read
+                    # Trying to avoid numerical problem (inf or nan)
+                    self.data[hid].eliminate_zeros()
+
+                    # element-wise division
+                    self.data[hid] = np.divide(self.data[hid], normalizer)
+            elif axis == self.Axis.HAPLOTYPE:
+                # haplotype-wise normalization on each read
                 for hid in range(self.num_haplotypes):
-                    normalizer = self.data[hid].sum(
-                        axis=self.Axis.HAPLOTYPE
-                    )  # 1-dim Sparse matrix of |reads| x 1
+                    # 1-dim Sparse matrix of |reads| x 1
+                    normalizer = self.data[hid].sum(axis=self.Axis.HAPLOTYPE)
                     normalizer = normalizer.A.flatten()
                     self.data[hid].data /= normalizer[self.data[hid].indices]
-            elif axis == self.Axis.READ:  # normalization each read as a whole
+            elif axis == self.Axis.READ:
+                # normalization each read as a whole
                 sum_mat = self.sum(axis=self.Axis.LOCUS)
                 normalizer = sum_mat.sum(axis=self.Axis.HAPLOTYPE)
                 normalizer = normalizer.ravel()
+
                 for hid in range(self.num_haplotypes):
                     self.data[hid].data /= normalizer[self.data[hid].indices]
-            elif (
-                axis == self.Axis.GROUP
-            ):  # group-wise normalization on each read
+            elif axis == self.Axis.GROUP:
+                # group-wise normalization on each read
                 if grouping_mat is None:
                     raise RuntimeError('Group information matrix is missing.')
                 normalizer = self.sum(axis=self.Axis.HAPLOTYPE) * grouping_mat
+
                 for hid in range(self.num_haplotypes):
-                    self.data[
-                        hid
-                    ].eliminate_zeros()  # Trying to avoid numerical problem (inf or nan)
+                    # Trying to avoid numerical problem (inf or nan)
+                    self.data[hid].eliminate_zeros()
                     self.data[hid] = np.divide(self.data[hid], normalizer)
-            elif (
-                axis == self.Axis.HAPLOGROUP
-            ):  # haplotype-wise & group-wise normalization on each read
+            elif axis == self.Axis.HAPLOGROUP:
+                # haplotype-wise & group-wise normalization on each read
                 if grouping_mat is None:
                     raise RuntimeError('Group information matrix is missing.')
-                for hid in range(
-                    self.num_haplotypes
-                ):  # normalizer is different hap-by-hap
-                    normalizer = (
-                        self.data[hid] * grouping_mat
-                    )  # Sparse matrix of |reads| x |loci|
-                    self.data[
-                        hid
-                    ].eliminate_zeros()  # Trying to avoid numerical problem (inf or nan)
+
+                for hid in range(self.num_haplotypes):
+                    # normalizer is different hap-by-hap
+
+                    # Sparse matrix of |reads| x |loci|
+                    normalizer = (self.data[hid] * grouping_mat)
+
+                    # Trying to avoid numerical problem (inf or nan)
+                    self.data[hid].eliminate_zeros()
                     self.data[hid] = np.divide(self.data[hid], normalizer)
             else:
                 raise RuntimeError('The axis should be 0, 1, 2, or 3.')

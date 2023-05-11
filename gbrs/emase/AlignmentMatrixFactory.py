@@ -18,39 +18,47 @@ class AlignmentMatrixFactory:
         self.lname = None
         self.rname = None
         self.tmpfiles = None
-        # self.num_alignments = None
 
-    def prepare(self, haplotypes, loci, delim='_', outdir=None):
-        if len(haplotypes) > 0:  # Suffices given
+    def prepare(self, haplotypes: list[str], loci, delim: str = '_', outdir=None):
+        if len(haplotypes) > 0:
+            # Suffices given
             self.hname = haplotypes
-        else:  # Suffix not given
+        else:
+            # Suffix not given
             self.hname = ['h0']
         self.lname = loci
         self.rname = set()
+
         fh = pysam.AlignmentFile(self.alnfile, 'rb')
         for aln in fh.fetch(until_eof=True):
             self.rname.add(aln.query_name)
+
         self.rname = np.array(sorted(list(self.rname)))
         num_loci = len(self.lname)
         num_reads = len(self.rname)
         lid = dict(zip(self.lname, np.arange(num_loci)))
         rid = dict(zip(self.rname, np.arange(num_reads)))
         self.tmpfiles = dict.fromkeys(self.hname)
+
         if outdir is None:
             outdir = os.path.dirname(self.alnfile)
+
         fhout = dict.fromkeys(self.hname)
         for hap in self.hname:
-            outfile = os.path.join(outdir, '%s_%d.bin' % (hap, os.getpid()))
+            outfile = os.path.join(outdir, f'{hap}_{os.getpid()}.bin')
             self.tmpfiles[hap] = outfile
             fhout[hap] = open(outfile, 'wb')
+
         fh = pysam.AlignmentFile(self.alnfile, 'rb')
-        if len(haplotypes) > 0:  # Suffices given
+        if len(haplotypes) > 0:
+            # Suffices given
             for aln in fh.fetch(until_eof=True):
                 if aln.flag != 4 and aln.flag != 8:
                     locus, hap = fh.get_reference_name(aln.tid).split(delim)
                     fhout[hap].write(struct.pack('>I', rid[aln.qname]))
                     fhout[hap].write(struct.pack('>I', lid[locus]))
-        else:  # Suffix not given
+        else:
+            # Suffix not given
             hap = self.hname[0]
             for aln in fh.fetch(until_eof=True):
                 if aln.flag != 4 and aln.flag != 8:
@@ -62,7 +70,7 @@ class AlignmentMatrixFactory:
 
     def produce(
         self,
-        h5file,
+        h5file: str,
         title='Alignments',
         index_dtype='uint32',
         data_dtype=float,

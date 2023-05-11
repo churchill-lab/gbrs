@@ -53,8 +53,11 @@ def bam2emase(
         for x in haplotypes:
             all_haplotypes.extend(x.split(','))
 
+        locusid_file = str(locusid_file) if locusid_file else None
+        output_file = str(output_file) if output_file else None
+
         emase_bam2emase(
-            alignment_file=alignment_file,
+            alignment_file=str(alignment_file),
             haplotypes=all_haplotypes,
             locusid_file=locusid_file,
             output_file=output_file,
@@ -91,7 +94,7 @@ def compress(
 
         emase_utils.compress(
             emase_files=all_emase_files,
-            output_file=output_file,
+            output_file=str(output_file),
             comp_lib=comp_lib
         )
     except Exception as e:
@@ -122,8 +125,12 @@ def quantify(
         if multiread_model not in (1, 2, 3, 4):
             raise typer.Abort('-M, --multiread-model must be one of 1, 2, 3, or 4')
 
+        group_file = str(group_file) if group_file else None
+        length_file = str(length_file) if length_file else None
+        genotype_file = str(genotype_file) if genotype_file else None
+
         emase_utils.quantify(
-            alignment_file=alignment_file,
+            alignment_file=str(alignment_file),
             group_file=group_file,
             length_file=length_file,
             genotype_file=genotype_file,
@@ -156,9 +163,12 @@ def reconstruct(
     logger = utils.configure_logging(verbose)
     logger.debug('reconstruct')
     try:
+        avec_file = str(avec_file) if avec_file else None
+        gpos_file = str(gpos_file) if gpos_file else None
+
         gbrs_utils.reconstruct(
-            expression_file=expression_file,
-            tprob_file=tprob_file,
+            expression_file=str(expression_file),
+            tprob_file=str(tprob_file),
             avec_file=avec_file,
             gpos_file=gpos_file,
             expr_threshold=expr_threshold,
@@ -183,8 +193,12 @@ def interpolate(
     logger = utils.configure_logging(verbose)
     logger.debug('interpolate')
     try:
+        grid_file = str(grid_file) if grid_file else None
+        gpos_file = str(gpos_file) if gpos_file else None
+        output_file = str(output_file) if output_file else None
+
         gbrs_utils.interpolate(
-            genoprob_file=genoprob_file,
+            genoprob_file=str(genoprob_file),
             grid_file=grid_file,
             gpos_file=gpos_file,
             output_file=output_file
@@ -214,8 +228,11 @@ def export(
         for x in strains:
             all_strains.extend(x.split(','))
 
+        grid_file = str(grid_file) if grid_file else None
+        output_file = str(output_file) if output_file else None
+
         gbrs_utils.export(
-            genoprob_file=genoprob_file,
+            genoprob_file=str(genoprob_file),
             strains=all_strains,
             grid_file=grid_file,
             output_file=output_file
@@ -238,12 +255,14 @@ def plot(
     xt_size: Annotated[int, typer.Option('-s', '--xt_size', hidden=True)] = 500,
     grid_width: Annotated[float, typer.Option('-w', '--grid-width', hidden=True)] = 0.01,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
-):
+) -> None:
     logger = utils.configure_logging(verbose)
     logger.debug('plot')
     try:
+        output_file = str(output_file) if output_file else None
+
         gbrs_utils.plot(
-            genoprob_file=genoprob_file,
+            genoprob_file=str(genoprob_file),
             output_file=output_file,
             output_format=output_format,
             sample_name=sample_name,
@@ -266,19 +285,21 @@ def get_transition_prob(
     mating_scheme: Annotated[str, typer.Option('-m', '--mating-scheme')] = 'RI',
     gamma_scale: Annotated[float, typer.Option('-g', '--gamma-scale')] = 0.01,
     epsilon: Annotated[float, typer.Option('-e', '--epsilon')] = 0.000001,
-    out_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = 'tranprob.npz',
+    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = 'tranprob.npz',
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
     logger = utils.configure_logging(verbose)
     logger.debug('get-transition-prob')
     try:
+        output_file = str(output_file) if output_file else None
+
         gbrs_utils.get_transition_prob(
-            marker_file=marker_file,
+            marker_file=str(marker_file),
             haplotypes=haplotypes,
             mating_scheme=mating_scheme,
             gamma_scale=gamma_scale,
             epsilon=epsilon,
-            out_file=out_file
+            output_file=output_file
         )
     except Exception as e:
         if logger.level == logging.DEBUG:
@@ -306,7 +327,7 @@ def get_alignment_spec(
             all_haplotypes.extend(x.split(','))
 
         gbrs_utils.get_alignment_spec(
-            sample_file=sample_file,
+            sample_file=str(sample_file),
             haplotypes=all_haplotypes,
             min_expr=min_expr
         )
@@ -328,9 +349,12 @@ def stencil(
     logger = utils.configure_logging(verbose)
     logger.debug('stencil')
     try:
+        group_file = str(group_file) if group_file else None
+        output_file = str(output_file) if output_file else None
+
         emase_utils.stencil(
-            alignment_file=alignment_file,
-            genotype_file=genotype_file,
+            alignment_file=str(alignment_file),
+            genotype_file=str(genotype_file),
             group_file=group_file,
             output_file=output_file
         )
