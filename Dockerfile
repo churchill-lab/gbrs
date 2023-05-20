@@ -25,6 +25,6 @@ RUN pip install -r /src/gbrs/requirements.txt
 
 COPY . /src/gbrs
 
-RUN cd /src/gbrs; pip install .; cd
+RUN pip install -U pip; cd /src/gbrs; pip install .; cd
 
 

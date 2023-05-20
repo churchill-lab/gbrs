@@ -9,6 +9,10 @@ import pysam
 import tables
 
 # local library imports
+from gbrs import utils
+
+
+logger = utils.get_logger('gbrs')
 
 
 class AlignmentMatrixFactory:

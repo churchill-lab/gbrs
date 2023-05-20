@@ -1,6 +1,7 @@
 # standard library imports
 from pathlib import Path
 from typing import Annotated
+import importlib.metadata
 import logging
 
 # 3rd party library imports
@@ -11,14 +12,15 @@ from gbrs.emase.emase_utils import bam2emase as emase_bam2emase
 from gbrs.gbrs import emase_utils
 from gbrs.gbrs import gbrs_utils
 from gbrs import utils
-from gbrs.version import __logo_text__
 
 app = typer.Typer(help='GBRS')
 
 
 def version_callback(value: bool):
     if value:
-        typer.echo(__logo_text__)
+        from gbrs import __logo_text__ as logo
+        version = importlib.metadata.version('gbrs')
+        typer.echo(f'{logo} {version}')
         raise typer.Exit()
 
 
@@ -28,7 +30,6 @@ def common(
     version: bool = typer.Option(None, "--version", callback=version_callback),
 ):
     pass
-
 
 
 @app.command(help="convert a BAM file to EMASE format")
@@ -42,7 +43,7 @@ def bam2emase(
     data_dtype: Annotated[str, typer.Option('--data-dtype', hidden=True, help='advanced_option, see internal code')] = 'uint8',
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('bam2emase')
     try:
         # haplotype shortcut: the following command line options are all equal
@@ -79,7 +80,7 @@ def compress(
     comp_lib: Annotated[str, typer.Option('-c', '--comp-lib', help='compression library to use')] = 'zlib',
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('compress')
     try:
         # file shortcut: the following command line options are all equal
@@ -119,7 +120,7 @@ def quantify(
     report_posterior: Annotated[bool, typer.Option('-w', '--report-posterior', help='whether to report posterior probabilities')] = False,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('quantify')
     try:
         if multiread_model not in (1, 2, 3, 4):
@@ -160,7 +161,7 @@ def reconstruct(
     outbase: Annotated[str, typer.Option('-o', '--outbase', help='basename of all the generated output files')] = None,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('reconstruct')
     try:
         avec_file = str(avec_file) if avec_file else None
@@ -190,7 +191,7 @@ def interpolate(
     output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='output file in GBRS quant format')] = None,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('interpolate')
     try:
         grid_file = str(grid_file) if grid_file else None
@@ -218,7 +219,7 @@ def export(
     output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='output file in GBRS quant format')] = None,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('export')
     try:
         # strains shortcut: the following command line options are all equal
@@ -256,7 +257,7 @@ def plot(
     grid_width: Annotated[float, typer.Option('-w', '--grid-width', hidden=True)] = 0.01,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('plot')
     try:
         output_file = str(output_file) if output_file else None
@@ -288,7 +289,7 @@ def get_transition_prob(
     output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = 'tranprob.npz',
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('get-transition-prob')
     try:
         output_file = str(output_file) if output_file else None
@@ -315,7 +316,7 @@ def get_alignment_spec(
     min_expr: Annotated[float, typer.Option('-m', '--min-expr')] = 2.0,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('get_alignment_spec')
     try:
         # haplotype shortcut: the following command line options are all equal
@@ -346,7 +347,7 @@ def stencil(
     output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help="genotyped version of alignment incidence file (h5)")] = None,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('stencil')
     try:
         group_file = str(group_file) if group_file else None

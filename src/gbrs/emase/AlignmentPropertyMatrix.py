@@ -8,15 +8,18 @@ import numpy as np
 import tables
 
 # local library imports
+from gbrs import utils
 from gbrs.emase.Sparse3DMatrix import Sparse3DMatrix
+
+logger = utils.get_logger('gbrs')
 
 
 class AxisEnum(IntEnum):
-    LOCUS=0
-    HAPLOTYPE=1
-    READ=2
-    GROUP=3
-    HAPLOGROUP=4
+    LOCUS = 0
+    HAPLOTYPE = 1
+    READ = 2
+    GROUP = 3
+    HAPLOGROUP = 4
 
 
 class AlignmentPropertyMatrix(Sparse3DMatrix):

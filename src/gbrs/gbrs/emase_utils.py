@@ -14,7 +14,8 @@ from gbrs.emase.EMfactory import EMfactory
 
 
 DATA_DIR = os.getenv('GBRS_DATA', '.')
-logger = logging.getLogger('gbrs')
+logger = utils.get_logger('gbrs')
+
 
 
 

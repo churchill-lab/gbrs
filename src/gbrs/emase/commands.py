@@ -1,6 +1,7 @@
 # standard library imports
 from pathlib import Path
 from typing import Annotated
+import importlib.metadata
 import logging
 
 # 3rd party library imports
@@ -9,7 +10,6 @@ import typer
 # local library imports
 from gbrs import utils
 from gbrs.emase import emase_utils
-from gbrs.version import __logo_text__
 
 
 app = typer.Typer(help='EMASE')
@@ -17,7 +17,9 @@ app = typer.Typer(help='EMASE')
 
 def version_callback(value: bool):
     if value:
-        typer.echo(__logo_text__)
+        from gbrs import __logo_text__ as logo
+        version = importlib.metadata.version('gbrs')
+        typer.echo(f'{logo} {version}')
         raise typer.Exit()
 
 
@@ -40,7 +42,7 @@ def bam2emase(
     data_dtype: Annotated[str, typer.Option('--data-dtype', help='advanced_option, see internal code')] = 'uint8',
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('bam2emase')
     try:
         # haplotype shortcut: the following command line options are all equal
@@ -77,7 +79,7 @@ def combine(
     comp_lib: Annotated[str, typer.Option('-c', '--comp-lib', help='compression library to use')] = 'zlib',
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('combine')
     try:
         # file shortcut: the following command line options are all equal
@@ -111,7 +113,7 @@ def count_alignments(
     outbase: Annotated[str, typer.Option('-o', '--outbase', help='basename of all the generated output files')] = 'emase',
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('count_alignments')
     try:
         emase_utils.count_alignments(
@@ -133,7 +135,7 @@ def count_shared_multireads_pairwise(
     outbase: Annotated[str, typer.Option('-o', '--outbase', help='basename of all the generated output files')] = 'emase',
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('count_shared_multireads_pairwise')
     try:
         emase_utils.count_shared_multireads_pairwise(
@@ -156,7 +158,7 @@ def create_hybrid(
     build_bowtie_index: bool = False,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('create_hybrid')
     try:
         # haplotype shortcut: the following command line options are all equal
@@ -199,7 +201,7 @@ def get_common_alignments(
     comp_lib: Annotated[str, typer.Option('-c', '--comp-lib', help='compression library to use')] = 'zlib',
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('get_common_alignments')
     try:
         # file shortcut: the following command line options are all equal
@@ -235,7 +237,7 @@ def pull_out_unique_reads(
     ignore_alleles: Annotated[bool, typer.Option('-a', '--ignore-alleles', help='do not require allele level uniqueness')] = False,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('pull_out_unique_reads')
     try:
         output_file = str(output_file) if output_file else None
@@ -266,7 +268,7 @@ def prepare(
     no_bowtie_index: Annotated[bool, typer.Option('-m', '--no-bowtie-index', help='skips building bowtie index')] = False,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('run')
     try:
         # haplotype shortcut: the following command line options are all equal
@@ -325,7 +327,7 @@ def run(
     report_posterior: Annotated[bool, typer.Option('-w', '--report-posterior', help='whether to report posterior probabilities')] = False,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
 ) -> None:
-    logger = utils.configure_logging(verbose)
+    logger = utils.configure_logging('gbrs', verbose)
     logger.debug('run')
     try:
         if not multiread_model in (1, 2, 3, 4):

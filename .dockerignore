@@ -1,7 +1,24 @@
-.git
+# Docker stuff
 .dockerignore
-logs/
+Dockerfile
+
+# ignore .git directory
 .git
+.gitignore
+
+# ignore any ipynb and py files
+**/*.ipynb
+**/*.ipynb_checkpoints
+**/*.db
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*__pycache__
+
+# eggs
+**/*.egg-info
+
+logs/
 *.md
 .cache
 debug.txt

@@ -9,6 +9,8 @@ import numpy as np
 from gbrs import utils
 from gbrs.emase.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
 
+logger = utils.get_logger('gbrs')
+
 
 class EMfactory:
     """

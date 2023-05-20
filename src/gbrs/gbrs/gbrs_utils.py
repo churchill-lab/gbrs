@@ -14,10 +14,10 @@ import numpy as np
 matplotlib.use('Agg')
 
 # local library imports
-#
+from gbrs import utils
 
 DATA_DIR = os.getenv('GBRS_DATA', '.')
-logger = logging.getLogger('gbrs')
+logger = utils.get_logger('gbrs')
 
 
 def get_chromosome_info() -> OrderedDict[str, int]:
@@ -439,7 +439,10 @@ def reconstruct(
     # and values being a list of gene ids and their position
     gid_genome_order = dict.fromkeys(gene_pos.files)
     for c in gene_pos.files:
-        gid_genome_order[c] = np.array([g.decode() for g, p in gene_pos[c]])
+        try:
+            gid_genome_order[c] = np.array([g.decode() for g, p in gene_pos[c]])
+        except:
+            gid_genome_order[c] = np.array([g for g, p in gene_pos[c]])
 
     # Load expression level
     logger.info(f'Loading expression level data: {expression_file}')

@@ -20,7 +20,7 @@ from gbrs.emase.AlignmentMatrixFactory import AlignmentMatrixFactory
 from gbrs.emase.AlignmentPropertyMatrix import AlignmentPropertyMatrix
 from gbrs.emase.EMfactory import EMfactory
 
-logger = logging.getLogger('gbrs')
+logger = utils.get_logger('gbrs')
 
 
 def bam2emase(
