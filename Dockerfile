@@ -17,14 +17,7 @@ RUN wget -q -O bowtie.zip https://github.com/BenLangmead/bowtie/releases/downloa
 	rm bowtie.zip
 ENV PATH $PATH:/opt/bowtie
 
-# copy python requirements file
-COPY requirements.txt /src/gbrs/requirements.txt
-
-# install the requirements
-RUN pip install -r /src/gbrs/requirements.txt
-
+# copy the source
 COPY . /src/gbrs
 
 RUN pip install -U pip; cd /src/gbrs; pip install .; cd
-
-
