@@ -3,6 +3,7 @@ from collections import defaultdict, OrderedDict
 from itertools import combinations_with_replacement, product
 import logging
 import os
+import re
 
 # 3rd party library imports
 from scipy.interpolate import interp1d
@@ -735,8 +736,6 @@ def plot(
 
     logger.info('Loading chromosome information')
     chrlens = get_chromosome_info()
-    chrs = chrlens.keys()
-    num_chrs = len(chrs)
 
     logger.info('Loading founder colors')
     hcolors = get_founder_info()
@@ -751,6 +750,20 @@ def plot(
     #
     logger.info(f'Loading GBRS genotype probability file: {genoprob_file}')
     genoprob = np.load(genoprob_file)
+    
+    def natural_sort(l): 
+        convert = lambda text: int(text) if text.isdigit() else text.lower()
+        alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+        return sorted(l, key=alphanum_key)
+    
+    chrs = [value for value in chrlens.keys() if value in genoprob.files]
+    # intersection of ref.fa.fai chroms and those present in genoprob. 
+
+    chrs = natural_sort(chrs)
+    # natural sorting of the chrom list for display. 
+
+    num_chrs = len(chrs)
+
     fig = pyplot.figure()
     fig.set_size_inches((16, 16))
     ax = fig.add_subplot(111)
