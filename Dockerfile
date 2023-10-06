@@ -1,4 +1,4 @@
-FROM ubuntu:kinetic
+FROM ubuntu:mantic
 
 RUN apt-get update \
     && apt-get install -y eatmydata \
