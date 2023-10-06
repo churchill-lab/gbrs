@@ -33,7 +33,7 @@ def get_chromosome_info() -> OrderedDict[str, int]:
         return chr_lens
     except FileNotFoundError:
         raise ValueError(
-            'Make sure if $GBRS_DATA is set correctly. Currently it is: '
+            'Make sure if $GBRS_DATA is set correctly, and that "ref.fa.fai" is in that directory. Currently it is: '
             f'{DATA_DIR}'
         )
 
@@ -55,7 +55,7 @@ def get_founder_info():
         return founder_colors
     except FileNotFoundError:
         raise ValueError(
-            f'Make sure if $GBRS_DATA is set correctly. Currently it is: '
+            f'Make sure if $GBRS_DATA is set correctly, and that "founder.hexcolor.info" is in that directory. Currently it is: '
             f'{DATA_DIR}'
         )
 
@@ -586,7 +586,7 @@ def reconstruct(
             num_genes_in_chr = len(gid_genome_order_c)
             sid = delta[c][:, num_genes_in_chr - 1].argmax()
             viterbi_states[c].append(genotypes[sid])
-            for i in reversed(range(num_genes_in_chr - 1)):
+            for i in reversed(range(num_genes_in_chr)):
                 sid = (delta[c][:, i] + tprob_c[i][sid]).argmax()
                 viterbi_states[c].append(genotypes[sid])
                 gtcall_g[gid_genome_order_c[i]] = genotypes[sid]
