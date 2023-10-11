@@ -8,7 +8,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get install -y eatmydata \
     && eatmydata apt-get install -y build-essential wget bzip2 \
-      ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 libz-dev libbz2-dev \
+      ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 libz-dev libbz2-dev liblzma-dev \
       git unzip python3.10 pip \
     && apt-get clean
 
