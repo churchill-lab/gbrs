@@ -3,6 +3,8 @@ FROM ubuntu:20.04
 ENV TZ=America/New_York
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
+ARG DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update \
     && apt-get install -y eatmydata \
     && eatmydata apt-get install -y build-essential wget bzip2 \
