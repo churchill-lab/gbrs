@@ -15,9 +15,9 @@ RUN wget -q -O bowtie.zip https://github.com/BenLangmead/bowtie/releases/downloa
 	unzip bowtie.zip -d /opt/; \
 	ln -s /opt/bowtie-1.3.1-linux-x86_64 /opt/bowtie; \
 	rm bowtie.zip
-ENV PATH $PATH:/opt/bowtie
+ENV PATH /root/.local/bin:$PATH:/opt/bowtie
 
 # copy the source
 COPY . /src/gbrs
 
-RUN pipx ensurepath; cd /src/gbrs; pipx install .; cd
+RUN cd /src/gbrs; pipx install .; cd
