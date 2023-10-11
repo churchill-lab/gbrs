@@ -4,7 +4,7 @@ RUN apt-get update \
     && apt-get install -y eatmydata \
     && eatmydata apt-get install -y build-essential wget bzip2 \
       ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 libz-dev \
-      git unzip python3.10 pip \
+      git unzip python3.10 pip pipx \
     && apt-get clean
 
 # make sure we can just issue "python"
@@ -20,4 +20,4 @@ ENV PATH $PATH:/opt/bowtie
 # copy the source
 COPY . /src/gbrs
 
-RUN pip install -U pip; cd /src/gbrs; pip install .; cd
+RUN pipx ensurepath; cd /src/gbrs; pipx install .; cd
