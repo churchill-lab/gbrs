@@ -64,6 +64,3 @@ target/
 # VS Code settings
 .vscode
 
-# gh-pages files
-_site
-Gemfile.lock
