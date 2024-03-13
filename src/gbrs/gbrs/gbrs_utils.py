@@ -586,6 +586,10 @@ def reconstruct(
             num_genes_in_chr = len(gid_genome_order_c)
             sid = delta[c][:, num_genes_in_chr - 1].argmax()
             viterbi_states[c].append(genotypes[sid])
+            if (num_genes_in_chr > len(tprob_c)):
+                num_genes_in_chr = len(tprob_c)
+                # Above avoids IndexError for legacy GRCm38 ref files.
+                # In those transprob files: num_genes_in_chr > tprob_c by 1. 
             for i in reversed(range(num_genes_in_chr)):
                 sid = (delta[c][:, i] + tprob_c[i][sid]).argmax()
                 viterbi_states[c].append(genotypes[sid])
