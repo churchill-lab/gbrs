@@ -32,7 +32,9 @@ bowtie \
 ```
 
 where:
+
 `${FASTQ}` is the FASTQ file you are aligning
+
 `${BAM_FILE}` is the resulting BAM file
 
 ##### Step 2: Convert BAM to EMASE
@@ -50,9 +52,13 @@ gbrs bam2emase \
 ```
 
 where:
+
 `${BAM_FILE}` is the output BAM file from STEP 1
+
 `${COMMA_SEPARATED_LIST_OF_HAPLOTYPE_CODES}` is a list of haplotypes (i.e, A,B,C,D,E,F,G,H)
+
 `${EMASE_FILE}` is the resulting EMASE output file
+
 
 ##### Step 3: Single-end data: Compress EMASE file. 
 ##### Step 3: Paired-end data: Find common alignments and compress EMASE file.  
@@ -66,7 +72,9 @@ gbrs compress \
 ```
 
 where:
+
 `${EMASE_FILE}` is the output EMASE file from STEP 2
+
 `${COMPRESSED_EMASE_FILE}` is the resulting **compressed** EMASE output file
 
 If storage space is tight, you may want to delete `${BAM_FILE}` or `${EMASE_FILE}` at this point since `${COMPRESSED_EMASE_FILE}` has all the information the following steps would need. If you want to merge emase format files in order to, for example, pool technical replicates, you run ‘compress’ once more listing files you want to merge with commas:
@@ -77,18 +85,33 @@ gbrs compress \
         -o ${MERGED_COMPRESSED_EMASE_FILE}
 ```
 
+where:
+
+`${COMPRESSED_EMASE_FILE1}`, etc are the resulting **compressed** EMASE output file
+
+`${MERGED_COMPRESSED_EMASE_FILE}` is the **merged** EMASE output file
+
 and use `${MERGED_COMPRESSED_EMASE_FILE}` in the following steps. Now we are ready to quantify multiway allele specificity.
 
 ##### Step 4: Quantify multiway expression  
 #
 ```
 gbrs quantify \
-        -i ${COMPRESSED_EMASE_FILE} \
+        -i ${MERGED_COMPRESSED_EMASE_FILE} \
         -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
         -L ${GBRS_DATA}/gbrs.hybridized.targets.info \
         -M 4 \
         --report-alignment-counts
 ```
+
+where:
+
+`${MERGED_COMPRESSED_EMASE_FILE}` is the **merged** EMASE input file
+
+`ref.gene2transcripts.tsv` is the gene to transcript mapping file that contains the list of transcripts in that GBRS will quantify
+
+`gbrs.hybridized.targets.info` is the tab delimited file of locus(transcript) and length
+
 
 ##### Step 5: Genotype reconstruction
 #
@@ -103,6 +126,17 @@ gbrs reconstruct \
         -g ${GBRS_DATA}/ref.gene_pos.ordered.npz
 ```
 
+where:
+
+`$gbrs.quantified.multiway.genes.tpm` is file containing gene-level TPM quantities
+
+`tranprob.DO.G20.F.npz` is the transition probabilities file
+
+`avecs.npz` is the alignment specificity file
+
+`ref.gene_pos.ordered.npz` is the the file contains the Ensembl gene positions in a Python format
+
+
 ##### Step 6: Quantify diploid expression with GBRS   
 #
 
@@ -110,7 +144,7 @@ We can now quantify allele-specific expressions on diploid transcriptome:
 
 ```
 gbrs quantify \
-        -i ${COMPRESSED_EMASE_FILE} \
+        -i ${MERGED_COMPRESSED_EMASE_FILE} \
         -G gbrs.reconstructed.genotypes.tsv \
         -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
         -L ${GBRS_DATA}/gbrs.hybridized.targets.info \
@@ -118,10 +152,20 @@ gbrs quantify \
         --report-alignment-counts
 ```
 
+where:
+
+`${MERGED_COMPRESSED_EMASE_FILE}` is the **merged** EMASE input file
+
+`gbrs.reconstructed.genotypes.tsv` is the tab delimited file of locus(transcipt) and diplotypes
+
+`ref.gene2transcripts.tsv` is the gene to transcript mapping file that contains the list of transcripts in that GBRS will quantify
+
+`gbrs.hybridized.targets.info` is the tab delimited file of locus(transcript) and length
+
 ##### Step 7: Interpolate genotypes and genotype probabilities  
 #
 
-Genotype probabilities are on a grid of genes. For eQTL mapping or plotting genome reconstruction, we may want to interpolate probability on a decently-spaced grid of the reference genome:
+Genotype probabilities are on a grid of genes. For eQTL, mapping or plotting genome reconstruction, we may want to interpolate probability on a decently-spaced grid of the reference genome:
 
 ```
 gbrs interpolate \
@@ -130,6 +174,17 @@ gbrs interpolate \
         -p ${GBRS_DATA}/ref.gene_pos.ordered.npz \
         -o gbrs.interpolated.genoprobs.npz
 ```
+
+where:
+
+`gbrs.reconstructed.genoprobs.npz` is the genotype probability file
+
+`ref.genome_grid.69k.txt` is the file contains that pseudomarker genome grid which is used to report results. Each tissue expresses different gene, which leads GBRS to estimate genotypes at different genomic positions in each tissue. In order to standardize results, GBRS interpolates its founder haplotype estimates to a common grid of 74,165 positions.
+
+`ref.gene_pos.ordered.npz` is the the file contains the Ensembl gene positions in a Python format
+
+`gbrs.interpolated.genoprobs.npz` is the interpolated output file
+
 
 ##### Step 8: Plot inferred genotypes  
 #
@@ -142,15 +197,32 @@ gbrs plot \
         -n ${SAMPLE_ID}
 ```
 
+where:
+
+`gbrs.interpolated.genoprobs.npz` is the interpolated input file
+
+`gbrs.plotted.genome.pdf` is the output PDF file
+
+`${SAMPLE_ID}` is the specified sample id
+
+
 ##### Step 9: Export genotype probabilities
 #
 
 ```
 gbrs export \
         -i ${interpolated_genoprobs} \
-        -s ${params.gbrs_strain_list} \
-        -g ${params.genotype_grid} \
+        -s ${gbrs_strain_list} \
+        -g ${genotype_grid} \
         -o ${sampleID}.gbrs.interpolated.genoprobs.tsv
 ```
 
+where:
 
+`${interpolated_genoprobs}` is the  genotype probability file
+
+`${gbrs_strain_list}` is the specified strain(s), either one per -s option, i.e. -h A -h B -h C, or a shortcut -s A,B,C
+
+`${genotype_grid}` is the file contains that pseudomarker genome grid which is used to report results. Each tissue expresses different gene, which leads GBRS to estimate genotypes at different genomic positions in each tissue. In order to standardize results, GBRS interpolates its founder haplotype estimates to a common grid of 74,165 positions.
+
+`${sampleID}.gbrs.interpolated.genoprobs.tsv` is the output file in GBRS quant format
