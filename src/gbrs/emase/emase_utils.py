@@ -8,7 +8,6 @@ import string
 import subprocess
 
 # 3rd party library imports
-logging.getLogger('numexpr').setLevel(logging.WARNING)
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -18,8 +17,10 @@ import numpy as np
 from gbrs import utils
 from gbrs.emase.AlignmentMatrixFactory import AlignmentMatrixFactory
 from gbrs.emase.AlignmentPropertyMatrix import AlignmentPropertyMatrix
+from gbrs.emase.PairedAlignmentMatrixFactory import PairedAlignmentMatrixFactory
 from gbrs.emase.EMfactory import EMfactory
 
+logging.getLogger('numexpr').setLevel(logging.WARNING)
 logger = utils.get_logger('gbrs')
 
 
@@ -58,6 +59,53 @@ def bam2emase(
 
     logger.info(f'Parsing BAM File: {alignment_file}')
     alignmat_factory = AlignmentMatrixFactory(alignment_file)
+    alignmat_factory.prepare(
+        haplotypes, loci, delim=delim, outdir=os.path.dirname(output_file)
+    )
+
+    logger.info(f'Saving EMASE Formatted File: {output_file}')
+    alignmat_factory.produce(
+        output_file, index_dtype=index_dtype, data_dtype=data_dtype
+    )
+    alignmat_factory.cleanup()
+    logger.info('Done')
+
+
+def bam2emase_paired(
+    alignment_files: list[str],
+    haplotypes: list[str],
+    locusid_file: str,
+    output_file: str = 'alignments.transcriptome.h5',
+    delim: str = '_',
+    index_dtype: str = 'uint32',
+    data_dtype: str = 'uint8'
+) -> None:
+    """
+    Convert BAM file to EMASE format (hdf5).
+
+    Args:
+        alignment_file: The BAM files
+        haplotypes: tuple or list of haplotypes
+        locusid_file: filename for the locus (usually transcripts) info
+        output_file: file name of the output file, if not specified one will be
+            generated
+        delim: delimiter string between locus and haplotype in BAM file
+        index_dtype: data type of indices ptr, defaults to uint32
+        data_dtype: data type of the stored value, defaults to uint8
+    """
+    logger.info(f'BAM Files: {alignment_files}')
+    logger.info(f'Locus ID File: {locusid_file}')
+    logger.info(f'Output File: {output_file}')
+    logger.info(f'Haplotypes: {haplotypes}')
+    logger.info(f'Delimiter: {delim}')
+    logger.info(f'Index dtype: {index_dtype}')
+    logger.info(f'Data dtype: {data_dtype}')
+
+    logger.info(f'Parsing Locus ID File: {locusid_file}')
+    loci = utils.get_names(locusid_file)
+
+    logger.info(f'Parsing BAM File: {alignment_files}')
+    alignmat_factory = PairedAlignmentMatrixFactory(alignment_files)
     alignmat_factory.prepare(
         haplotypes, loci, delim=delim, outdir=os.path.dirname(output_file)
     )
@@ -228,7 +276,7 @@ def create_hybrid(
     if build_bowtie_index:
         out_index = f'{outbase}.bowtie1'
         logger.info('Building bowtie1 index (could take some time)')
-        status = subprocess.call(f'bowtie-build {output_file} {out_index}', shell=True)
+        subprocess.call(f'bowtie-build {output_file} {out_index}', shell=True)
 
     logger.info('Done')
 
@@ -392,12 +440,14 @@ def parse_gtf(gtf_fh):
                     try:
                         enu = int(attribute.pop('exon_number')[0])
                         tdb[tid]['exon_number'].append(enu)
-                    except:
+                    except Exception as e:
+                        logger.error(f'Error processing exon number: {e}')
                         pass
                     try:
                         eid = attribute.pop('exon_id')[0]
                         tdb[tid]['eid'].append(eid)
-                    except:
+                    except Exception as e:
+                        logger.error(f'Error processing exon number: {e}')
                         pass
                     tdb[tid]['exon'].append((s, e))
                 else:  # This is a non-standard case where input gtf does not have detailed transcript-level annotation
@@ -584,7 +634,7 @@ def prepare(
             os.path.dirname(transcriptome_file), 'bowtie.transcripts'
         )
         logger.info('Building bowtie index...')
-        status = subprocess.call(
+        subprocess.call(
             f'bowtie-build {transcriptome_file} {out_index}', shell=True
         )
 

@@ -1,7 +1,6 @@
 # standard library imports
 from collections import defaultdict
 from itertools import dropwhile
-import logging
 import os
 
 # 3rd party library imports
@@ -15,8 +14,6 @@ from gbrs.emase.EMfactory import EMfactory
 
 DATA_DIR = os.getenv('GBRS_DATA', '.')
 logger = utils.get_logger('gbrs')
-
-
 
 
 def compress(
@@ -75,10 +72,8 @@ def compress(
                     )
                 )
             ec[':'.join(ec_key)] += aln_mat_rd.count[cur_ind]
-
     ec = dict(ec)
     num_ecs = len(ec)
-
     logger.info('Constructing APM')
     logger.debug(f'Number Loci: {num_loci}')
     logger.debug(f'Number Haplotypes: {num_haplotypes}')
@@ -128,7 +123,7 @@ def stencil(
             logger.info('A group file is *not* given. Genotype will be stenciled as is.')
 
     if output_file is None:
-        out_file = f'gbrs.stenciled.{os.path.basename(alignment_file)}'
+        output_file = f'gbrs.stenciled.{os.path.basename(alignment_file)}'
 
     logger.info(f'Alignment File: {alignment_file}')
     logger.info(f'Genotype File: {genotype_file}')

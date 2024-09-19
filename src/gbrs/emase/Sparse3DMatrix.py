@@ -419,20 +419,20 @@ class Sparse3DMatrix:
                     f'Sparse matrix components for Haplotype {hid}',
                 )
                 spmat = self.data[hid]
-                i1 = h5fh.create_carray(
+                h5fh.create_carray(
                     hgroup,
                     'indptr',
                     obj=spmat.indptr.astype(index_dtype),
                     filters=fil,
                 )
-                i2 = h5fh.create_carray(
+                h5fh.create_carray(
                     hgroup,
                     'indices',
                     obj=spmat.indices.astype(index_dtype),
                     filters=fil,
                 )
                 if not incidence_only:
-                    d = h5fh.create_carray(
+                    h5fh.create_carray(
                         hgroup,
                         'data',
                         obj=spmat.data.astype(data_dtype),

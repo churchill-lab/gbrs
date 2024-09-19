@@ -7,17 +7,18 @@ import re
 
 # 3rd party library imports
 from scipy.interpolate import interp1d
-logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib
 import matplotlib.pyplot as pyplot
 import numpy as np
 
-matplotlib.use('Agg')
-
 # local library imports
 from gbrs import utils
 
+matplotlib.use('Agg')
+
 DATA_DIR = os.getenv('GBRS_DATA', '.')
+
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
 logger = utils.get_logger('gbrs')
 
 
@@ -232,7 +233,6 @@ def get_transition_prob(
     logger.info(f'Output File: {output_file}')
 
     haplotypes = haplotypes.split(',')
-    num_haplotypes = len(haplotypes)
     it = combinations_with_replacement(haplotypes, 2)
     diplotype = [f'{ht1}{ht2}' for ht1, ht2 in it]
     num_diplotypes = len(diplotype)
@@ -297,6 +297,8 @@ def get_transition_prob(
 def get_alignment_spec(
     sample_file: str,
     haplotypes: list[str],
+    gene2transcript: str,
+    out_dir: str,
     min_expr: float = 2.0
 ) -> None:
     """
@@ -312,14 +314,14 @@ def get_alignment_spec(
     logger.info(f'Sample File: {sample_file}')
     logger.info(f'Haplotypes: {haplotypes}')
     logger.info(f'Min Expression: {min_expr}')
+    logger.info(f'Gene2Transcript: {gene2transcript}')
 
     num_strains = len(haplotypes)
 
-    logger.info(f'Loading {os.path.join(DATA_DIR, "ref.gene2transcripts.tsv")}')
     gname = np.loadtxt(
-        os.path.join(DATA_DIR, 'ref.gene2transcripts.tsv'),
+        gene2transcript,
         usecols=(0,),
-        dtype='string'
+        dtype='str'
     )
     num_genes = len(gname)
     gid = dict(zip(gname, np.arange(num_genes)))
@@ -371,12 +373,12 @@ def get_alignment_spec(
             for i in range(num_strains):
                 avecs[g][i, :] = unit_vector(axes[g][i, :])
 
-    logger.info(f'Saving {os.path.join(DATA_DIR, "axes.npz")}')
-    np.savez_compressed(os.path.join(DATA_DIR, 'axes.npz'), **axes)
-    logger.info(f'Saving {os.path.join(DATA_DIR, "ases.npz")}')
-    np.savez_compressed(os.path.join(DATA_DIR, 'ases.npz'), **ases)
-    logger.info(f'Saving {os.path.join(DATA_DIR, "aves.npz")}')
-    np.savez_compressed(os.path.join(DATA_DIR, 'avecs.npz'), **avecs)
+    logger.info(f'Saving {os.path.join(out_dir, "axes.npz")}')
+    np.savez_compressed(os.path.join(out_dir, 'axes.npz'), **axes)
+    logger.info(f'Saving {os.path.join(out_dir, "ases.npz")}')
+    np.savez_compressed(os.path.join(out_dir, 'ases.npz'), **ases)
+    logger.info(f'Saving {os.path.join(out_dir, "aves.npz")}')
+    np.savez_compressed(os.path.join(out_dir, 'avecs.npz'), **avecs)
 
 
 def reconstruct(
@@ -442,7 +444,8 @@ def reconstruct(
     for c in gene_pos.files:
         try:
             gid_genome_order[c] = np.array([g.decode() for g, p in gene_pos[c]])
-        except:
+        except Exception as e:
+            logger.error(f"Error occurred: {e}")
             gid_genome_order[c] = np.array([g for g, p in gene_pos[c]])
 
     # Load expression level
@@ -589,7 +592,7 @@ def reconstruct(
             if (num_genes_in_chr > len(tprob_c)):
                 num_genes_in_chr = len(tprob_c)
                 # Above avoids IndexError for legacy GRCm38 ref files.
-                # In those transprob files: num_genes_in_chr > tprob_c by 1. 
+                # In those transprob files: num_genes_in_chr > tprob_c by 1.
             for i in reversed(range(num_genes_in_chr)):
                 sid = (delta[c][:, i] + tprob_c[i][sid]).argmax()
                 viterbi_states[c].append(genotypes[sid])
@@ -626,9 +629,9 @@ def interpolate(
         gpos_file = os.path.join(DATA_DIR, 'ref.gene_pos.ordered.npz')
         try:
             x_gene = np.load(gpos_file)
-        except:
+        except Exception as e:
             logger.error(
-                f'Please make sure if $GBRS_DATA is set correctly: {DATA_DIR}'
+                f'{e}: Please make sure if $GBRS_DATA is set correctly: {DATA_DIR}'
             )
             raise
         else:
@@ -650,6 +653,8 @@ def interpolate(
     logger.info('Loading chromosome information')
     chrlens = get_chromosome_info()
     chrs = chrlens.keys()
+    logger.info(f'Chrom Lens: {chrlens}')
+    logger.info(f'Chroms: {chrs}')
 
     logger.info(f'Loading grid file: {grid_file}')
     x_grid = defaultdict(list)
@@ -745,6 +750,8 @@ def plot(
     hcolors = get_founder_info()
     haplotypes = hcolors.keys()
     hid = dict(zip(haplotypes, np.arange(8)))
+    logger.info(f'Haplotype IDs: {hid}')
+
     genotypes = np.array(
         [h1 + h2 for h1, h2 in combinations_with_replacement(haplotypes, 2)]
     )
@@ -754,17 +761,22 @@ def plot(
     #
     logger.info(f'Loading GBRS genotype probability file: {genoprob_file}')
     genoprob = np.load(genoprob_file)
-    
-    def natural_sort(l): 
-        convert = lambda text: int(text) if text.isdigit() else text.lower()
-        alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
-        return sorted(l, key=alphanum_key)
-    
+
+    def natural_sort(list):
+
+        def convert(text):
+            return int(text) if text.isdigit() else text.lower()
+
+        def alphanum_key(key):
+            return [convert(c) for c in re.split('([0-9]+)', key)]
+
+        return sorted(list, key=alphanum_key)
+
     chrs = [value for value in chrlens.keys() if value in genoprob.files]
-    # intersection of ref.fa.fai chroms and those present in genoprob. 
+    # intersection of ref.fa.fai chroms and those present in genoprob.
 
     chrs = natural_sort(chrs)
-    # natural sorting of the chrom list for display. 
+    # natural sorting of the chrom list for display.
 
     num_chrs = len(chrs)
 
