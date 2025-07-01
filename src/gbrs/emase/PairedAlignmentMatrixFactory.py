@@ -54,8 +54,10 @@ class PairedAlignmentMatrixFactory:
         # NOTE: Single BAM file is used, as the assumption is that both have the same reads.
         # If this assumption fails, loop over all BAM files and add read names to self.rname.
 
-        self.rname = np.array(sorted(list(self.rname)))
         # sorts the elements of the NumPy array self.rname and updates the array with the sorted values.
+        self.rname = np.fromiter(self.rname, dtype='S')
+        self.rname.sort()
+
 
         num_loci = len(self.lname)
         num_reads = len(self.rname)

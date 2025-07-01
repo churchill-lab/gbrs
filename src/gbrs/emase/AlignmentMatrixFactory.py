@@ -41,12 +41,12 @@ class AlignmentMatrixFactory:
         # The query_name attribute of the pysam.AlignedSegment object is the read name.
         # The read names are stored in a set to remove duplicates.
         logger.debug(f'Gathering all read names...')
-        for aln in fh.fetch(until_eof=True):
-            self.rname.add(aln.query_name)
+        self.rname = {aln.query_name for aln in fh.fetch(until_eof=True)}
         logger.debug(f'Retrieved {len(self.rname):,} read names')
 
         # sorts the elements of the NumPy array self.rname and updates the array with the sorted values.
-        self.rname = np.array(sorted(list(self.rname)))
+        self.rname = np.fromiter(self.rname, dtype='S')
+        self.rname.sort()
 
         num_loci = len(self.lname)
         num_reads = len(self.rname)
