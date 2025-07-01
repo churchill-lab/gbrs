@@ -3,6 +3,12 @@ from collections import defaultdict
 from itertools import dropwhile
 import logging
 import os
+import time
+from typing import Dict, List, Tuple, Optional
+import numpy as np
+from scipy.sparse import csr_matrix, csc_matrix
+import tables
+import gc
 
 # 3rd party library imports
 import numpy as np
@@ -25,12 +31,59 @@ def compress(
     comp_lib: str = 'zlib'
 ) -> None:
     """
-    Compress EMASE file to alignment incidence matrix
-
+    Compress EMASE files by creating equivalence classes of identical alignment patterns.
+    
+    This function groups reads with identical alignment patterns across all haplotypes
+    into equivalence classes (ECs), significantly reducing file size while preserving
+    all alignment information. It is used for storage efficiency and downstream analysis.
+    
+    ALGORITHM:
+    1. Load each EMASE file
+    2. For each read in each file:
+       - Extract alignment pattern across all haplotypes
+       - Create a unique key representing the alignment pattern
+       - Group reads with identical patterns into equivalence classes
+    3. Build output matrix where each row represents one equivalence class
+    4. Save compressed representation
+    
+    WHAT THIS DOES:
+    - Takes one or more EMASE files (can be different samples or replicates)
+    - Groups reads with IDENTICAL alignment patterns across all haplotypes
+    - Creates equivalence classes where each EC represents a unique alignment pattern
+    - Result: Compressed representation where identical patterns are merged
+    - Output: EMASE file with fewer rows (ECs instead of individual reads)
+    
+    USE CASES:
+    - Storage compression: Reduce file size by merging identical patterns
+    - Downstream analysis: Work with equivalence classes instead of individual reads
+    - Data merging: Combine multiple samples or replicates into single file
+    - Memory efficiency: Reduce memory usage for large datasets
+    
+    DIFFERENCE FROM GET_COMMON_ALIGNMENTS:
+    - This function: Groups identical alignment patterns (equivalence classes)
+    - Get_common_alignments: Finds common alignments across files (intersection)
+    - This is less restrictive - keeps all unique alignment patterns
+    
+    EQUIVALENCE CLASS DEFINITION:
+    An equivalence class contains all reads that have the exact same alignment
+    pattern across all haplotypes. For example, if reads A, B, and C all align
+    to locus 1 in haplotype 0 and locus 5 in haplotype 1, they form one EC.
+    
     Args:
-        emase_files: list of EMASE files to compress
-        output_file: name of the compressed EMASE file
-        comp_lib: compression library to use
+        emase_files: List of EMASE files to compress. Files can have different reads.
+        output_file: Name of the compressed EMASE file
+        comp_lib: Compression library to use for output file
+        
+    Requirements:
+        - All files must have same number of loci and haplotypes
+        - Files can have different reads (unlike get_common_alignments)
+        - Files can represent different samples or replicates
+        
+    Output Format:
+        - Shape: (num_loci, num_haplotypes, num_equivalence_classes)
+        - Each row represents one equivalence class
+        - /count array contains number of reads in each EC
+        - Sparse matrix format for memory efficiency
     """
     for x in emase_files:
         logger.info(f'EMASE file: {x}')
@@ -107,6 +160,101 @@ def compress(
     logger.info('Done')
 
 
+def compress_optimized(
+    emase_files: list[str],
+    output_file: str,
+    comp_lib: str = 'zlib'
+) -> None:
+    """
+    Compress EMASE files by creating equivalence classes of identical alignment patterns.
+    
+    This function is identical to the original compress function but uses tuple-based
+    EC keys instead of string operations for better performance.
+    
+    Args:
+        emase_files: List of EMASE files to compress. Files can have different reads.
+        output_file: Name of the compressed EMASE file
+        comp_lib: Compression library to use for output file
+    """
+    for x in emase_files:
+        logger.info(f'EMASE file: {x}')
+    logger.info(f'Output File: {output_file}')
+    logger.info(f'Compression Library: {comp_lib}')
+
+    num_loci = None
+    num_haplotypes = None
+    names_loci = None
+    names_haplotypes = None
+
+    # Use tuple-based EC dictionary instead of string-based
+    ec = defaultdict(int)
+    for aln_file in emase_files:
+        logger.info(f'Loading EMASE file: {aln_file}')
+        aln_mat_rd = AlignmentPropertyMatrix(h5file=aln_file)
+
+        logger.debug(f'Number Loci: {aln_mat_rd.num_loci}')
+        logger.debug(f'Number Haplotypes: {aln_mat_rd.num_haplotypes}')
+        logger.debug(f'Number Reads: {aln_mat_rd.num_reads}')
+
+        # each file should be the same
+        num_loci = aln_mat_rd.num_loci
+        num_haplotypes = aln_mat_rd.num_haplotypes
+        names_loci = aln_mat_rd.lname
+        names_haplotypes = aln_mat_rd.hname
+
+        for h in range(aln_mat_rd.num_haplotypes):
+            aln_mat_rd.data[h] = aln_mat_rd.data[h].tocsr()
+
+        if aln_mat_rd.count is None:
+            aln_mat_rd.count = np.ones(aln_mat_rd.num_reads)
+
+        logger.debug('Creating unique ECs with tuple keys')
+        for cur_ind in range(aln_mat_rd.num_reads):
+            ec_key_parts = []
+            for h in range(aln_mat_rd.num_haplotypes):
+                i0 = aln_mat_rd.data[h].indptr[cur_ind]
+                i1 = aln_mat_rd.data[h].indptr[cur_ind + 1]
+                # Use tuple instead of string for better performance
+                indices = aln_mat_rd.data[h].indices[i0:i1]
+                ec_key_parts.append(tuple(sorted(indices)))
+            
+            # Create tuple key instead of string
+            ec_key = tuple(ec_key_parts)
+            ec[ec_key] += aln_mat_rd.count[cur_ind]
+
+    ec = dict(ec)
+    num_ecs = len(ec)
+
+    logger.info('Constructing APM')
+    logger.debug(f'Number Loci: {num_loci}')
+    logger.debug(f'Number Haplotypes: {num_haplotypes}')
+    logger.debug(f'Number ECs: {num_ecs}')
+
+    aln_mat_ec = AlignmentPropertyMatrix(
+        shape=(num_loci, num_haplotypes, num_ecs)
+    )
+    aln_mat_ec.hname = names_haplotypes
+    aln_mat_ec.lname = names_loci
+    aln_mat_ec.count = np.zeros(num_ecs)
+
+    logger.debug('Adding data to APM')
+    for row_id, (ec_key, count) in enumerate(ec.items()):
+        aln_mat_ec.count[row_id] = count
+        
+        # Process tuple-based EC key
+        for h in range(aln_mat_ec.num_haplotypes):
+            indices = ec_key[h]
+            if len(indices) > 0:
+                # Convert tuple back to array for indexing
+                aln_mat_ec.data[h][row_id, list(indices)] = 1
+    
+    aln_mat_ec.finalize()
+
+    logger.info(f'Saving EMASE Formatted File: {output_file}')
+    aln_mat_ec.save(h5file=output_file, complib=comp_lib)
+    logger.info('Done')
+
+
 def stencil(
     alignment_file: str,
     genotype_file: str,
@@ -128,7 +276,7 @@ def stencil(
             logger.info('A group file is *not* given. Genotype will be stenciled as is.')
 
     if output_file is None:
-        out_file = f'gbrs.stenciled.{os.path.basename(alignment_file)}'
+        output_file = f'gbrs.stenciled.{os.path.basename(alignment_file)}'
 
     logger.info(f'Alignment File: {alignment_file}')
     logger.info(f'Genotype File: {genotype_file}')

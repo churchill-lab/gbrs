@@ -7,17 +7,20 @@ import re
 
 # 3rd party library imports
 from scipy.interpolate import interp1d
-logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib
 import matplotlib.pyplot as pyplot
+from matplotlib.patches import Rectangle
+from matplotlib.lines import Line2D
 import numpy as np
-
-matplotlib.use('Agg')
 
 # local library imports
 from gbrs import utils
 
+matplotlib.use('Agg')
+
 DATA_DIR = os.getenv('GBRS_DATA', '.')
+
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
 logger = utils.get_logger('gbrs')
 
 
@@ -232,7 +235,6 @@ def get_transition_prob(
     logger.info(f'Output File: {output_file}')
 
     haplotypes = haplotypes.split(',')
-    num_haplotypes = len(haplotypes)
     it = combinations_with_replacement(haplotypes, 2)
     diplotype = [f'{ht1}{ht2}' for ht1, ht2 in it]
     num_diplotypes = len(diplotype)
@@ -297,6 +299,8 @@ def get_transition_prob(
 def get_alignment_spec(
     sample_file: str,
     haplotypes: list[str],
+    gene2transcript: str,
+    out_dir: str,
     min_expr: float = 2.0
 ) -> None:
     """
@@ -312,14 +316,14 @@ def get_alignment_spec(
     logger.info(f'Sample File: {sample_file}')
     logger.info(f'Haplotypes: {haplotypes}')
     logger.info(f'Min Expression: {min_expr}')
+    logger.info(f'Gene2Transcript: {gene2transcript}')
 
     num_strains = len(haplotypes)
 
-    logger.info(f'Loading {os.path.join(DATA_DIR, "ref.gene2transcripts.tsv")}')
     gname = np.loadtxt(
-        os.path.join(DATA_DIR, 'ref.gene2transcripts.tsv'),
+        gene2transcript,
         usecols=(0,),
-        dtype='string'
+        dtype='str'
     )
     num_genes = len(gname)
     gid = dict(zip(gname, np.arange(num_genes)))
@@ -371,12 +375,12 @@ def get_alignment_spec(
             for i in range(num_strains):
                 avecs[g][i, :] = unit_vector(axes[g][i, :])
 
-    logger.info(f'Saving {os.path.join(DATA_DIR, "axes.npz")}')
-    np.savez_compressed(os.path.join(DATA_DIR, 'axes.npz'), **axes)
-    logger.info(f'Saving {os.path.join(DATA_DIR, "ases.npz")}')
-    np.savez_compressed(os.path.join(DATA_DIR, 'ases.npz'), **ases)
-    logger.info(f'Saving {os.path.join(DATA_DIR, "aves.npz")}')
-    np.savez_compressed(os.path.join(DATA_DIR, 'avecs.npz'), **avecs)
+    logger.info(f'Saving {os.path.join(out_dir, "axes.npz")}')
+    np.savez_compressed(os.path.join(out_dir, 'axes.npz'), **axes)
+    logger.info(f'Saving {os.path.join(out_dir, "ases.npz")}')
+    np.savez_compressed(os.path.join(out_dir, 'ases.npz'), **ases)
+    logger.info(f'Saving {os.path.join(out_dir, "aves.npz")}')
+    np.savez_compressed(os.path.join(out_dir, 'avecs.npz'), **avecs)
 
 
 def reconstruct(
@@ -650,6 +654,8 @@ def interpolate(
     logger.info('Loading chromosome information')
     chrlens = get_chromosome_info()
     chrs = chrlens.keys()
+    logger.info(f'Chrom Lens: {chrlens}')
+    logger.info(f'Chroms: {chrs}')
 
     logger.info(f'Loading grid file: {grid_file}')
     x_grid = defaultdict(list)
@@ -731,7 +737,7 @@ def plot(
 
     logger.info(f'Genotype Probabilities File: {genoprob_file}')
     logger.info(f'Output File: {output_file}')
-    logger.info(f'Output File: {output_format}')
+    logger.info(f'Output Format: {output_format}')
     logger.info(f'Sample Name: {sample_name}')
     logger.info(f'Grid Size: {grid_size}')
     logger.info(f'XT Max: {xt_max}')
@@ -745,6 +751,8 @@ def plot(
     hcolors = get_founder_info()
     haplotypes = hcolors.keys()
     hid = dict(zip(haplotypes, np.arange(8)))
+    logger.info(f'Haplotype IDs: {hid}')
+
     genotypes = np.array(
         [h1 + h2 for h1, h2 in combinations_with_replacement(haplotypes, 2)]
     )
@@ -755,10 +763,12 @@ def plot(
     logger.info(f'Loading GBRS genotype probability file: {genoprob_file}')
     genoprob = np.load(genoprob_file)
     
-    def natural_sort(l): 
-        convert = lambda text: int(text) if text.isdigit() else text.lower()
-        alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
-        return sorted(l, key=alphanum_key)
+    def natural_sort(list):
+        def convert(text):
+            return int(text) if text.isdigit() else text.lower()
+        def alphanum_key(key):
+            return [convert(c) for c in re.split('([0-9]+)', key)]
+        return sorted(list, key=alphanum_key)
     
     chrs = [value for value in chrlens.keys() if value in genoprob.files]
     # intersection of ref.fa.fai chroms and those present in genoprob. 
@@ -787,10 +797,12 @@ def plot(
             oldcol2 = 'NA'
             num_recomb = 0
             num_genes_in_chr = len(genotype_calls)
+            
             for i in range(num_genes_in_chr):
                 hap.append((i * grid_width, grid_width))
                 c1 = hcolors[genotype_calls[i][0]]
                 c2 = hcolors[genotype_calls[i][1]]
+
                 if i > 0:
                     if c1 == c2:
                         if (
@@ -809,9 +821,11 @@ def plot(
                             c1, c2 = c2, c1
                     if c1 != col1[-1] or c2 != col2[-1]:
                         num_recomb += 1
+                        
                 col1.append(c1)
                 col2.append(c2)
             num_recomb_total += num_recomb
+            print(f'Chromsome {c} has {num_recomb} recombinations')
             # plot
             ax.broken_barh(
                 hap,
@@ -858,6 +872,329 @@ def plot(
     fig.savefig(output_file, dpi=600, format=output_format)
     pyplot.close(fig)
     logger.info('Done')
+
+
+def parse_founder_colors(path: str) -> dict[str, str]:
+    """Parse founder.hexcolor.info to dict: founder -> color."""
+    founder_colors = {}
+    with open(path) as f:
+        for line in f:
+            if line.strip() and not line.startswith('#'):
+                parts = re.split(r'[\s\t]+', line.strip())
+                if len(parts) >= 2:
+                    founder, color = parts[:2]
+                    founder_colors[founder] = color
+    return founder_colors
+
+
+
+
+def load_gpos(gpos_path):
+    """Load gene positions (cM) from .npz file: returns dict chrom -> [cM list]."""
+    gpos = np.load(gpos_path, allow_pickle=True)
+    chrom_cM = {}
+    for chrom in gpos.files:
+        # Each entry: list of (gene, cM)
+        cM_list = [float(x[1]) for x in gpos[chrom]]
+        chrom_cM[chrom] = cM_list
+    return chrom_cM
+
+
+def find_blocks(seq):
+    """Yield (start_idx, end_idx, value) for contiguous blocks in seq."""
+    if not seq:
+        return
+    start = 0
+    current = seq[0]
+    for i, val in enumerate(seq):
+        if val != current:
+            yield (start, i, current)
+            start = i
+            current = val
+
+    yield (start, len(seq), current)
+
+
+def natural_chrom_order(chroms):
+    # Order: 1,2,...,19,X,Y,MT (case-insensitive)
+    def chrom_key(c):
+        c = c.upper()
+        if c == 'X':
+            return 20
+        if c == 'Y':
+            return 21
+        if c in ('MT', 'M', 'MITO'):
+            return 22
+        try:
+            return int(c)
+        except ValueError:
+            return 99
+
+    return sorted(chroms, key=chrom_key)
+
+
+def chrom_sort_key(c):
+    c = c.upper()
+    if c == 'X':
+        return 20
+    if c == 'Y':
+        return 21
+    if c in ('MT', 'M', 'MITO'):
+        return 22
+    try:
+        return int(c)
+    except ValueError:
+        return 99
+
+
+def plot_genoprobs(
+    genoprobs_file: str,
+    output_file: str | None = None,
+    output_format: str = 'pdf',
+    sample_name: str | None = None,
+    founder_colors_file: str | None = None,
+    genome_pos_file: str | None = None,
+    dpi: int = 300,
+    bar_height: float = 0.5,
+    haplotype_gap: float = 0.1,
+    chrom_spacing: float = 2.0,
+    fig_width: int = 18,
+    min_fig_height: int = 8,
+    height_per_chrom: float = 0.8,
+    font_size_title: int = 22,
+    font_size_axis: int = 18,
+    font_size_tick: int = 16,
+    font_size_legend: int = 14,
+    legend_line_width: int = 8,
+):
+    """
+    Plot genome reconstruction with configurable parameters.
+
+    Args:
+        genoprobs_file: Path to genoprobs (.npz) file
+        output_file: Output file name
+        output_format: PDF, PNG, SVG
+        sample_name: name of the sample
+        founder_colors_file: Path to founder.hexcolor.info file
+        genome_pos_file: Optional gene position .npz file for cM positions
+        dpi: DPI for output PDF (default: 300)
+        bar_height: Height of each haplotype bar (default: 1.1)
+        haplotype_gap: Gap between haplotype bars (default: 0.3)
+        chrom_spacing: Vertical spacing between chromosomes (default: 3.0)
+        fig_width: Figure width in inches (default: 18)
+        min_fig_height: Minimum figure height in inches (default: 8)
+        height_per_chrom: Height per chromosome in inches (default: 1.5)
+        font_size_title: Title font size (default: 22)
+        font_size_axis: Axis label font size (default: 18)
+        font_size_tick: Tick label font size (default: 16)
+        font_size_legend: Legend font size (default: 14)
+        legend_line_width: Legend line width (default: 8)
+    """
+    if output_file is None:
+        output_file = os.path.splitext(os.path.basename(genoprobs_file))[0]
+        output_file = f'gbrs.plotted.{output_file}.{output_format}'
+
+    logger.info(f'Genotype Probabilities File: {genoprobs_file}')
+    logger.info(f'Output File: {output_file}')
+    logger.info(f'Output Format: {output_format}')
+    logger.info(f'Founders Color File: {founder_colors_file}')
+    logger.info(f'Genome Position File: {genome_pos_file}')
+    logger.info(f'Sample Name: {sample_name}')
+    logger.info(f'Bar Height: {bar_height}')
+    logger.info(f'Haplotype Gap: {haplotype_gap}')
+    logger.info(f'Chromosome Spacing: {chrom_spacing}')
+    logger.info(f'Figure Width: {fig_width}')
+    logger.info(f'Minimum Figure Height: {min_fig_height}')
+    logger.info(f'Height Per Chromosome: {height_per_chrom}')
+    logger.info(f'Font Size Title: {font_size_title}')
+    logger.info(f'Font Size Axis: {font_size_axis}')
+    logger.info(f'Font Size Tick: {font_size_tick}')
+    logger.info(f'Font Size Legend: {font_size_legend}')
+    logger.info(f'Legend Line Width: {legend_line_width}')
+
+    founder_colors = {
+        'A': '#F0F000',
+        'B': '#808080',
+        'C': '#F08080',
+        'D': '#1010F0',
+        'E': '#00A0F0',
+        'F': '#00A000',
+        'G': '#F00000',
+        'H': '#9000E0',
+    }
+
+    founder_colors_simple = {
+        'A': 'yellow',
+        'B': 'grey',
+        'C': 'pink',
+        'D': 'blue',
+        'E': 'light blue',
+        'F': 'green',
+        'G': 'red',
+        'H': 'purple',
+    }
+
+    if founder_colors_file:
+        founder_colors = parse_founder_colors(founder_colors_file)
+
+    haplotypes = list(founder_colors.keys())
+    genotypes = [h1 + h2 for h1, h2 in combinations_with_replacement(haplotypes, 2)]
+    data = np.load(genoprobs_file, allow_pickle=True)
+    chroms = natural_chrom_order(data.files)
+    chroms = chroms[::-1]  # top-down
+
+    logger.debug(f'Chromosomes: {", ".join(chroms)}')
+    logger.debug(f'Generated Genotypes: {", ".join(genotypes)}')
+
+    # calculate chromosome positions with configurable spacing
+    chrom_ypos = {c: i * chrom_spacing for i, c in enumerate(chroms)}
+    fig_height = max(min_fig_height, len(chroms) * height_per_chrom)
+    fig, ax = pyplot.subplots(figsize=(fig_width, fig_height), dpi=dpi)
+    total_recombs = 0
+    chrom_cM = load_gpos(genome_pos_file) if genome_pos_file else None
+    max_x = 0
+
+    # loop though all chromosomes
+    for chrom in chroms:
+        mat = data[chrom]
+        mat = np.asarray(mat)
+        n_markers = mat.shape[1]
+
+        max_idx = np.argmax(mat, axis=0)
+        diplotype_calls = [genotypes[i] for i in max_idx]
+
+        founder1 = [d[0] for d in diplotype_calls]
+        founder2 = [d[1] for d in diplotype_calls]
+
+        # x-axis: cM or marker index
+        if (chrom_cM and chrom in chrom_cM and len(chrom_cM[chrom]) == n_markers):
+            x = np.array(chrom_cM[chrom])
+            xlabel = 'cM'
+        else:
+            x = np.arange(n_markers)
+            xlabel = 'Marker index'
+
+        y_base = chrom_ypos[chrom]
+
+        # plot blocks for founder2 (bottom row)
+        for start, end, val in find_blocks(founder2):
+            x_start = x[start]
+            x_end = x[end - 1] if end - 1 < len(x) else x[-1]
+            width = x_end - x_start if x_end > x_start else 1
+            logger.debug(f'f2 {chrom}:{start}-{end} {val} ({founder_colors_simple[val]})')
+            ax.add_patch(
+                Rectangle(
+                    (x_start, y_base),
+                    width,
+                    bar_height,
+                    color=founder_colors.get(val, '#CCCCCC'),
+                    linewidth=0,
+                )
+            )
+
+        # white border between rows
+        ax.add_patch(
+            Rectangle(
+                (x[0], y_base + bar_height),
+                x[-1] - x[0],
+                haplotype_gap,
+                color='white',
+                linewidth=0,
+                zorder=10,
+            )
+        )
+
+        # plot blocks for founder1 (top row)
+        for start, end, val in find_blocks(founder1):
+            x_start = x[start]
+            x_end = x[end - 1] if end - 1 < len(x) else x[-1]
+            width = x_end - x_start if x_end > x_start else 1
+            #logger.debug(f'f1 {chrom}:{start}-{end} {val} ({founder_colors_simple[val]})')
+
+            ax.add_patch(
+                Rectangle(
+                    (x_start, y_base + bar_height + haplotype_gap),
+                    width,
+                    bar_height,
+                    color=founder_colors.get(val, '#CCCCCC'),
+                    linewidth=0,
+                )
+            )
+
+        # recombination count
+        recomb = sum([diplotype_calls[i] != diplotype_calls[i - 1] for i in range(1, n_markers)])
+        total_recombs += recomb
+        print(f'Chromsome {chrom} has {recomb} recombinations')
+
+        ax.text(
+            x[-1] + (x[1] - x[0] if n_markers > 1 else 1) * 1.5,
+            y_base + bar_height + haplotype_gap / 2,
+            f'({recomb})',
+            va='center',
+            ha='left',
+            fontsize=14,
+            fontweight='normal',
+            color='#333333',
+        )
+
+        max_x = max(max_x, x[-1])
+
+    # y axis: chromosome labels
+    ax.set_yticks(
+        [chrom_ypos[c] + bar_height + haplotype_gap / 2 for c in chroms]
+    )
+    ax.set_yticklabels(chroms, fontsize=font_size_tick)
+    ax.set_xlabel(xlabel, fontsize=font_size_axis)
+    ax.set_ylabel('Chromosome', fontsize=font_size_axis)
+
+    # title
+    sample = os.path.splitext(os.path.basename(genoprobs_file))[0]
+    ax.set_title(
+        f'Genome reconstruction: {sample}\n(Total {total_recombs} recombinations)',
+        fontsize=font_size_title,
+        fontweight='bold',
+        pad=20,
+    )
+    ax.set_xlim(left=0, right=max_x * 1.02)
+    ax.set_ylim(
+        -haplotype_gap, max(chrom_ypos.values()) + 2 * bar_height + haplotype_gap
+    )
+
+    # remove spines and ticks
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.tick_params(axis='x', labelsize=font_size_tick, length=0)
+    ax.tick_params(axis='y', labelsize=font_size_tick, length=0)
+
+    # subtle grid
+    ax.xaxis.grid(True, linestyle=':', color='#CCCCCC', alpha=0.7)
+    ax.set_axisbelow(True)
+
+    # legend for founders
+    legend_elements = [
+        Line2D(
+            [0], [0], color=founder_colors[f], lw=legend_line_width, label=f
+        )
+        for f in haplotypes
+    ]
+    ax.legend(
+        handles=legend_elements,
+        title='Founder',
+        bbox_to_anchor=(1.01, 1),
+        loc='upper left',
+        fontsize=font_size_legend,
+        title_fontsize=font_size_legend,
+        frameon=False,
+    )
+
+    # tight layout
+    pyplot.subplots_adjust(left=0.08, right=0.82, top=0.92, bottom=0.08)
+    pyplot.savefig(
+        output_file, bbox_inches='tight', dpi=dpi, format=output_format
+    )
+
+    logger.info(f'Plot saved to {output_file}')
+
 
 
 def export(
@@ -936,3 +1273,104 @@ def export(
     )
 
     logger.info('Done')
+
+
+
+
+def debug_genoprob(
+    genoprob_file: str,
+    output_file: str = None,
+    strains: list[str] = None
+) -> None:
+    """
+    Export genotypes probability file in in GBRS quant format.
+
+    Args:
+        genoprob_file: genotype probability file
+        output_file: output file in GBRS quant format
+        strains: list of strains
+    """
+    if strains is None:
+        strains = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+
+    if output_file is None:
+        output_file = f'{os.path.splitext(genoprob_file)[0]}.tsv'
+
+    logger.info(f'Genotype Probabilities File: {genoprob_file}')
+    logger.info(f'Output File: {output_file}')
+    logger.info(f'Strains: {strains}')
+
+    try:
+        data = np.load(genoprob_file)
+        strains = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+        diplotypes = [h1 + h2 for h1, h2 in combinations_with_replacement(strains, 2)]
+
+        # Determine if this is an interpolated file based on the filename
+        is_interpolated = 'interpolated' in genoprob_file.lower()
+
+        logger.debug(f'Chromosomes: {data.files}')
+        logger.debug(f'Diplotypes: {diplotypes}')
+        logger.debug(f'Number of diplotypes: {len(diplotypes)}')
+        logger.debug(f"File type: {'Interpolated (grid positions)' if is_interpolated else 'Original (gene positions)'}")
+
+        # Summary statistics
+        total_positions = 0
+        for chrom in sorted(data.files):
+            matrix = data[chrom]
+            position_type = "grid positions" if is_interpolated else "genes"
+            print(f"\nChromosome {chrom}:")
+            print(f"  Shape: {matrix.shape}")
+            print(f"  Data type: {matrix.dtype}")
+            print(f"  Number of {position_type}: {matrix.shape[1]}")
+            print(f"  Number of diplotypes: {matrix.shape[0]}")
+
+            # Check probability properties
+            col_sums = matrix.sum(axis=0)
+            print(
+                f"  Column sums (should be ~1.0): min={col_sums.min():.6f}, max={col_sums.max():.6f}, mean={col_sums.mean():.6f}")
+
+            # Find most likely diplotypes
+            max_probs = matrix.max(axis=0)
+            max_diplotype_indices = matrix.argmax(axis=0)
+            print(
+                f"  Max probabilities: min={max_probs.min():.6f}, max={max_probs.max():.6f}, mean={max_probs.mean():.6f}")
+
+            # Show distribution of most likely diplotypes
+            unique_diplotypes, counts = np.unique(max_diplotype_indices, return_counts=True)
+            print(f"  Most common diplotypes (first 10):")
+            for i, (diplotype_idx, count) in enumerate(zip(unique_diplotypes, counts)):
+                if i < 10:
+                    print(
+                        f"    {diplotypes[diplotype_idx]}: {count} {position_type} ({count / matrix.shape[1] * 100:.1f}%)")
+
+            total_positions += matrix.shape[1]
+
+        position_type = "grid positions" if is_interpolated else "genes"
+        print(f"\nTotal {position_type} across all chromosomes: {total_positions}")
+
+        # Show detailed example for first chromosome
+        if data.files:
+            first_chrom = sorted(data.files)[0]
+            matrix = data[first_chrom]
+            position_type = "positions" if is_interpolated else "genes"
+            logger.debug(f"\n=== DETAILED EXAMPLE: Chromosome {first_chrom} ===")
+            print(f"First 5 {position_type}, all diplotypes:")
+
+            # Show first 5 positions/genes with their probabilities
+            for pos_idx in range(min(5, matrix.shape[1])):
+                print(f"\n{position_type.capitalize()} {pos_idx}:")
+                probs = matrix[:, pos_idx]
+                max_idx = probs.argmax()
+                print(f"  Most likely: {diplotypes[max_idx]} (prob={probs[max_idx]:.6f})")
+
+                # Show top 5 diplotypes
+                top_indices = np.argsort(probs)[-5:][::-1]
+                for i, idx in enumerate(top_indices):
+                    print(f"  {i + 1}. {diplotypes[idx]}: {probs[idx]:.6f}")
+
+        return data
+
+    except Exception as e:
+        print(f"Error reading {genoprob_file}: {e}")
+        return None
+

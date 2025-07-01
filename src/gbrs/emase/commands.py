@@ -1,18 +1,63 @@
 # standard library imports
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 import importlib.metadata
 import logging
 
 # 3rd party library imports
 import typer
+from typer.core import TyperGroup
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 # local library imports
 from gbrs import utils
+from gbrs import h5_utils
 from gbrs.emase import emase_utils
 
+console = Console()
 
-app = typer.Typer(help='EMASE')
+class SectionedGroup(TyperGroup):
+    def format_help(self, ctx, formatter):
+        console.print(Panel.fit('[bold cyan]EMASE - Expression Modeling for Allele-Specific Expression[/bold cyan]'))
+
+        # Hardcoded groups
+        main_commands = [
+            'bam2emase', 'bam2emase-paired', 'combine', 'count-alignments', 'count-shared-multireads-pairwise',
+            'create-hybrid', 'get-common-alignments', 'get-common-alignments-optimized',
+            'pull-out-unique-reads', 'prepare', 'run'
+        ]
+        utility_commands = ['h5-compare', 'h5-debug']
+
+        shown = set()
+
+        console.print('\n[bold green]Main Commands:[/bold green]')
+        for cmd in main_commands:
+            if cmd in self.commands:
+                help_text = self.commands[cmd].help or ''
+                console.print(f'  • [cyan]{cmd}[/cyan] - {help_text}')
+                shown.add(cmd)
+
+        console.print('\n[bold yellow]Utility Commands:[/bold yellow]')
+        for cmd in utility_commands:
+            if cmd in self.commands:
+                help_text = self.commands[cmd].help or ''
+                console.print(f'  • [yellow]{cmd}[/yellow] - {help_text}')
+                shown.add(cmd)
+
+        # Show any commands not in your lists
+        other_cmds = [cmd for cmd in self.commands if cmd not in shown]
+        if other_cmds:
+            console.print('\n[bold magenta]Other Commands:[/bold magenta]')
+            for cmd in other_cmds:
+                help_text = self.commands[cmd].help or ''
+                console.print(f'  • [magenta]{cmd}[/magenta] - {help_text}')
+
+        console.print('\n[dim]Use --help on each command for more details.[/dim]')
+
+
+app = typer.Typer(cls=SectionedGroup, help='EMASE')
 
 
 def version_callback(value: bool):
@@ -26,21 +71,21 @@ def version_callback(value: bool):
 @app.callback()
 def common(
     ctx: typer.Context,
-    version: bool = typer.Option(None, "--version", callback=version_callback),
+    version: bool = typer.Option(None, '--version', callback=version_callback),
 ):
     pass
 
 
-@app.command(help="convert a BAM file to EMASE format")
+@app.command(help='Convert BAM alignment files to EMASE format for allele-specific expression analysis')
 def bam2emase(
-    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help="bam file to convert")],
-    haplotypes: Annotated[list[str], typer.Option('-h', '--haplotype-char', help='haplotype, either one per -h option, i.e. -h A -h B -h C, or a shortcut -h A,B,C')],
-    locusid_file: Annotated[Path, typer.Option('-m', '--locus-ids', exists=True, dir_okay=False, resolve_path=True, help='filename for the locus (usually transcripts) info')],
-    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help="EMASE file (hdf5 format)")] = None,
-    delim: Annotated[str, typer.Option('-d', '--delim', help='delimiter string between locus and haplotype in BAM file')] = '_',
-    index_dtype: Annotated[str, typer.Option('--index-dtype', help='advanced option, see internal code')] = 'uint32',
-    data_dtype: Annotated[str, typer.Option('--data-dtype', help='advanced_option, see internal code')] = 'uint8',
-    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
+    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help='Input BAM file containing RNA-seq alignments')],
+    haplotypes: Annotated[list[str], typer.Option('-h', '--haplotype-char', help='Haplotype identifiers (e.g., A,B,C,D). Can specify multiple times or comma-separated')],
+    locusid_file: Annotated[Path, typer.Option('-m', '--locus-ids', exists=True, dir_okay=False, resolve_path=True, help='Transcript/locus information file')],
+    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Output EMASE file (HDF5 format). Auto-generated if not specified')] = None,
+    delim: Annotated[str, typer.Option('-d', '--delim', help='Delimiter between transcript ID and haplotype in BAM file')] = '_',
+    index_dtype: Annotated[str, typer.Option('--index-dtype', help='Data type for matrix indices (advanced users only)')] = 'uint32',
+    data_dtype: Annotated[str, typer.Option('--data-dtype', help='Data type for matrix values (advanced users only)')] = 'uint8',
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
 ) -> None:
     logger = utils.configure_logging('gbrs', verbose)
     logger.debug('bam2emase')
@@ -71,13 +116,55 @@ def bam2emase(
         else:
             logger.error(e)
 
+@app.command(help='Convert BAM alignment files to EMASE format for allele-specific expression analysis')
+def bam2emase_paired(alignment_files: Annotated[list[Path], typer.Option('-i', '--alignment-files', exists=False, dir_okay=False, resolve_path=True, help='Input BAM file containing RNA-seq alignments, can separate files by "," or have multiple -i')],
+    haplotypes: Annotated[list[str], typer.Option('-h', '--haplotype-char', help='Haplotype identifiers (e.g., A,B,C,D). Can specify multiple times or comma-separated')],
+    locusid_file: Annotated[Path, typer.Option('-m', '--locus-ids', exists=True, dir_okay=False, resolve_path=True, help='Transcript/locus information file')],
+    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Output EMASE file (HDF5 format). Auto-generated if not specified')] = None,
+    delim: Annotated[str, typer.Option('-d', '--delim', help='Delimiter between transcript ID and haplotype in BAM file')] = '_',
+    index_dtype: Annotated[str, typer.Option('--index-dtype', help='Data type for matrix indices (advanced users only)')] = 'uint32',
+    data_dtype: Annotated[str, typer.Option('--data-dtype', help='Data type for matrix values (advanced users only)')] = 'uint8',
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
+) -> None:
+    logger = utils.configure_logging('gbrs', verbose)
+    logger.debug('bam2emase_paired')
+    try:
+        all_alignment_files: list[str] = []
+        for x in alignment_files:
+            all_alignment_files.extend(str(x).split(','))
 
-@app.command(help="combine EMASE files")
+        for i, f in enumerate(all_alignment_files):
+            all_alignment_files[i] = utils.check_file(f, 'r')
+
+        all_haplotypes: list[str] = []
+        for x in haplotypes:
+            all_haplotypes.extend(x.split(','))
+
+        locusid_file = str(locusid_file) if locusid_file else None
+        output_file = str(output_file) if output_file else None
+
+        emase_utils.bam2emase_paired(
+            alignment_files=all_alignment_files,
+            haplotypes=all_haplotypes,
+            locusid_file=locusid_file,
+            output_file=output_file,
+            delim=delim,
+            index_dtype=index_dtype,
+            data_dtype=data_dtype
+        )
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
+        else:
+            logger.error(e)
+
+
+@app.command(help='Merge multiple EMASE files into a single file')
 def combine(
-    emase_files: Annotated[list[Path], typer.Option('-i', '--emase-file', exists=False, dir_okay=False, resolve_path=True, help='EMASE file to compress, can seperate files by "," or have multiple -i')],
-    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='name of the compressed EMASE file')],
-    comp_lib: Annotated[str, typer.Option('-c', '--comp-lib', help='compression library to use')] = 'zlib',
-    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
+    emase_files: Annotated[list[Path], typer.Option('-i', '--emase-file', exists=False, dir_okay=False, resolve_path=True, help='EMASE files to merge. Can specify multiple files with comma separation or multiple -i flags')],
+    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Output merged EMASE file')],
+    comp_lib: Annotated[str, typer.Option('-c', '--comp-lib', help='Compression library for output file')] = 'zlib',
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
 ) -> None:
     logger = utils.configure_logging('gbrs', verbose)
     logger.debug('combine')
@@ -106,12 +193,12 @@ def combine(
             logger.error(e)
 
 
-@app.command(help="count alignments")
+@app.command(help='Generate alignment count statistics from EMASE files (isoform and gene levels)')
 def count_alignments(
-    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help="alignment incidence file (h5)")],
-    group_file: Annotated[Path, typer.Option('-g', '--group-file', exists=True, dir_okay=False, resolve_path=True, help="gene ID to isoform ID mapping info (tsv)")],
-    outbase: Annotated[str, typer.Option('-o', '--outbase', help='basename of all the generated output files')] = 'emase',
-    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
+    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help='Input EMASE file (HDF5 format)')],
+    group_file: Annotated[Path, typer.Option('-g', '--group-file', exists=True, dir_okay=False, resolve_path=True, help='Gene-to-transcript mapping file (TSV format)')],
+    outbase: Annotated[str, typer.Option('-o', '--outbase', help='Base name for output files (generates multiple files)')] = 'emase',
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
 ) -> None:
     logger = utils.configure_logging('gbrs', verbose)
     logger.debug('count_alignments')
@@ -128,12 +215,12 @@ def count_alignments(
             logger.error(e)
 
 
-@app.command(help="count shared multiread pairwise alignments")
+@app.command(help='Analyze pairwise shared multiread patterns between transcripts/genes')
 def count_shared_multireads_pairwise(
-    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help="EMASE file")],
-    group_file: Annotated[Path, typer.Option('-g', '--group-file', exists=True, dir_okay=False, resolve_path=True, help="gene ID to isoform ID mapping info (tsv)")],
-    outbase: Annotated[str, typer.Option('-o', '--outbase', help='basename of all the generated output files')] = 'emase',
-    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
+    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help='Input EMASE file (HDF5 format)')],
+    group_file: Annotated[Path, typer.Option('-g', '--group-file', exists=True, dir_okay=False, resolve_path=True, help='Gene-to-transcript mapping file (TSV format)')],
+    outbase: Annotated[str, typer.Option('-o', '--outbase', help='Base name for output files (generates multiple files)')] = 'emase',
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
 ) -> None:
     logger = utils.configure_logging('gbrs', verbose)
     logger.debug('count_shared_multireads_pairwise')
@@ -150,13 +237,13 @@ def count_shared_multireads_pairwise(
             logger.error(e)
 
 
-@app.command(help="hybridize Fasta files")
+@app.command(help='Create hybrid transcriptome from multiple haplotype-specific FASTA files')
 def create_hybrid(
-    fasta_list: Annotated[list[Path|str], typer.Option('-F', '--target-files', exists=False, dir_okay=False, resolve_path=True, help='Fasta file to parse, can seperate files by "," or have multiple -i')],
-    haplotypes: Annotated[list[str], typer.Option('-s', '--suffices', help='haplotype, either one per -h option, i.e. -h A -h B -h C, or a shortcut -h A,B,C')],
+    fasta_list: Annotated[list[Path], typer.Option('-F', '--target-files', exists=False, dir_okay=False, resolve_path=True, help='Input FASTA files (one per haplotype). Can specify multiple files with comma separation or multiple -F flags')],
+    haplotypes: Annotated[list[str], typer.Option('-s', '--suffices', help='Haplotype identifiers (e.g., A,B,C,D). Can specify multiple times or comma-separated')],
     output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True)] = 'gbrs.hybridized.targets.fa',
     build_bowtie_index: bool = False,
-    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
 ) -> None:
     logger = utils.configure_logging('gbrs', verbose)
     logger.debug('create_hybrid')
@@ -194,12 +281,12 @@ def create_hybrid(
             logger.error(e)
 
 
-@app.command(help="get the common alignments")
+@app.command(help='Find reads with identical alignment patterns across multiple EMASE files')
 def get_common_alignments(
-    emase_files: Annotated[list[Path], typer.Option('-i', '--emase-file', exists=False, dir_okay=False, resolve_path=True, help='EMASE file to compress, can seperate files by "," or have multiple -i')],
-    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help="EMASE file with unique reads")] = None,
-    comp_lib: Annotated[str, typer.Option('-c', '--comp-lib', help='compression library to use')] = 'zlib',
-    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
+    emase_files: Annotated[list[Path], typer.Option('-i', '--emase-file', exists=False, dir_okay=False, resolve_path=True, help='EMASE files to compare. Can specify multiple files with comma separation or multiple -i flags')],
+    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Output EMASE file containing only common alignments')] = None,
+    comp_lib: Annotated[str, typer.Option('-c', '--comp-lib', help='Compression library for output file')] = 'zlib',
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
 ) -> None:
     logger = utils.configure_logging('gbrs', verbose)
     logger.debug('get_common_alignments')
@@ -228,14 +315,98 @@ def get_common_alignments(
             logger.error(e)
 
 
-@app.command(help="")
+@app.command(help='Optimized version of get-common-alignments with improved memory efficiency and validation options')
+def get_common_alignments_optimized(
+    emase_files: Annotated[list[Path], typer.Option('-i', '--emase-file', exists=False, dir_okay=False, resolve_path=True, help='EMASE files to compare. Can specify multiple files with comma separation or multiple -i flags')],
+    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Output EMASE file containing only common alignments')] = None,
+    comp_lib: Annotated[str, typer.Option('-c', '--comp-lib', help='Compression library for output file')] = 'zlib',
+    skip_validate: Annotated[bool, typer.Option('-s', '--skip-validate', help='Skip validation of file compatibility (faster but less safe)')] = False,
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
+) -> None:
+    logger = utils.configure_logging('gbrs', verbose)
+    logger.debug('get_common_alignments')
+    try:
+        # file shortcut: the following command line options are all equal
+        # -i abc.h5 -i def.h5
+        # -i abc.h5,def.h5
+        all_emase_files: list[str] = []
+        for x in emase_files:
+            all_emase_files.extend(str(x).split(','))
+
+        for i, f in enumerate(all_emase_files):
+            all_emase_files[i] = utils.check_file(f, 'r')
+
+        output_file = str(output_file) if output_file else None
+
+        emase_utils.get_common_alignments_optimized(
+            emase_files=all_emase_files,
+            output_file=output_file,
+            comp_lib=comp_lib,
+            validate=not skip_validate
+        )
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
+        else:
+            logger.error(e)
+
+
+@app.command(help='Compare two or more HDF5 files for differences in structure and data')
+def h5_compare(
+    h5_files: Annotated[list[Path], typer.Option('-i', '--h5-file', exists=False, dir_okay=False, resolve_path=True, help='HDF5 files to compare. Can specify multiple files with comma separation or multiple -i flags')],
+    tolerant: Annotated[bool, typer.Option('-T', '--tolerant', help='Use tolerant comparison (allows small numerical differences)')] = False,
+    tolerance: Annotated[float, typer.Option('-t', '--tolerance', help='Tolerance for floating point comparisons')] = 1e-6,
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
+) -> None:
+    logger = utils.configure_logging('gbrs', verbose)
+    logger.debug('h5_compare')
+    try:
+        # file shortcut: the following command line options are all equal
+        # -i abc.h5 -i def.h5
+        # -i abc.h5,def.h5
+        all_h5_files: list[str] = []
+        for x in h5_files:
+            all_h5_files.extend(str(x).split(','))
+
+        if len(h5_files) != 2:
+            raise ValueError('Must provide exactly two h5 files to compare')
+
+        for i, f in enumerate(all_h5_files):
+            all_h5_files[i] = utils.check_file(f, 'r')
+
+        h5_utils.compare_h5_files(all_h5_files[0], all_h5_files[1], tolerant, tolerance)
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
+        else:
+            logger.error(e)
+
+
+@app.command(help='Display information about HDF5 file structure and contents')
+def h5_debug(
+    h5_file: Annotated[Path, typer.Option('-i', '--h5-file', exists=False, dir_okay=False, resolve_path=True, help='HDF5 file to inspect')],
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
+) -> None:
+    logger = utils.configure_logging('gbrs', verbose)
+    logger.debug('h5_debug')
+    try:
+        h5_file = utils.check_file(str(h5_file), 'r')
+        h5_utils.debug_h5_file(h5_file)
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
+        else:
+            logger.error(e)
+
+
+@app.command(help='Extract reads with unique alignment patterns from EMASE files')
 def pull_out_unique_reads(
-    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help="Alignment profile (pseudo-alignment) in EMASE format")],
-    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help="EMASE file with unique reads")],
-    group_file: Annotated[Path, typer.Option('-g', '--group-file', exists=True, dir_okay=False, resolve_path=True, help="gene ID to isoform ID mapping info (tsv)")] = None,
-    shallow: Annotated[bool, typer.Option('-s', '--shallow', help='return shallow EMASE file')] = False,
-    ignore_alleles: Annotated[bool, typer.Option('-a', '--ignore-alleles', help='do not require allele level uniqueness')] = False,
-    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
+    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help='Input EMASE file (HDF5 format)')],
+    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Output EMASE file containing only unique reads')],
+    group_file: Annotated[Path, typer.Option('-g', '--group-file', exists=True, dir_okay=False, resolve_path=True, help='Gene-to-transcript mapping file (TSV format)')] = None,
+    shallow: Annotated[bool, typer.Option('-s', '--shallow', help='Create shallow EMASE file (faster but less complete)')] = False,
+    ignore_alleles: Annotated[bool, typer.Option('-a', '--ignore-alleles', help='Ignore allele-level uniqueness requirements')] = False,
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
 ) -> None:
     logger = utils.configure_logging('gbrs', verbose)
     logger.debug('pull_out_unique_reads')
@@ -257,16 +428,16 @@ def pull_out_unique_reads(
             logger.error(e)
 
 
-@app.command(help="prepare EMASE")
+@app.command(help='Prepare EMASE reference files from genome and annotation files')
 def prepare(
-    genome_file: Annotated[list[Path], typer.Option('-G', '--genome-file', exists=False, dir_okay=False, resolve_path=True, help='Genome files, can seperate files by "," or have multiple -G')],
-    haplotypes: Annotated[list[str], typer.Option('-s', '--haplotype-char', help='haplotype, either one per -h option, i.e. -h A -h B -h C, or a shortcut -h A,B,C')] = None,
-    gtf_file: Annotated[list[Path], typer.Option('-g', '--gtf-file', exists=False, dir_okay=False, resolve_path=True, help='Gene Annotation File files, can seperate files by "," or have multiple -G')] = None,
-    out_dir: Annotated[str, typer.Option('-o', '--out_dir', help='Output folder to store results (default: the current working directory)')] = None,
-    save_g2tmap: Annotated[bool, typer.Option('-m', '--save-g2tmap', help='saves gene id to transcript id list in a tab-delimited text file')] = False,
-    save_dbs: Annotated[bool, typer.Option('-d', '--save-dbs', help='save dbs')] = False,
-    no_bowtie_index: Annotated[bool, typer.Option('-m', '--no-bowtie-index', help='skips building bowtie index')] = False,
-    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
+    genome_file: Annotated[list[Path], typer.Option('-G', '--genome-file', exists=False, dir_okay=False, resolve_path=True, help='Genome FASTA files (one per haplotype). Can specify multiple files with comma separation or multiple -G flags')],
+    haplotypes: Annotated[list[str], typer.Option('-s', '--haplotype-char', help='Haplotype identifiers (e.g., A,B,C,D). Can specify multiple times or comma-separated')] = None,
+    gtf_file: Annotated[list[Path], typer.Option('-g', '--gtf-file', exists=False, dir_okay=False, resolve_path=True, help='Gene annotation files (GTF format). Can specify multiple files with comma separation or multiple -g flags')] = None,
+    out_dir: Annotated[str, typer.Option('-o', '--out_dir', help='Output directory for reference files (default: current directory)')] = None,
+    save_g2tmap: Annotated[bool, typer.Option('-m', '--save-g2tmap', help='Save gene-to-transcript mapping file')] = False,
+    save_dbs: Annotated[bool, typer.Option('-d', '--save-dbs', help='Save database files for debugging')] = False,
+    no_bowtie_index: Annotated[bool, typer.Option('-m', '--no-bowtie-index', help='Skip building Bowtie index (saves time)')] = False,
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
 ) -> None:
     logger = utils.configure_logging('gbrs', verbose)
     logger.debug('run')
@@ -312,20 +483,20 @@ def prepare(
             logger.error(e)
 
 
-@app.command(help="run EMASE")
+@app.command(help='Run EMASE algorithm to quantify allele-specific expression from alignment data')
 def run(
-    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help='EMASE alignment incidence file (in hdf5 format)')],
-    group_file: Annotated[Path, typer.Option('-g', '--group-file', exists=True, dir_okay=False, resolve_path=True, help='tab delimited file of gene to transcript mapping')] = None,
-    length_file: Annotated[Path, typer.Option('-L', '--length-file', exists=True, dir_okay=False, resolve_path=True, help='tab delimited file of locus(transcript) and length')] = None,
-    outbase: Annotated[str, typer.Option('-o', '--outbase', help='basename of all the generated output files')] = 'emase',
-    multiread_model: Annotated[int, typer.Option('-M', '--multiread-model', help='emase model (default: 4)')] = 4,
-    pseudocount: Annotated[float, typer.Option('-p', '--pseudocount', help='prior read count (default: 0.0)')] = 0.0,
-    read_length: Annotated[int, typer.Option('-l', '--read-length', help='specify read length')] = 100,
-    max_iters: Annotated[int, typer.Option('-m', '--max-iters', help='maximum iterations for EM iteration')] = 999,
-    tolerance: Annotated[float, typer.Option('-t', '--tolerance', help='tolerance for EM termination (default: 0.0001 in TPM)')] = 0.0001,
-    report_alignment_counts: Annotated[bool, typer.Option('-c', '--report-alignment-counts', help='whether to report alignment counts')] = False,
-    report_posterior: Annotated[bool, typer.Option('-w', '--report-posterior', help='whether to report posterior probabilities')] = False,
-    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help="specify multiple times for more verbose output")] = 0
+    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help='Input EMASE file (HDF5 format)')],
+    group_file: Annotated[Path, typer.Option('-g', '--group-file', exists=True, dir_okay=False, resolve_path=True, help='Gene-to-transcript mapping file (TSV format)')] = None,
+    length_file: Annotated[Path, typer.Option('-L', '--length-file', exists=True, dir_okay=False, resolve_path=True, help='Transcript length file (TSV format)')] = None,
+    outbase: Annotated[str, typer.Option('-o', '--outbase', help='Base name for output files (generates multiple files)')] = 'emase',
+    multiread_model: Annotated[int, typer.Option('-M', '--multiread-model', help='EMASE multiread model (1-4, default: 4)')] = 4,
+    pseudocount: Annotated[float, typer.Option('-p', '--pseudocount', help='Prior read count for allele specificity')] = 0.0,
+    read_length: Annotated[int, typer.Option('-l', '--read-length', help='Read length for length normalization')] = 100,
+    max_iters: Annotated[int, typer.Option('-m', '--max-iters', help='Maximum EM iterations')] = 999,
+    tolerance: Annotated[float, typer.Option('-t', '--tolerance', help='Convergence tolerance in TPM')] = 0.0001,
+    report_alignment_counts: Annotated[bool, typer.Option('-c', '--report-alignment-counts', help='Generate alignment count files')] = False,
+    report_posterior: Annotated[bool, typer.Option('-w', '--report-posterior', help='Generate posterior probability files')] = False,
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
 ) -> None:
     logger = utils.configure_logging('gbrs', verbose)
     logger.debug('run')

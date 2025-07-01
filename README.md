@@ -1,228 +1,416 @@
-# GBRS
+# GBRS: Genome Reconstruction from RNA-Seq
 
-GBRS is a suite of tools for reconstructing genomes using RNA-Seq data from multiparent population and quantifying allele specific expression.  Although we tested it with mouse models only, GBRS should work for any multiparent populations. For the [Diversity Outbred](https://www.jax.org/strain/009376) and [Collaborative Cross](https://www.jax.org/mouse-search/?straingroup=Collaborative%20Cross) mice, the required data files are available [here](https://zenodo.org/records/8289936).
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.1101/2020.10.11.335323.svg)](https://doi.org/10.1101/2020.10.11.335323)
+
+**GBRS** (Genome Reconstruction from RNA-Seq) is a comprehensive suite of tools for reconstructing genomes using RNA-Seq data from multiparent populations and quantifying allele-specific expression. GBRS employs Hidden Markov Models (HMMs) to infer underlying genetic structure from gene expression patterns, enabling high-resolution genome reconstruction without requiring DNA sequencing.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Pipeline Workflow](#pipeline-workflow)
+- [Output Files](#output-files)
+- [Parameters and Configuration](#parameters-and-configuration)
+- [Troubleshooting](#troubleshooting)
+- [Citation](#citation)
+- [Support](#support)
+
+## Overview
+
+GBRS reconstructs genomes by leveraging allele-specific expression patterns in multiparent populations. The pipeline consists of two main phases:
+
+1. **Expression Quantification**: Quantify allele-specific expression using the EMASE algorithm
+2. **Genome Reconstruction**: Infer the most likely diplotype sequence using HMM algorithms
+
+### Key Features
+
+- **High-resolution genome reconstruction** from RNA-Seq data alone
+- **Support for multiparent populations** (tested with Diversity Outbred and Collaborative Cross mice)
+- **Dual algorithm approach** providing both most likely sequences and uncertainty quantification
+- **Comprehensive output formats** for downstream analysis
+- **Efficient memory usage** with compressed data formats
+
+### Supported Populations
+
+While tested primarily with mouse models, GBRS is designed to work with any multiparent population. Required data files for [Diversity Outbred](https://www.jax.org/strain/009376) and [Collaborative Cross](https://www.jax.org/mouse-search/?straingroup=Collaborative%20Cross) mice are available [here](https://zenodo.org/records/8289936).
 
 ## Installation
 
-*Note: To avoid conflicts among dependencies, we highly recommend using a [Python virtual environment](https://realpython.com/python-virtual-environments-a-primer/).*
+### Prerequisites
 
-GBRS requires Python 3+ to run.  Install GBRS and all its dependencies from the command line:
+- Python 3.8 or higher
+- [Bowtie](http://bowtie-bio.sourceforge.net/) for read alignment
+- [SAMtools](http://samtools.sourceforge.net/) for BAM file manipulation
 
-```
+### Recommended Setup
+
+We strongly recommend using a Python virtual environment to avoid dependency conflicts:
+
+```bash
+# Create virtual environment
+python -m venv gbrs_env
+
+# Activate virtual environment
+# On macOS/Linux:
+source gbrs_env/bin/activate
+# On Windows:
+gbrs_env\Scripts\activate
+
+# Install GBRS
 pip install git+https://github.com/churchill-lab/gbrs
 ```
 
-The **gbrs** script should now be installed and you should be able to run GBRS from the command line. 
+### Verification
 
-## Usage
+After installation, verify that GBRS is working correctly:
 
-*Note: In the steps below,* `{GBRS_DATA}` *refers to a local GBRS directory that contains numerous supporting files to run GBRS.  You can create your own or download them [here](https://zenodo.org/records/8289936).*
-
-##### Step 1: Map reads with BOWTIE and convert SAM to BAM  
-#
-*Note: R1 and R2 are mapped separately for paired-end data.*
-
-The first step is to align our RNA-Seq reads against the pooled transcriptome of all founder strains:
-
+```bash
+gbrs --help
 ```
+
+## Quick Start
+
+For a complete example workflow, see the [Pipeline Workflow](#pipeline-workflow) section below. Here's a minimal example:
+
+```bash
+# 1. Align reads
+bowtie -q -a --best --strata --sam -v 3 ${GBRS_DATA}/bowtie.transcriptome sample.fastq | samtools view -bS - > sample.bam
+
+# 2. Convert to EMASE format
+gbrs bam2emase -i sample.bam -m ${GBRS_DATA}/transcripts.info -h A,B,C,D,E,F,G,H -o sample.emase
+
+# 3. Compress EMASE file
+gbrs compress -i sample.emase -o sample.compressed.emase
+
+# 4. Quantify expression
+gbrs quantify -i sample.compressed.emase -g ${GBRS_DATA}/ref.gene2transcripts.tsv -L ${GBRS_DATA}/gbrs.hybridized.targets.info -M 4 --report-alignment-counts
+
+# 5. Reconstruct genome
+gbrs reconstruct -e gbrs.quantified.multiway.genes.tpm -t ${GBRS_DATA}/tranprob.DO.G20.F.npz -x ${GBRS_DATA}/avecs.npz -g ${GBRS_DATA}/ref.gene_pos.ordered.npz
+```
+
+## Pipeline Workflow
+
+The GBRS pipeline consists of 9 main steps, each building upon the previous step's output.
+
+### Step 1: Read Alignment
+
+Align RNA-Seq reads against the pooled transcriptome of all founder strains using Bowtie.
+
+```bash
 bowtie \
-        -q -a --best --strata --sam \
-        -v 3 ${GBRS_DATA}/bowtie.transcriptome ${FASTQ} \
-    | samtools view -bS - > ${BAM_FILE}
+    -q -a --best --strata --sam \
+    -v 3 ${GBRS_DATA}/bowtie.transcriptome ${FASTQ} \
+| samtools view -bS - > ${BAM_FILE}
 ```
 
-where:
+**Parameters:**
+- `${FASTQ}`: Input FASTQ file
+- `${BAM_FILE}`: Output BAM file
+- `${GBRS_DATA}`: Directory containing GBRS reference files
 
-`${FASTQ}` is the FASTQ file you are aligning
+**Note:** For paired-end data, align R1 and R2 reads separately.
 
-`${BAM_FILE}` is the resulting BAM file
+### Step 2: BAM to EMASE Conversion
 
-##### Step 2: Convert BAM to EMASE
-#
-*Note: R1 and R2 are converted separately for paired-end data.*  
+Convert BAM files to EMASE format for allele-specific expression analysis.
 
-Before quantifying multiway allele specificity, bam file should be converted into emase format:
-
-```
+```bash
 gbrs bam2emase \
-        -i ${BAM_FILE} \
-        -m ${GBRS_DATA}\transcripts.info \
-        -h ${COMMA_SEPARATED_LIST_OF_HAPLOTYPE_CODES} \
-        -o ${EMASE_FILE}
+    -i ${BAM_FILE} \
+    -m ${GBRS_DATA}/transcripts.info \
+    -h ${COMMA_SEPARATED_HAPLOTYPES} \
+    -o ${EMASE_FILE}
 ```
 
-where:
+**Parameters:**
+- `${BAM_FILE}`: Input BAM file from Step 1
+- `${COMMA_SEPARATED_HAPLOTYPES}`: Haplotype codes (e.g., A,B,C,D,E,F,G,H)
+- `${EMASE_FILE}`: Output EMASE file
 
-`${BAM_FILE}` is the output BAM file from STEP 1
+### Step 3: EMASE Compression
 
-`${COMMA_SEPARATED_LIST_OF_HAPLOTYPE_CODES}` is a list of haplotypes (i.e, A,B,C,D,E,F,G,H)
+Compress EMASE files to reduce storage requirements and enable merging of replicates.
 
-`${EMASE_FILE}` is the resulting EMASE output file
-
-
-##### Step 3: Single-end data: Compress EMASE file. 
-##### Step 3: Paired-end data: Find common alignments and compress EMASE file.  
-#
-We can compress EMASE format alignment incidence matrix:
-
-```
+```bash
+# Single file compression
 gbrs compress \
-        -i ${EMASE_FILE} \
-        -o ${COMPRESSED_EMASE_FILE}
-```
+    -i ${EMASE_FILE} \
+    -o ${COMPRESSED_EMASE_FILE}
 
-where:
-
-`${EMASE_FILE}` is the output EMASE file from STEP 2
-
-`${COMPRESSED_EMASE_FILE}` is the resulting **compressed** EMASE output file
-
-If storage space is tight, you may want to delete `${BAM_FILE}` or `${EMASE_FILE}` at this point since `${COMPRESSED_EMASE_FILE}` has all the information the following steps would need. If you want to merge emase format files in order to, for example, pool technical replicates, you run ‘compress’ once more listing files you want to merge with commas:
-
-```
+# Merge multiple files (e.g., technical replicates)
 gbrs compress \
-        -i ${COMPRESSED_EMASE_FILE1},${COMPRESSED_EMASE_FILE2},... \
-        -o ${MERGED_COMPRESSED_EMASE_FILE}
+    -i ${COMPRESSED_EMASE_FILE1},${COMPRESSED_EMASE_FILE2},... \
+    -o ${MERGED_COMPRESSED_EMASE_FILE}
 ```
 
-where:
+**Storage Optimization:** After compression, you can safely delete the original BAM and EMASE files.
 
-`${COMPRESSED_EMASE_FILE1}`, etc are the resulting **compressed** EMASE output file
+### Step 4: Multiway Expression Quantification
 
-`${MERGED_COMPRESSED_EMASE_FILE}` is the **merged** EMASE output file
+Quantify allele-specific expression using the EMASE algorithm.
 
-and use `${MERGED_COMPRESSED_EMASE_FILE}` in the following steps. Now we are ready to quantify multiway allele specificity.
-
-##### Step 4: Quantify multiway expression  
-#
-```
+```bash
 gbrs quantify \
-        -i ${MERGED_COMPRESSED_EMASE_FILE} \
-        -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
-        -L ${GBRS_DATA}/gbrs.hybridized.targets.info \
-        -M 4 \
-        --report-alignment-counts
+    -i ${MERGED_COMPRESSED_EMASE_FILE} \
+    -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
+    -L ${GBRS_DATA}/gbrs.hybridized.targets.info \
+    -M 4 \
+    --report-alignment-counts
 ```
 
-where:
+**Output Files:**
+- `gbrs.quantified.multiway.genes.tpm`: Gene-level TPM values
+- `gbrs.quantified.multiway.genes.expected_read_counts`: Expected read counts
+- `gbrs.quantified.multiway.genes.alignment_counts`: Raw alignment counts
 
-`${MERGED_COMPRESSED_EMASE_FILE}` is the **merged** EMASE input file
+### Step 5: Genome Reconstruction
 
-`ref.gene2transcripts.tsv` is the gene to transcript mapping file that contains the list of transcripts in that GBRS will quantify
+Reconstruct the genome using HMM algorithms based on gene-level TPM quantities.
 
-`gbrs.hybridized.targets.info` is the tab delimited file of locus(transcript) and length
-
-
-##### Step 5: Genotype reconstruction
-#
-
-Then, we reconstruct the genome based upon gene-level TPM quantities (assuming the sample is a female from the 20th generation Diversity Outbred mice population)
-
-```
+```bash
 gbrs reconstruct \
-        -e gbrs.quantified.multiway.genes.tpm \
-        -t ${GBRS_DATA}/tranprob.DO.G20.F.npz \
-        -x ${GBRS_DATA}/avecs.npz \
-        -g ${GBRS_DATA}/ref.gene_pos.ordered.npz
+    -e gbrs.quantified.multiway.genes.tpm \
+    -t ${GBRS_DATA}/tranprob.DO.G20.F.npz \
+    -x ${GBRS_DATA}/avecs.npz \
+    -g ${GBRS_DATA}/ref.gene_pos.ordered.npz
 ```
 
-where:
+**Output Files:**
+- `*.genotypes.tsv`: Tab-separated genotype calls
+- `*.genotypes.npz`: Viterbi algorithm output (recommended for recombination analysis)
+- `*.genoprobs.npz`: Forward-backward algorithm output (uncertainty quantification)
 
-`$gbrs.quantified.multiway.genes.tpm` is file containing gene-level TPM quantities
+**Important:** See [Output Files](#output-files) section for detailed explanation of differences between these files.
 
-`tranprob.DO.G20.F.npz` is the transition probabilities file
+### Step 6: Diploid Expression Quantification
 
-`avecs.npz` is the alignment specificity file
+Quantify allele-specific expression on the reconstructed diploid transcriptome.
 
-`ref.gene_pos.ordered.npz` is the the file contains the Ensembl gene positions in a Python format
-
-
-##### Step 6: Quantify diploid expression with GBRS   
-#
-
-We can now quantify allele-specific expressions on diploid transcriptome:
-
-```
+```bash
 gbrs quantify \
-        -i ${MERGED_COMPRESSED_EMASE_FILE} \
-        -G gbrs.reconstructed.genotypes.tsv \
-        -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
-        -L ${GBRS_DATA}/gbrs.hybridized.targets.info \
-        -M 4 \
-        --report-alignment-counts
+    -i ${MERGED_COMPRESSED_EMASE_FILE} \
+    -G gbrs.reconstructed.genotypes.tsv \
+    -g ${GBRS_DATA}/ref.gene2transcripts.tsv \
+    -L ${GBRS_DATA}/gbrs.hybridized.targets.info \
+    -M 4 \
+    --report-alignment-counts
 ```
 
-where:
+### Step 7: Genotype Interpolation
 
-`${MERGED_COMPRESSED_EMASE_FILE}` is the **merged** EMASE input file
+Interpolate genotype probabilities to a standardized genomic grid for cross-sample comparison.
 
-`gbrs.reconstructed.genotypes.tsv` is the tab delimited file of locus(transcipt) and diplotypes
-
-`ref.gene2transcripts.tsv` is the gene to transcript mapping file that contains the list of transcripts in that GBRS will quantify
-
-`gbrs.hybridized.targets.info` is the tab delimited file of locus(transcript) and length
-
-##### Step 7: Interpolate genotypes and genotype probabilities  
-#
-
-Genotype probabilities are on a grid of genes. For eQTL, mapping or plotting genome reconstruction, we may want to interpolate probability on a decently-spaced grid of the reference genome:
-
-```
+```bash
 gbrs interpolate \
-        -i gbrs.reconstructed.genoprobs.npz \
-        -g ${GBRS_DATA}/ref.genome_grid.69k.txt \
-        -p ${GBRS_DATA}/ref.gene_pos.ordered.npz \
-        -o gbrs.interpolated.genoprobs.npz
+    -i gbrs.reconstructed.genoprobs.npz \
+    -g ${GBRS_DATA}/ref.genome_grid.69k.txt \
+    -p ${GBRS_DATA}/ref.gene_pos.ordered.npz \
+    -o gbrs.interpolated.genoprobs.npz
 ```
 
-where:
+### Step 8: Genome Visualization
 
-`gbrs.reconstructed.genoprobs.npz` is the genotype probability file
+Generate publication-quality plots of the reconstructed genome.
 
-`ref.genome_grid.69k.txt` is the file contains that pseudomarker genome grid which is used to report results. Each tissue expresses different gene, which leads GBRS to estimate genotypes at different genomic positions in each tissue. In order to standardize results, GBRS interpolates its founder haplotype estimates to a common grid of 74,165 positions.
-
-`ref.gene_pos.ordered.npz` is the the file contains the Ensembl gene positions in a Python format
-
-`gbrs.interpolated.genoprobs.npz` is the interpolated output file
-
-
-##### Step 8: Plot inferred genotypes  
-#
-To plot a reconstructed genome:
-
-```
+```bash
 gbrs plot \
-        -i gbrs.interpolated.genoprobs.npz \
-        -o gbrs.plotted.genome.pdf \
-        -n ${SAMPLE_ID}
+    -i gbrs.interpolated.genoprobs.npz \
+    -o gbrs.plotted.genome.pdf \
+    -n ${SAMPLE_ID}
 ```
 
-where:
+### Step 9: Data Export
 
-`gbrs.interpolated.genoprobs.npz` is the interpolated input file
+Export genotype probabilities in standard formats for downstream analysis.
 
-`gbrs.plotted.genome.pdf` is the output PDF file
-
-`${SAMPLE_ID}` is the specified sample id
-
-
-##### Step 9: Export genotype probabilities
-#
-
-```
+```bash
 gbrs export \
-        -i ${interpolated_genoprobs} \
-        -s ${gbrs_strain_list} \
-        -g ${genotype_grid} \
-        -o ${sampleID}.gbrs.interpolated.genoprobs.tsv
+    -i ${interpolated_genoprobs} \
+    -s ${gbrs_strain_list} \
+    -g ${genotype_grid} \
+    -o ${sampleID}.gbrs.interpolated.genoprobs.tsv
 ```
 
-where:
+## Output Files
 
-`${interpolated_genoprobs}` is the  genotype probability file
+### Genotype Reconstruction Outputs
 
-`${gbrs_strain_list}` is the specified strain(s), either one per -s option, i.e. -h A -h B -h C, or a shortcut -s A,B,C
+The `gbrs reconstruct` command generates three distinct output files, each serving different analytical purposes:
 
-`${genotype_grid}` is the file contains that pseudomarker genome grid which is used to report results. Each tissue expresses different gene, which leads GBRS to estimate genotypes at different genomic positions in each tissue. In order to standardize results, GBRS interpolates its founder haplotype estimates to a common grid of 74,165 positions.
+#### 1. `*.genotypes.tsv` - Tab-Separated Genotype Calls
+- **Format**: Standard tab-separated values (TSV)
+- **Structure**: Two columns (`Gene_ID`, `Diplotype`)
+- **Content**: Most likely diplotype for each gene
+- **Use Case**: Easy-to-read format for downstream analysis, input for diploid quantification
+- **Example**:
+  ```
+  Gene_ID    Diplotype
+  ENSMUSG00000000001    AB
+  ENSMUSG00000000002    CH
+  ENSMUSG00000000003    DE
+  ```
 
-`${sampleID}.gbrs.interpolated.genoprobs.tsv` is the output file in GBRS quant format
+#### 2. `*.genotypes.npz` - Viterbi Algorithm Output
+- **Format**: Compressed NumPy array
+- **Structure**: `{chromosome: array_of_diplotypes}`
+- **Content**: Most likely diplotype sequence per chromosome
+- **Algorithm**: Viterbi algorithm (global optimization)
+- **Use Case**: **Recommended for recombination counting and sequence analysis**
+- **Advantage**: Provides coherent, biologically plausible sequences
+
+#### 3. `*.genoprobs.npz` - Forward-Backward Algorithm Output
+- **Format**: Compressed NumPy array
+- **Structure**: `{chromosome: array_of_shape(36, num_genes)}`
+- **Content**: Posterior probabilities for all 36 possible diplotypes at each gene position
+- **Algorithm**: Forward-backward algorithm (local probability estimation)
+- **Use Case**: **Recommended for uncertainty assessment and probability-based analysis**
+- **Advantage**: Shows confidence levels and uncertainty in each call
+
+### Understanding Algorithm Differences
+
+**Important**: The genotypes and genoprobs files may show different calls for the same position. This is **expected behavior** and reflects fundamental differences between the two HMM algorithms:
+
+#### Viterbi Algorithm (genotypes.npz)
+- **Objective**: Find the single most likely path through all states across the entire sequence
+- **Optimization**: Global best path considering transition probabilities between adjacent positions
+- **Output**: Coherent sequence respecting recombination patterns
+- **When to Use**: Recombination counting, sequence analysis, applications requiring single best estimate
+
+#### Forward-Backward Algorithm (genoprobs.npz)
+- **Objective**: Compute posterior probabilities for each possible diplotype at each gene position
+- **Optimization**: Local probability estimation at each position independently
+- **Output**: Probability distribution showing uncertainty in each call
+- **When to Use**: Uncertainty assessment, probability-based analysis, confidence evaluation
+
+#### Example of Algorithm Differences
+```
+Position 2140:
+- Viterbi (genotypes.npz): 'AB' 
+- Forward-Backward (genoprobs.npz): 'AC' (prob: 0.3581 vs 0.3441 for AB)
+```
+
+The Viterbi algorithm may choose a less probable state at one position to maintain consistency with neighboring positions and achieve a more probable overall sequence.
+
+### Expression Quantification Outputs
+
+- **`*.genes.tpm`**: Gene-level TPM values for each founder strain
+- **`*.genes.expected_read_counts`**: Expected read counts for each founder strain
+- **`*.genes.alignment_counts`**: Raw alignment counts for each founder strain
+- **`*.isoforms.tpm`**: Transcript-level TPM values (transcript-level analysis)
+
+### Interpolated and Visualization Outputs
+
+- **`*.interpolated.genoprobs.npz`**: Genotype probabilities interpolated to standardized genomic grid
+- **`*.plotted.genome.pdf`**: Publication-quality visualization of reconstructed genome
+
+## Parameters and Configuration
+
+### Reconstruction Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `expr_threshold` | 1.5 | Minimum expression threshold for genes to be included in reconstruction |
+| `sigma` | 0.12 | Controls emission probability precision in the HMM |
+| `haplotypes` | A,B,C,D,E,F,G,H | List of founder strain codes |
+
+### Quantification Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `multiread_model` | 4 | EMASE model for handling multi-mapping reads |
+| `pseudocount` | 0.0 | Prior read count for allele specificity estimation |
+| `tolerance` | 0.0001 | Convergence tolerance for EM algorithm |
+| `max_iters` | 999 | Maximum iterations for EM algorithm |
+
+### Performance Optimization
+
+- **Memory Usage**: Large datasets may require significant RAM. Consider reducing gene set or expression threshold
+- **Storage**: Use compressed EMASE files to minimize storage requirements
+- **Testing**: Run reconstruction on gene subsets for initial testing and parameter optimization
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. Memory Errors
+**Symptoms**: OutOfMemoryError or system crashes during reconstruction
+**Solutions**:
+- Reduce `expr_threshold` to include fewer genes
+- Use subset of chromosomes for testing
+- Increase system RAM or use compute cluster
+
+#### 2. File Format Errors
+**Symptoms**: "File not found" or "Invalid format" errors
+**Solutions**:
+- Verify all input files exist and are properly formatted
+- Check file permissions
+- Ensure correct file paths in `${GBRS_DATA}`
+
+#### 3. Missing Dependencies
+**Symptoms**: "Command not found" errors
+**Solutions**:
+- Install Bowtie: `conda install bowtie` or download from source
+- Install SAMtools: `conda install samtools` or download from source
+- Verify Python virtual environment activation
+
+#### 4. Low-Quality Reconstructions
+**Symptoms**: Poor concordance with known genotypes or excessive recombination
+**Solutions**:
+- Increase `expr_threshold` to include only high-expression genes
+- Adjust `sigma` parameter (lower values = higher precision)
+- Verify transition probability files match your population and generation
+
+### Performance Tips
+
+1. **Use compressed EMASE files** to reduce storage requirements
+2. **Test on chromosome subsets** before full genome reconstruction
+3. **Monitor memory usage** during reconstruction step
+4. **Use appropriate transition probability files** for your population and generation
+5. **Consider parallel processing** for multiple samples
+
+### Getting Help
+
+If you encounter issues not covered here:
+
+1. Check the [GBRS documentation](https://github.com/churchill-lab/gbrs)
+2. Review error messages carefully for specific guidance
+3. Contact the development team with detailed error information
+4. Include system specifications and parameter settings in bug reports
+
+## Citation
+
+If you use GBRS in your research, please cite:
+
+```
+[GBRS publication reference - please add the specific citation from the publication you mentioned]
+```
+
+For the data files used in this study, please cite:
+
+```
+[Zenodo reference for data files]
+```
+
+## Support
+
+### Documentation
+- [GBRS GitHub Repository](https://github.com/churchill-lab/gbrs)
+- [User Guide](https://github.com/churchill-lab/gbrs/wiki)
+- [API Documentation](https://github.com/churchill-lab/gbrs/tree/main/docs)
+
+### Contact
+- **Issues**: [GitHub Issues](https://github.com/churchill-lab/gbrs/issues)
+- **Questions**: [GitHub Discussions](https://github.com/churchill-lab/gbrs/discussions)
+- **Email**: [Development Team Contact]
+
+### Contributing
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+
+---
+
+**License**: MIT License - see [LICENSE](LICENSE) file for details.
+

@@ -253,7 +253,7 @@ class EMfactory:
             max_iters: Maximum number of iterations until termination
             verbose: Display information on how EM is running
         """
-        orig_err_states = np.seterr(all='raise')
+        np.seterr(all='raise')
         np.seterr(under='ignore')
         if verbose:
             print('')

@@ -29,6 +29,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         self,
         other=None,
         h5file=None,
+        h5object=None,
         datanode='/',
         metanode='/',
         shallow=False,
