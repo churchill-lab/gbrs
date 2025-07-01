@@ -36,13 +36,25 @@ def compare_attributes(node1, node2, path: str) -> list[str]:
         attrs2 = {}
         
         try:
-            attrs1 = dict(node1._v_attrs)
+            # Get attributes more safely by iterating through them
+            for attr_name in node1._v_attrs._f_list():
+                try:
+                    attrs1[attr_name] = node1._v_attrs[attr_name]
+                except Exception:
+                    # Skip problematic attributes
+                    pass
         except Exception as e:
             # some nodes might have weird attributes, skip them for now
             pass
             
         try:
-            attrs2 = dict(node2._v_attrs)
+            # Get attributes more safely by iterating through them
+            for attr_name in node2._v_attrs._f_list():
+                try:
+                    attrs2[attr_name] = node2._v_attrs[attr_name]
+                except Exception:
+                    # Skip problematic attributes
+                    pass
         except Exception as e:
             # some nodes might have weird attributes, skip them for now
             pass
@@ -326,9 +338,13 @@ def compare_h5_files(file1: str, file2: str, tolerant: bool = True, tolerance: f
 
 
 def debug_h5_file(h5_file: str) -> None:
-    logger.warning(f'Comparing files:')
+    """Debug an H5 file with comprehensive information."""
     logger.warning(f'Debugging h5 file: {h5_file}')
     
+    # Check if file exists
+    if not os.path.exists(h5_file):
+        logger.error(f'File does not exist: {h5_file}')
+        return
     
     # get file information
     logger.warning('=== File Information ===')
@@ -341,5 +357,138 @@ def debug_h5_file(h5_file: str) -> None:
     logger.warning(f'  Arrays: {len(info1["arrays"])}')
     logger.warning(f'  Total array size: {info1["total_array_size"]:,}')
     
+    # Enhanced debugging information
+    logger.warning('=== Detailed Node Analysis ===')
+    try:
+        with tables.open_file(h5_file, 'r') as f:
+            # Root information
+            logger.warning(f'Root node: {f.root._v_name}')
+            logger.warning(f'Root title: {f.root._v_title}')
+            
+            # Memory usage estimation
+            total_memory = 0
+            node_count = 0
+            array_count = 0
+            group_count = 0
+            
+            # Detailed node traversal
+            for node in f.walk_nodes():
+                node_count += 1
+                node_path = node._v_pathname
+                node_type = type(node).__name__
+                
+                logger.warning(f'Node {node_count}: {node_path}')
+                logger.warning(f'  Type: {node_type}')
+                logger.warning(f'  Title: {node._v_title}')
+                
+                # Node-specific information
+                if hasattr(node, 'shape'):
+                    array_count += 1
+                    shape = node.shape
+                    dtype = node.dtype if hasattr(node, 'dtype') else 'Unknown'
+                    
+                    # Calculate memory usage
+                    if hasattr(node, 'dtype'):
+                        element_size = node.dtype.itemsize
+                        total_elements = np.prod(shape) if shape else 0
+                        memory_usage = total_elements * element_size
+                        total_memory += memory_usage
+                        
+                        logger.warning(f'  Shape: {shape}')
+                        logger.warning(f'  Dtype: {dtype}')
+                        logger.warning(f'  Elements: {total_elements:,}')
+                        logger.warning(f'  Memory: {memory_usage / (1024**2):.2f} MB')
 
+                elif hasattr(node, '_v_children'):
+                    group_count += 1
+                    children_count = len(node._v_children)
+                    logger.warning(f'  Children: {children_count}')
+                
+                # Attribute information
+                try:
+                    attrs = {}
+                    # Get attributes more safely by iterating through them
+                    for attr_name in node._v_attrs._f_list():
+                        try:
+                            attrs[attr_name] = node._v_attrs[attr_name]
+                        except Exception:
+                            # Skip problematic attributes
+                            pass
+                    
+                    if attrs:
+                        logger.warning(f'  Attributes: {len(attrs)}')
+                        for key, value in attrs.items():
+                            if isinstance(value, np.ndarray):
+                                logger.warning(f'    {key}: array{value.shape} ({value.dtype})')
+                            else:
+                                logger.warning(f'    {key}: {value}')
+                except Exception as e:
+                    logger.warning(f'  ⚠️  Error reading attributes: {e}')
+
+                # Check for compression
+                if hasattr(node, 'filters'):
+                    filters = node.filters
+                    if filters:
+                        #logger.warning(f'  Compression: {filters}')
+                        pass
+                
+                logger.warning('')  # Empty line for readability
+            
+            # Summary statistics
+            logger.warning('=== Summary Statistics ===')
+            logger.warning(f'Total nodes: {node_count}')
+            logger.warning(f'Array nodes: {array_count}')
+            logger.warning(f'Group nodes: {group_count}')
+            logger.warning(f'Estimated memory usage: {total_memory / (1024**3):.2f} GB')
+            
+            # File structure analysis
+            logger.warning('=== File Structure Analysis ===')
+            try:
+                # Check for common patterns
+                array_paths = [node._v_pathname for node in f.walk_nodes() 
+                             if hasattr(node, 'shape')]
+                
+                if array_paths:
+                    logger.warning(f'Array paths found:')
+                    for path in sorted(array_paths):
+                        logger.warning(f'  {path}')
+                    
+                    # Check for nested structures
+                    max_depth = max(len(path.split('/')) for path in array_paths)
+                    logger.warning(f'Maximum nesting depth: {max_depth}')
+                
+                # Check for potential issues
+                #logger.warning('=== Potential Issues ===')
+                #issues_found = False
+                
+                #for node in f.walk_nodes():
+                #    if hasattr(node, 'shape'):
+                #        # Check for empty arrays
+                #        if 0 in node.shape:
+                #            logger.warning(f'⚠️  Empty array detected: {node._v_pathname} (shape: {node.shape})')
+                #            issues_found = True
+                #        
+                #        # Check for very large arrays
+                #        if np.prod(node.shape) > 1e9:
+                #            logger.warning(f'⚠️  Very large array: {node._v_pathname} ({np.prod(node.shape):,} elements)')
+                #            issues_found = True
+                #        
+                #        # Check for unusual dtypes
+                #        if hasattr(node, 'dtype'):
+                #             if node.dtype == 'object':
+                #                logger.warning(f'⚠️  Object dtype: {node._v_pathname}')
+                #                issues_found = True
+                #            elif str(node.dtype).startswith('|S'):  # String dtype
+                #                logger.warning(f'⚠️  String dtype: {node._v_pathname} ({node.dtype})')
+                #                issues_found = True
+                
+                #if not issues_found:
+                #    logger.warning('No obvious issues detected')
+                    
+            except Exception as e:
+                logger.error(f'Error during structure analysis: {e}')
+    
+    except Exception as e:
+        logger.error(f'Error opening file: {e}')
+        return
 

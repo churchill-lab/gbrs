@@ -144,7 +144,7 @@ class AlignmentMatrixFactory:
             hap = self.hname[hid]
             infile = self.tmpfiles[hap]
 
-            logger.debug(f'Reading file: {infile.name}')
+            logger.debug(f'Reading file: {infile}')
             dmat = np.fromfile(open(infile, 'rb'), dtype='>I')
             dmat = dmat.reshape((int(len(dmat) / 2), 2)).T
             if dmat.shape[0] > 2:

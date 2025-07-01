@@ -173,6 +173,7 @@ class PairedAlignmentMatrixFactory:
                     dvec = dmat[2]
                 else:
                     dvec = np.ones(dmat.shape[1])
+
                 spmat[idx] = coo_matrix(
                     (dvec, dmat[:2]), shape=(len(self.rname), len(self.lname))
                 )
