@@ -38,8 +38,10 @@ class PairedAlignmentMatrixFactory:
         save = pysam.set_verbosity(0)
         fh = pysam.AlignmentFile(self.alnfile[0], 'rb')
         pysam.set_verbosity(save)
-        for aln in fh.fetch(until_eof=True):
-            self.rname.add(aln.query_name)
+
+        logger.debug(f'Gathering all read names...')
+        self.rname = {aln.query_name for aln in fh.fetch(until_eof=True)}
+        logger.debug(f'Retrieved {len(self.rname):,} read names')
 
         # for bam in self.alnfile:
         #     fh = pysam.AlignmentFile(bam, 'rb')
@@ -73,10 +75,10 @@ class PairedAlignmentMatrixFactory:
                 outfile = os.path.join(outdir, f'{hap}_{idx}_{os.getpid()}.bin')
                 self.tmpfiles[hap][idx] = outfile
                 fhout[hap][idx] = open(outfile, 'wb')
+                logger.debug(f'Generating temp file: {outfile}')
 
         for idx, bam in enumerate(self.alnfile):
             # Perform operations with BAM idx and hap here
-
             save = pysam.set_verbosity(0)
             fh = pysam.AlignmentFile(bam, 'rb')
             pysam.set_verbosity(save)
@@ -97,10 +99,12 @@ class PairedAlignmentMatrixFactory:
                         fhout[hap][idx].write(struct.pack('>I', rid[aln.qname]))
                         fhout[hap][idx].write(struct.pack('>I', lid[locus]))
 
-            for hap in self.hname:
-                fhout[hap][idx].close()
             # make temp files for each haplotype, the files contain the read name and locus name of each read in the alignment file.
             # the read name and locus name are written to the file in binary format.
+            for hap in self.hname:
+                fhout[hap][idx].close()
+
+        logger.debug('Finished temp file creation')
 
     def produce(
         self,
@@ -111,16 +115,27 @@ class PairedAlignmentMatrixFactory:
         complib='zlib',
         incidence_only=True,
     ):
+        logger.debug(f'Constructing: {h5file}')
         h5fh = tables.open_file(h5file, 'w', title=title)
         fil = tables.Filters(complevel=1, complib=complib)
+
+        logger.debug(f'Creating node attribute /incidence_only: {incidence_only}')
         h5fh.set_node_attr(h5fh.root, 'incidence_only', incidence_only)
+
+        logger.debug('Creating node attibute /mtype: csc_matrix')
         h5fh.set_node_attr(h5fh.root, 'mtype', 'csc_matrix')
+
+        logger.debug(f'Creating node attribute /shape: {(len(self.lname), len(self.hname), len(self.rname))}')
         h5fh.set_node_attr(
             h5fh.root,
             'shape',
             (len(self.lname), len(self.hname), len(self.rname)),
         )
+
+        logger.debug(f'Creating node attribute /hname: {self.hname}')
         h5fh.set_node_attr(h5fh.root, 'hname', self.hname)
+
+        logger.debug('Creating array /lname...')
         h5fh.create_carray(
             h5fh.root,
             'lname',
@@ -128,19 +143,28 @@ class PairedAlignmentMatrixFactory:
             title='Locus Names',
             filters=fil,
         )
+
+        logger.debug('Creating array /rname...')
         h5fh.create_carray(
-            h5fh.root, 'rname', obj=self.rname, title='Read Names', filters=fil
+            h5fh.root, 'rname',
+            obj=self.rname,
+            title='Read Names',
+            filters=fil
         )
 
         # dmat = dict()
         spmat = dict()
         # dvec = dict()
+
+        logger.debug('Looping through hnames')
         for hid in range(len(self.hname)):
+            logger.debug('Looping through alnfiles')
             for idx, bam in enumerate(self.alnfile):
 
                 hap = self.hname[hid]
                 infile = self.tmpfiles[hap][idx]
 
+                logger.debug(f'Reading file: {infile.name}')
                 dmat = np.fromfile(open(infile.name, 'rb'), dtype='>I')
 
                 dmat = dmat.reshape((int(len(dmat) / 2), 2)).T
@@ -160,11 +184,14 @@ class PairedAlignmentMatrixFactory:
 
             spmat_mul = spmat[0].multiply(spmat[len(self.alnfile) - 1])
 
+            logger.debug(f'Creating group /h{hid}')
             hgroup = h5fh.create_group(
                 h5fh.root,
                 f'h{hid}',
                 f'Sparse matrix components for Haplotype {hid}',
             )
+
+            logger.debug(f'Creating array /h{hid}/indptr')
             # add header
             h5fh.create_carray(
                 hgroup,
@@ -172,13 +199,17 @@ class PairedAlignmentMatrixFactory:
                 obj=spmat_mul.indptr.astype(index_dtype),
                 filters=fil,
             )
+
+            logger.debug(f'Creating array /h{hid}/indices')
             h5fh.create_carray(
                 hgroup,
                 'indices',
                 obj=spmat_mul.indices.astype(index_dtype),
                 filters=fil,
             )
+
             if not incidence_only:
+                logger.debug(f'Creating array /h{hid}/data')
                 h5fh.create_carray(
                     hgroup,
                     'data',
@@ -189,6 +220,8 @@ class PairedAlignmentMatrixFactory:
 
         h5fh.flush()
         h5fh.close()
+
+        logger.debug('File created')
 
     def cleanup(self):
         for tmpfile in self.tmpfiles.items():

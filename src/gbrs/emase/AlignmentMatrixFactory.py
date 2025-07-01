@@ -58,12 +58,11 @@ class AlignmentMatrixFactory:
             outdir = os.path.dirname(self.alnfile)
 
         fhout = dict.fromkeys(self.hname)
-        fhout_file_names = dict.fromkeys(self.hname)
         for hap in self.hname:
             outfile = os.path.join(outdir, f'{hap}_{os.getpid()}.bin')
-            fhout_file_names[hap] = outfile
             self.tmpfiles[hap] = outfile
             fhout[hap] = open(outfile, 'wb')
+            logger.debug(f'Generating temp file: {outfile}')
 
         save = pysam.set_verbosity(0)
         fh = pysam.AlignmentFile(self.alnfile, 'rb')
@@ -71,30 +70,26 @@ class AlignmentMatrixFactory:
 
         if len(haplotypes) > 0:
             # Suffices given
-            tmp_count = 0
             for aln in fh.fetch(until_eof=True):
                 if aln.flag != 4 and aln.flag != 8:
                     locus, hap = fh.get_reference_name(aln.tid).split(delim)
                     fhout[hap].write(struct.pack('>I', rid[aln.qname]))
                     fhout[hap].write(struct.pack('>I', lid[locus]))
-                    tmp_count += 1
-            logger.debug(f'Looped {tmp_count} writing with haps')
         else:
             # Suffix not given
-            tmp_count = 0
             hap = self.hname[0]
             for aln in fh.fetch(until_eof=True):
                 if aln.flag != 4 and aln.flag != 8:
                     locus = fh.get_reference_name(aln.tid)
                     fhout[hap].write(struct.pack('>I', rid[aln.qname]))
                     fhout[hap].write(struct.pack('>I', lid[locus]))
-                    tmp_count += 1
-            logger.debug(f'Looped {tmp_count} writing with no haps')
 
-        for hap in self.hname:
-            fhout[hap].close()
         # make temp files for each haplotype, the files contain the read name and locus name of each read in the alignment file.
         # the read name and locus name are written to the file in binary format.
+        for hap in self.hname:
+            fhout[hap].close()
+
+        logger.debug('Finished temp file creation')
 
     def produce(
         self,
@@ -105,16 +100,27 @@ class AlignmentMatrixFactory:
         complib='zlib',
         incidence_only=True,
     ):
+        logger.debug(f'Constructing: {h5file}')
         h5fh = tables.open_file(h5file, 'w', title=title)
         fil = tables.Filters(complevel=1, complib=complib)
+
+        logger.debug(f'Creating node attribute /incidence_only: {incidence_only}')
         h5fh.set_node_attr(h5fh.root, 'incidence_only', incidence_only)
+
+        logger.debug('Creating node attibute /mtype: csc_matrix')
         h5fh.set_node_attr(h5fh.root, 'mtype', 'csc_matrix')
+
+        logger.debug(f'Creating node attribute /shape: {(len(self.lname), len(self.hname), len(self.rname))}')
         h5fh.set_node_attr(
             h5fh.root,
             'shape',
             (len(self.lname), len(self.hname), len(self.rname)),
         )
+
+        logger.debug(f'Creating node attribute /hname: {self.hname}')
         h5fh.set_node_attr(h5fh.root, 'hname', self.hname)
+
+        logger.debug('Creating array /lname...')
         h5fh.create_carray(
             h5fh.root,
             'lname',
@@ -122,12 +128,23 @@ class AlignmentMatrixFactory:
             title='Locus Names',
             filters=fil,
         )
+
+        logger.debug('Creating array /rname...')
         h5fh.create_carray(
-            h5fh.root, 'rname', obj=self.rname, title='Read Names', filters=fil
+            h5fh.root,
+            'rname',
+            obj=self.rname,
+            title='Read Names',
+            filters=fil
         )
-        for hid in range(len(self.hname)):  # loop hap and read? Make the temp files above for each BAM independently and then loop through them here?
+
+        # loop hap and read? Make the temp files above for each BAM independently and then loop through them here?
+        logger.debug('Looping through hnames')
+        for hid in range(len(self.hname)):
             hap = self.hname[hid]
             infile = self.tmpfiles[hap]
+
+            logger.debug(f'Reading file: {infile.name}')
             dmat = np.fromfile(open(infile, 'rb'), dtype='>I')
             dmat = dmat.reshape((int(len(dmat) / 2), 2)).T
             if dmat.shape[0] > 2:
@@ -142,11 +159,15 @@ class AlignmentMatrixFactory:
             # the data in the matrix is the number of reads that align to a specific locus.
 
             spmat = spmat.tocsc()
+
+            logger.debug(f'Creating group /h{hid}')
             hgroup = h5fh.create_group(
                 h5fh.root,
                 f'h{hid}',
                 f'Sparse matrix components for Haplotype {hid}',
             )
+
+            logger.debug(f'Creating array /h{hid}/indptr')
             # add header
             h5fh.create_carray(
                 hgroup,
@@ -154,6 +175,8 @@ class AlignmentMatrixFactory:
                 obj=spmat.indptr.astype(index_dtype),
                 filters=fil,
             )
+
+            logger.debug(f'Creating array /h{hid}/indices')
             h5fh.create_carray(
                 hgroup,
                 'indices',
@@ -161,6 +184,7 @@ class AlignmentMatrixFactory:
                 filters=fil,
             )
             if not incidence_only:
+                logger.debug(f'Creating array /h{hid}/data')
                 h5fh.create_carray(
                     hgroup,
                     'data',
@@ -170,6 +194,8 @@ class AlignmentMatrixFactory:
             # apply sparse matrix indexing and indptr.
         h5fh.flush()
         h5fh.close()
+
+        logger.debug('File created')
 
     def cleanup(self):
         for tmpfile in self.tmpfiles.items():
