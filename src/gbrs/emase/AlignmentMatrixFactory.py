@@ -40,18 +40,20 @@ class AlignmentMatrixFactory:
         # loop over the file to get all read names.
         # The query_name attribute of the pysam.AlignedSegment object is the read name.
         # The read names are stored in a set to remove duplicates.
-        logger.debug(f'Gathering all read names...')
+        logger.debug('Gathering all read names...')
         self.rname = {aln.query_name for aln in fh.fetch(until_eof=True)}
         logger.debug(f'Retrieved {len(self.rname):,} read names')
 
         # sorts the elements of the NumPy array self.rname and updates the array with the sorted values.
-        self.rname = np.fromiter(self.rname, dtype='S')
+        logger.debug('Sorting read names...')
+        self.rname = np.array(list(self.rname), dtype='S')
         self.rname.sort()
+        #logger.debug(f'{self.rname.dtype=}')
+        logger.debug(f'Sorted {len(self.rname):,} read names')
 
-        num_loci = len(self.lname)
-        num_reads = len(self.rname)
-        lid = dict(zip(self.lname, np.arange(num_loci)))
-        rid = dict(zip(self.rname, np.arange(num_reads)))
+        lid = {self.lname[i]: i for i in range(len(self.lname))}
+        rid = {self.rname[i].decode(): i for i in range(len(self.rname))}
+
         self.tmpfiles = dict.fromkeys(self.hname)
 
         if outdir is None:

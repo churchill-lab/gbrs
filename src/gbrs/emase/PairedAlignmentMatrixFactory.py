@@ -55,14 +55,14 @@ class PairedAlignmentMatrixFactory:
         # If this assumption fails, loop over all BAM files and add read names to self.rname.
 
         # sorts the elements of the NumPy array self.rname and updates the array with the sorted values.
-        self.rname = np.fromiter(self.rname, dtype='S')
+        logger.debug('Sorting read names...')
+        self.rname = np.array(list(self.rname), dtype='S')
         self.rname.sort()
+        #logger.debug(f'{self.rname.dtype=}')
+        logger.debug(f'Sorted {len(self.rname):,} read names')
 
-
-        num_loci = len(self.lname)
-        num_reads = len(self.rname)
-        lid = dict(zip(self.lname, np.arange(num_loci)))
-        rid = dict(zip(self.rname, np.arange(num_reads)))
+        lid = {self.lname[i]: i for i in range(len(self.lname))}
+        rid = {self.rname[i].decode(): i for i in range(len(self.rname))}
 
         if outdir is None:
             outdir = os.path.dirname(self.alnfile)
