@@ -168,19 +168,8 @@ class PairedAlignmentMatrixFactory:
 
                 hap = self.hname[hid]
                 infile = self.tmpfiles[hap][idx]
-                file_size = os.path.getsize(infile)
-
-                # dmat = np.fromfile(open(infile, 'rb'), dtype='>I')
-                # memory mapping - file stays on disk, only loads pages as needed
-                logger.debug(f'Reading file: {infile.name}')
-                if file_size > 50 * 1024 * 1024:  # 50MB threshold
-                    logger.debug(f'Using memory mapping for {file_size / (1024*1024):.1f}MB file')
-                    dmat = np.memmap(infile, dtype='>I', mode='r')
-                else:
-                    # small files - load entirely into memory (faster for small files)
-                    logger.debug(f'Loading entire {file_size / (1024*1024):.1f}MB file into memory')
-                    dmat = np.fromfile(infile, dtype='>I')
-
+                logger.debug(f'Reading file: {infile}')
+                dmat = np.fromfile(open(infile, 'rb'), dtype='>I')
                 dmat = dmat.reshape((int(len(dmat) / 2), 2)).T
 
                 if dmat.shape[0] > 2:

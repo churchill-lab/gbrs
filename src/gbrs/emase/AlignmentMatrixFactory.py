@@ -148,25 +148,10 @@ class AlignmentMatrixFactory:
         for hid in range(len(self.hname)):
             hap = self.hname[hid]
             infile = self.tmpfiles[hap]
-            file_size = os.path.getsize(infile)
-            
+
             logger.debug(f'Reading file: {infile}')
-
-            #dmat = np.fromfile(open(infile, 'rb'), dtype='>I')
-            # use memory mapping for large files to reduce memory pressure
-            if file_size > 50 * 1024 * 1024:  # 50MB threshold
-                # memory mapping - file stays on disk, only loads pages as needed
-                logger.debug(f'Using memory mapping for {file_size / (1024*1024):.1f}MB file')
-                dmat = np.memmap(infile, dtype='>I', mode='r')
-            else:
-                # small files - load entirely into memory (faster for small files)
-                logger.debug(f'Loading entire {file_size / (1024*1024):.1f}MB file into memory')
-                dmat = np.fromfile(infile, dtype='>I')
-
-
-            #dmat = dmat.reshape((int(len(dmat) / 2), 2)).T
-            # more efficient reshaping
-            dmat = dmat.reshape(-1, 2).T  # -1 is more efficient than int(len(dmat) / 2)
+            dmat = np.fromfile(open(infile, 'rb'), dtype='>I')
+            dmat = dmat.reshape((int(len(dmat) / 2), 2)).T
 
             if dmat.shape[0] > 2:
                 dvec = dmat[2]
