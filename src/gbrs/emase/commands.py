@@ -324,7 +324,7 @@ def get_common_alignments_optimized(
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
 ) -> None:
     logger = utils.configure_logging('gbrs', verbose)
-    logger.debug('get_common_alignments')
+    logger.debug('get_common_alignments_optimized')
     try:
         # file shortcut: the following command line options are all equal
         # -i abc.h5 -i def.h5

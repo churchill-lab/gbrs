@@ -79,6 +79,9 @@ class PairedAlignmentMatrixFactory:
                 fhout[hap][idx] = open(outfile, 'wb')
                 logger.debug(f'Generating temp file: {outfile}')
 
+        # pre-compile the struct.pack for better performance
+        pack_uint32 = struct.Struct('>I').pack
+
         for idx, bam in enumerate(self.alnfile):
             # Perform operations with BAM idx and hap here
             save = pysam.set_verbosity(0)
@@ -90,16 +93,16 @@ class PairedAlignmentMatrixFactory:
                 for aln in fh.fetch(until_eof=True):
                     if aln.flag != 4 and aln.flag != 8:
                         locus, hap = fh.get_reference_name(aln.tid).split(delim)
-                        fhout[hap][idx].write(struct.pack('>I', rid[aln.qname]))
-                        fhout[hap][idx].write(struct.pack('>I', lid[locus]))
+                        fhout[hap][idx].write(pack_uint32(rid[aln.qname]))
+                        fhout[hap][idx].write(pack_uint32(lid[locus]))
             else:
                 # Suffix not given
                 hap = self.hname[0]
                 for aln in fh.fetch(until_eof=True):
                     if aln.flag != 4 and aln.flag != 8:
                         locus = fh.get_reference_name(aln.tid)
-                        fhout[hap][idx].write(struct.pack('>I', rid[aln.qname]))
-                        fhout[hap][idx].write(struct.pack('>I', lid[locus]))
+                        fhout[hap][idx].write(pack_uint32(rid[aln.qname]))
+                        fhout[hap][idx].write(pack_uint32(lid[locus]))
 
             # make temp files for each haplotype, the files contain the read name and locus name of each read in the alignment file.
             # the read name and locus name are written to the file in binary format.
@@ -165,9 +168,18 @@ class PairedAlignmentMatrixFactory:
 
                 hap = self.hname[hid]
                 infile = self.tmpfiles[hap][idx]
+                file_size = os.path.getsize(infile)
 
+                # dmat = np.fromfile(open(infile, 'rb'), dtype='>I')
+                # memory mapping - file stays on disk, only loads pages as needed
                 logger.debug(f'Reading file: {infile.name}')
-                dmat = np.fromfile(open(infile.name, 'rb'), dtype='>I')
+                if file_size > 50 * 1024 * 1024:  # 50MB threshold
+                    logger.debug(f'Using memory mapping for {file_size / (1024*1024):.1f}MB file')
+                    dmat = np.memmap(infile, dtype='>I', mode='r')
+                else:
+                    # small files - load entirely into memory (faster for small files)
+                    logger.debug(f'Loading entire {file_size / (1024*1024):.1f}MB file into memory')
+                    dmat = np.fromfile(infile, dtype='>I')
 
                 dmat = dmat.reshape((int(len(dmat) / 2), 2)).T
 
