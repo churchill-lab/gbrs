@@ -28,25 +28,25 @@ def haplotypes():
 
 def test_prepare(bam_file, loci, haplotypes, tmp_path):
     factory = AlignmentMatrixFactory(bam_file)
-    factory.prepare(haplotypes, loci, outdir=tmp_path)
+    factory.prepare(haplotypes, loci, out_dir=tmp_path)
 
     assert factory.hname == haplotypes
     assert factory.lname == loci
     assert len(factory.rname) > 0
-    assert len(factory.tmpfiles) == len(haplotypes)
+    assert len(factory.tmp_files) == len(haplotypes)
     for hap in haplotypes:
-        assert os.path.exists(factory.tmpfiles[hap])
+        assert os.path.exists(factory.tmp_files[hap])
 
 
 def test_produce(bam_file, loci, haplotypes, tmp_path):
     factory = AlignmentMatrixFactory(bam_file)
-    factory.prepare(haplotypes, loci, outdir=tmp_path)
+    factory.prepare(haplotypes, loci, out_dir=tmp_path)
 
     h5file = tmp_path / 'output.h5'
     factory.produce(h5file)
 
     assert os.path.exists(h5file)
-    apm = AlignmentPropertyMatrix(h5file=h5file)
+    apm = AlignmentPropertyMatrix(h5_file=h5file)
     # this class formats the h5 into a specific format for use downstream.
     # testing this class is done seperately, and is used here to obtain correct matrix formatting.
 
@@ -74,9 +74,9 @@ def test_produce(bam_file, loci, haplotypes, tmp_path):
 
 def test_cleanup(bam_file, loci, haplotypes, tmp_path):
     factory = AlignmentMatrixFactory(bam_file)
-    factory.prepare(haplotypes, loci, outdir=tmp_path)
+    factory.prepare(haplotypes, loci, out_dir=tmp_path)
 
     factory.cleanup()
 
     for hap in haplotypes:
-        assert not os.path.exists(factory.tmpfiles[hap])
+        assert not os.path.exists(factory.tmp_files[hap])

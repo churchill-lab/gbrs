@@ -1,8 +1,8 @@
 # standard library imports
-from pathlib import Path
-from typing import Annotated, Optional
 import importlib.metadata
 import logging
+from pathlib import Path
+from typing import Annotated, Optional
 
 # 3rd party library imports
 import typer
@@ -12,7 +12,7 @@ from rich.panel import Panel
 
 # local library imports
 from gbrs.emase.emase_utils import bam2emase as emase_bam2emase
-from gbrs.emase.emase_utils import bam2emase_paired as emase_bam2emase_paired
+from gbrs.gbrs import bam_utils
 from gbrs.gbrs import emase_utils
 from gbrs.gbrs import gbrs_utils
 from gbrs import utils
@@ -29,7 +29,7 @@ class SectionedGroup(TyperGroup):
             'quantify', 'reconstruct', 'interpolate', 'export', 'plot', 
             'get-transition-prob', 'get-alignment-spec', 'stencil'
         ]
-        utility_commands = ['debug-genoprob']
+        utility_commands = ['debug-genoprob', 'generate_bam']
 
         shown = set()
 
@@ -77,9 +77,9 @@ def common(
     pass
 
 
+
 @app.command(help='Convert BAM alignment files to EMASE format for allele-specific expression analysis')
-def bam2emase(
-    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help='Input BAM file containing RNA-seq alignments')],
+def bam2emase(alignment_files: Annotated[list[Path], typer.Option('-i', '--alignment-files', exists=False, dir_okay=False, resolve_path=True, help='Input BAM file containing RNA-seq alignments, can separate files by "," or have multiple -i')],
     haplotypes: Annotated[list[str], typer.Option('-h', '--haplotype-char', help='Haplotype identifiers (e.g., A,B,C,D). Can specify multiple times or comma-separated')],
     locusid_file: Annotated[Path, typer.Option('-m', '--locus-ids', exists=True, dir_okay=False, resolve_path=True, help='Transcript/locus information file')],
     output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Output EMASE file (HDF5 format). Auto-generated if not specified')] = None,
@@ -90,46 +90,6 @@ def bam2emase(
 ) -> None:
     logger = utils.configure_logging('gbrs', verbose)
     logger.debug('bam2emase')
-    try:
-        # haplotype shortcut: the following command line options are all equal
-        # -h A,B,C,D,E,F,G,H
-        # -h A -h B -h C -h D -h E -h F -h G -h H
-        # -h A,B,C,D -h E -h F -h G,H
-        all_haplotypes: list[str] = []
-        for x in haplotypes:
-            all_haplotypes.extend(x.split(','))
-
-        locusid_file = str(locusid_file) if locusid_file else None
-        output_file = str(output_file) if output_file else None
-
-        emase_bam2emase(
-            alignment_file=str(alignment_file),
-            haplotypes=all_haplotypes,
-            locusid_file=locusid_file,
-            output_file=output_file,
-            delim=delim,
-            index_dtype=index_dtype,
-            data_dtype=data_dtype
-        )
-    except Exception as e:
-        if logger.level == logging.DEBUG:
-            logger.exception(e)
-        else:
-            logger.error(e)
-
-
-@app.command(help='Convert BAM alignment files to EMASE format for allele-specific expression analysis')
-def bam2emase_paired(alignment_files: Annotated[list[Path], typer.Option('-i', '--alignment-files', exists=False, dir_okay=False, resolve_path=True, help='Input BAM file containing RNA-seq alignments, can separate files by "," or have multiple -i')],
-    haplotypes: Annotated[list[str], typer.Option('-h', '--haplotype-char', help='Haplotype identifiers (e.g., A,B,C,D). Can specify multiple times or comma-separated')],
-    locusid_file: Annotated[Path, typer.Option('-m', '--locus-ids', exists=True, dir_okay=False, resolve_path=True, help='Transcript/locus information file')],
-    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Output EMASE file (HDF5 format). Auto-generated if not specified')] = None,
-    delim: Annotated[str, typer.Option('-d', '--delim', help='Delimiter between transcript ID and haplotype in BAM file')] = '_',
-    index_dtype: Annotated[str, typer.Option('--index-dtype', help='Data type for matrix indices (advanced users only)')] = 'uint32',
-    data_dtype: Annotated[str, typer.Option('--data-dtype', help='Data type for matrix values (advanced users only)')] = 'uint8',
-    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
-) -> None:
-    logger = utils.configure_logging('gbrs', verbose)
-    logger.debug('bam2emase_paired')
     try:
         all_alignment_files: list[str] = []
         for x in alignment_files:
@@ -145,7 +105,7 @@ def bam2emase_paired(alignment_files: Annotated[list[Path], typer.Option('-i', '
         locusid_file = str(locusid_file) if locusid_file else None
         output_file = str(output_file) if output_file else None
 
-        emase_bam2emase_paired(
+        emase_bam2emase(
             alignment_files=all_alignment_files,
             haplotypes=all_haplotypes,
             locusid_file=locusid_file,
@@ -568,6 +528,142 @@ def debug_genoprob(
             logger.exception(e)
         else:
             logger.error(e)
+
+
+@app.command(help='Generate synthetic BAM files for testing with realistic read patterns')
+def generate_bam(
+    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Output BAM file path')],
+    num_loci: Annotated[int, typer.Option('-l', '--loci', help='Number of loci/transcripts to generate')] = 10,
+    num_haplotypes: Annotated[int, typer.Option('-h', '--haplotypes', help='Number of haplotypes (A, B, C, D, etc.)')] = 4,
+    num_read_names: Annotated[int, typer.Option('-r', '--read-names', help='Number of unique read names to generate')] = 100,
+    alignments_r1: Annotated[int, typer.Option('-a', '--alignments', help='Number of alignments in first BAM file (R1)')] = 100,
+    alignments_r2: Annotated[int, typer.Option('--a2', '--alignments-r2', help='Number of alignments in second BAM file (R2) for paired-end')] = None,
+    read_length: Annotated[int, typer.Option('--read-length', help='Length of each read')] = 100,
+    coverage_distribution: Annotated[str, typer.Option('--coverage', help='Coverage distribution: uniform, exponential, or realistic')] = 'realistic',
+    prefix_locus: Annotated[str, typer.Option('--prefix-locus', help='Prefix for locus names')] = 'ENSMUST',
+    prefix_read: Annotated[str, typer.Option('--prefix-read', help='Prefix for read names')] = 'READ',
+    custom_haplotypes: Annotated[str, typer.Option('--custom-haplotypes', help='Custom haplotype string (e.g., A,B,C)')] = None,
+    randomize_read_names: Annotated[bool, typer.Option('--randomize-reads', help='Randomize read name order')] = False,
+    paired_end: Annotated[bool, typer.Option('--paired-end', help='Generate paired-end reads')] = False,
+    second_file: Annotated[Path, typer.Option('--second-file', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Second BAM file (R2) for paired-end')] = None,
+    locus_file: Annotated[Path, typer.Option('--locus-file', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Output locus file for bam2emase')] = None,
+    random_seed: Annotated[int, typer.Option('--seed', help='Random seed for reproducible results')] = None,
+    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
+) -> None:
+    """
+    Generate synthetic BAM files for testing GBRS pipeline.
+    
+    This command creates BAM files with configurable parameters to simulate real RNA-seq data.
+    The generated files are compatible with the bam2emase pipeline and can be used for testing
+    and debugging purposes.
+    
+    PARAMETER DETAILS:
+    
+    Basic Parameters:
+    - --loci: Number of loci/transcripts to generate (default: 10)
+    - --haplotypes: Number of haplotypes A, B, C, D, etc. (default: 4)
+    - --read-names: Number of unique read names to generate (default: 100)
+    - --alignments: Number of alignments in first BAM file (R1) (default: 100)
+    - --a2: Number of alignments in second BAM file (R2) for paired-end (default: same as R1)
+    - --read-length: Length of each read in base pairs (default: 100)
+    
+    Coverage Distribution (--coverage):
+    - uniform: Equal probability for all combinations
+    - exponential: Weight by locus index (first loci more likely)
+    - realistic: Log-normal distribution mimicking real gene expression (default)
+    
+    Prefix Options:
+    - --prefix-locus: Prefix for locus names (default: ENSMUST)
+    - --prefix-read: Prefix for read names (default: READ)
+    - --custom-haplotypes: Custom haplotype string (e.g., A,B,C) overrides -h
+    
+    Output Options:
+    - --paired-end: Generate paired-end reads (creates R1 and R2 files)
+    - --locus-file: Generate locus file for bam2emase compatibility
+    
+    EXAMPLES:
+    
+    Basic example:
+    gbrs generate-bam -o test.bam -l 3 -h 2 -r 5 -a 10 --coverage realistic
+    
+    Custom haplotypes:
+    gbrs generate-bam -o test.bam -l 3 --custom-haplotypes A,B,C -r 5 -a 15 --coverage uniform
+    
+    Paired-end with different alignment counts:
+    gbrs generate-bam -o test.bam --paired-end -l 10 -h 4 -r 20 -a 50 --a2 45 --prefix-locus GENE --prefix-read SEQ
+    """
+    logger = utils.configure_logging('gbrs', verbose)
+    logger.debug('generate_bam')
+    
+    try:
+        # Validate coverage distribution
+        if coverage_distribution not in ['uniform', 'exponential', 'realistic']:
+            raise ValueError(f"Invalid coverage distribution: {coverage_distribution}. Must be one of: uniform, exponential, realistic")
+        
+        # Validate paired-end parameters
+        if paired_end:
+            if second_file is None:
+                # Auto-generate second file name
+                output_path = Path(output_file)
+                second_file = output_path.parent / f"{output_path.stem}_R2{output_path.suffix}"
+            
+            if alignments_r2 is None:
+                # Use same number of alignments for R2 if not specified
+                alignments_r2 = alignments_r1
+        
+        # Auto-generate locus file if not specified
+        if locus_file is None:
+            output_path = Path(output_file)
+            locus_file = output_path.parent / "loci.txt"
+        
+        # Generate BAM file using new implementation
+        stats = bam_utils.generate_test_bam(
+            output_file=str(output_file),
+            num_loci=num_loci,
+            num_haplotypes=num_haplotypes,
+            num_read_names=num_read_names,
+            alignments_r1=alignments_r1,
+            alignments_r2=alignments_r2,
+            read_length=read_length,
+            coverage_distribution=coverage_distribution,
+            prefix_locus=prefix_locus,
+            prefix_read=prefix_read,
+            haplotypes=custom_haplotypes,
+            randomize_read_names=randomize_read_names,
+            paired_end=paired_end,
+            second_file=str(second_file) if second_file else None,
+            locus_file=str(locus_file),
+            random_seed=random_seed
+        )
+        
+        # Print statistics
+        logger.info(f"Generated BAM file: {output_file}")
+        if paired_end and second_file:
+            logger.info(f"Generated paired-end BAM file: {second_file}")
+        logger.info(f"Generated locus file: {locus_file}")
+        
+        logger.info(f"Statistics:")
+        logger.info(f"  - Loci: {stats['num_loci']}")
+        logger.info(f"  - Haplotypes: {stats['num_haplotypes']} ({', '.join(stats['haplotypes'])})")
+        logger.info(f"  - Read names: {stats['num_read_names']}")
+        logger.info(f"  - Alignments R1: {stats['alignments_r1']}")
+        if paired_end:
+            logger.info(f"  - Alignments R2: {stats['alignments_r2']}")
+        logger.info(f"  - Read length: {stats['read_length']}")
+        logger.info(f"  - Coverage distribution: {stats['coverage_distribution']}")
+        logger.info(f"  - Prefix locus: {stats['prefix_locus']}")
+        logger.info(f"  - Prefix read: {stats['prefix_read']}")
+        logger.info(f"  - Selected combinations: {stats['selected_combinations']}")
+        logger.info(f"  - Total references: {stats['total_references']}")
+        
+    except Exception as e:
+        if logger.level == logging.DEBUG:
+            logger.exception(e)
+        else:
+            logger.error(e)
+        raise typer.Exit(1)
+
+
 
 if __name__ == '__main__':
     app()

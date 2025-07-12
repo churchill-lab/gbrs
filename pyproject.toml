@@ -1,6 +1,7 @@
 [project]
 name = 'gbrs'
 version = '1.1.0'
+#requires-python = ">=3.12"
 description = 'A suite of tools for Reconstructing Genomes and Quantifying Allele Specific Expression from RNA-Seq data'
 authors = [
     {name = 'KB Choi'},
@@ -12,6 +13,14 @@ maintainers = [
     {name = 'Mike Lloyd', email = 'mike.lloyd@jax.org'}
 ]
 readme = 'README.md'
+#dependencies = [
+#    'biopython==1.85',
+#    'matplotlib==3.10.3',
+#    'pysam==0.23.3',
+#    'scipy==1.16.0',
+#    'tables==3.10.2',
+#    'typer==0.16.0',
+#]
 dependencies = [
     'biopython==1.81',
     'matplotlib==3.7.1',

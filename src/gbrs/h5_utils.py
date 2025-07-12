@@ -1,3 +1,45 @@
+"""
+GBRS HDF5 Utilities
+
+This module provides utilities for working with HDF5 files in the GBRS pipeline,
+including file comparison, inspection, and validation tools.
+
+Key Functions:
+    compare_h5_files: Compare two HDF5 files for structural and content differences
+    compare_h5_structure: Compare only the structure (nodes, attributes) of HDF5 files
+    compare_h5_content: Compare only the content (array data) of HDF5 files
+    h5_inspect: Inspect and display contents of EMASE HDF5 files
+    get_file_info: Get detailed information about HDF5 file structure and contents
+
+File Comparison:
+    The module provides both strict and tolerant comparison modes:
+    - Strict: Exact equality checking for all data
+    - Tolerant: Allows small numerical differences for floating-point data
+    
+    Comparisons include:
+    - File structure (nodes, groups, attributes)
+    - Array shapes, dtypes, and values
+    - Node attributes and metadata
+
+HDF5 Inspection:
+    Tools for examining EMASE format HDF5 files:
+    - Display file structure and metadata
+    - Show sparse matrix contents
+    - Validate file format and integrity
+    - Debug alignment data issues
+
+EMASE Format Support:
+    Specialized functions for working with EMASE format HDF5 files:
+    - Haplotype-specific matrix inspection
+    - Sparse matrix visualization
+    - Alignment data validation
+    
+    EMASE files contain:
+    - Root attributes: shape, mtype, incidence_only
+    - Haplotype groups: /h0, /h1, ... with sparse matrices
+    - Metadata arrays: lname, rname, hname
+"""
+
 import os
 import numpy as np
 import tables
@@ -336,157 +378,360 @@ def compare_h5_files(file1: str, file2: str, tolerant: bool = True, tolerance: f
 
 
 
-
-def debug_h5_file(h5_file: str) -> None:
-    """Debug an H5 file with comprehensive information."""
-    logger.warning(f'Debugging h5 file: {h5_file}')
+def h5_inspect(h5_file: str, haplotypes: list[str] = None, show_matrix: bool = False, 
+               max_loci: int = 10,  max_reads: int = 10, dense: bool = False) -> None:
+    """
+    Inspect a bam2emase HDF5 file with both debug information and matrix display.
+    
+    Args:
+        h5_file: Path to the HDF5 file
+        haplotypes: List of haplotype names to display (e.g., ['A', 'B']). If None, shows all.
+        show_matrix: If True, show the matrix for each haplotype (default: False).
+        max_loci: Maximum number of loci to display (default: 10)
+        max_reads: Maximum number of reads to display (default: 10)
+        dense: If True, convert sparse matrices to dense format for display (default: False)
+    """
+    logger.warning(f'Inspecting h5 file: {h5_file}')
+    logger.debug(f'Haplotypes: {haplotypes}')
+    logger.debug(f'Show matrix: {show_matrix}')
+    logger.debug(f'Max loci: {max_loci}')
+    logger.debug(f'Max reads: {max_reads}')
+    logger.debug(f'Dense: {dense}')
     
     # Check if file exists
     if not os.path.exists(h5_file):
         logger.error(f'File does not exist: {h5_file}')
         return
     
-    # get file information
-    logger.warning('=== File Information ===')
-    info1 = get_file_info(h5_file)
-    
-    logger.warning(f'File: {info1["filename"]}')
-    logger.warning(f'  Size: {info1["size"]:.2f} GB')
-    if info1['shape']:
-        logger.warning(f'  Shape: {info1["shape"]}')
-    logger.warning(f'  Arrays: {len(info1["arrays"])}')
-    logger.warning(f'  Total array size: {info1["total_array_size"]:,}')
-    
-    # Enhanced debugging information
-    logger.warning('=== Detailed Node Analysis ===')
+    # Detect file type (compressed vs per-read)
+    file_type = None
+    matrix_row_label = 'rows'
     try:
         with tables.open_file(h5_file, 'r') as f:
-            # Root information
-            logger.warning(f'Root node: {f.root._v_name}')
-            logger.warning(f'Root title: {f.root._v_title}')
+            has_count = '/count' in f
+            has_rname = '/rname' in f
+            if has_count and not has_rname:
+                file_type = 'Compressed (EC)'
+                count_len = len(f.root.count)
+                logger.warning(f'File type: {file_type}')
+                logger.warning(f'ECs: {count_len}')
+                matrix_row_label = 'ECs'
+            elif has_rname and not has_count:
+                file_type = 'Per-read alignment (bam2emase)'
+                rname_len = len(f.root.rname)
+                logger.warning(f'File type: {file_type}')
+                logger.warning(f'Reads: {rname_len}')
+                matrix_row_label = 'reads'
+            elif has_count and has_rname:
+                logger.warning('File type: WARNING: Both /count and /rname present (hybrid or unexpected file)')
+                count_len = len(f.root.count)
+                rname_len = len(f.root.rname)
+                logger.warning(f'ECs: {count_len}')
+                logger.warning(f'Reads: {rname_len}')
+                matrix_row_label = 'rows'  # ambiguous
+            else:
+                logger.warning('File type: Unknown (neither /count nor /rname present)')
+                matrix_row_label = 'rows'
+    except Exception as e:
+        logger.error(f'Error detecting file type: {e}')
+        matrix_row_label = 'rows'
+    
+    # get file information
+    logger.warning('=== File Information ===')
+    info = get_file_info(h5_file)
+    
+    logger.warning(f'File: {info["filename"]}')
+    logger.warning(f'  Size: {info["size"]:.2f} GB')
+    if info['shape']:
+        logger.warning(f'  Shape: {info["shape"]}')
+    logger.warning(f'  Arrays: {len(info["arrays"])}')
+    logger.warning(f'  Total array size: {info["total_array_size"]:,}')
+    logger.warning('')
+    
+    try:
+        with tables.open_file(h5_file, 'r') as f:
+            # Get root attributes
+            root = f.root
+            incidence_only = getattr(root._v_attrs, 'incidence_only', False)
+            mtype = getattr(root._v_attrs, 'mtype', 'unknown')
+            shape = getattr(root._v_attrs, 'shape', None)
+            hname = getattr(root._v_attrs, 'hname', [])
             
-            # Memory usage estimation
-            total_memory = 0
-            node_count = 0
-            array_count = 0
-            group_count = 0
+            logger.warning('=== Matrix Information ===')
+            logger.warning(f'Matrix type: {mtype}')
+            logger.warning(f'Shape: {shape}')
+            logger.warning(f'Haplotypes: {hname}')
+            logger.warning(f'Incidence only: {incidence_only}')
+            logger.warning('')
             
-            # Detailed node traversal
-            for node in f.walk_nodes():
-                node_count += 1
-                node_path = node._v_pathname
-                node_type = type(node).__name__
+            # Filter haplotypes if specified
+            if haplotypes is not None:
+                # Convert to uppercase for case-insensitive matching
+                haplotypes_upper = [h.upper() for h in haplotypes]
+                hname_upper = [h.upper() for h in hname]
                 
-                logger.warning(f'Node {node_count}: {node_path}')
-                logger.warning(f'  Type: {node_type}')
-                logger.warning(f'  Title: {node._v_title}')
+                # Find matching haplotypes
+                matching_indices = []
+                for i, h in enumerate(hname_upper):
+                    if h in haplotypes_upper:
+                        matching_indices.append(i)
                 
-                # Node-specific information
-                if hasattr(node, 'shape'):
-                    array_count += 1
-                    shape = node.shape
-                    dtype = node.dtype if hasattr(node, 'dtype') else 'Unknown'
-                    
-                    # Calculate memory usage
-                    if hasattr(node, 'dtype'):
-                        element_size = node.dtype.itemsize
-                        total_elements = np.prod(shape) if shape else 0
-                        memory_usage = total_elements * element_size
-                        total_memory += memory_usage
-                        
-                        logger.warning(f'  Shape: {shape}')
-                        logger.warning(f'  Dtype: {dtype}')
-                        logger.warning(f'  Elements: {total_elements:,}')
-                        logger.warning(f'  Memory: {memory_usage / (1024**2):.2f} MB')
-
-                elif hasattr(node, '_v_children'):
-                    group_count += 1
-                    children_count = len(node._v_children)
-                    logger.warning(f'  Children: {children_count}')
+                if not matching_indices:
+                    logger.error(f'No matching haplotypes found. Available: {hname}')
+                    return
                 
-                # Attribute information
-                try:
-                    attrs = {}
-                    # Get attributes more safely by iterating through them
-                    for attr_name in node._v_attrs._f_list():
-                        try:
-                            attrs[attr_name] = node._v_attrs[attr_name]
-                        except Exception:
-                            # Skip problematic attributes
-                            pass
-                    
-                    if attrs:
-                        logger.warning(f'  Attributes: {len(attrs)}')
-                        for key, value in attrs.items():
-                            if isinstance(value, np.ndarray):
-                                logger.warning(f'    {key}: array{value.shape} ({value.dtype})')
-                            else:
-                                logger.warning(f'    {key}: {value}')
-                except Exception as e:
-                    logger.warning(f'  ⚠️  Error reading attributes: {e}')
-
-                # Check for compression
-                if hasattr(node, 'filters'):
-                    filters = node.filters
-                    if filters:
-                        #logger.warning(f'  Compression: {filters}')
-                        pass
-                
-                logger.warning('')  # Empty line for readability
+                logger.warning(f'Displaying haplotypes: {[hname[i] for i in matching_indices]}')
+                logger.warning('')
+            else:
+                matching_indices = list(range(len(hname)))
             
-            # Summary statistics
-            logger.warning('=== Summary Statistics ===')
-            logger.warning(f'Total nodes: {node_count}')
-            logger.warning(f'Array nodes: {array_count}')
-            logger.warning(f'Group nodes: {group_count}')
-            logger.warning(f'Estimated memory usage: {total_memory / (1024**3):.2f} GB')
-            
-            # File structure analysis
-            logger.warning('=== File Structure Analysis ===')
+            # Get locus and read names if available
+            lname = None
+            rname = None
             try:
-                # Check for common patterns
-                array_paths = [node._v_pathname for node in f.walk_nodes() 
-                             if hasattr(node, 'shape')]
-                
-                if array_paths:
-                    logger.warning(f'Array paths found:')
-                    for path in sorted(array_paths):
-                        logger.warning(f'  {path}')
-                    
-                    # Check for nested structures
-                    max_depth = max(len(path.split('/')) for path in array_paths)
-                    logger.warning(f'Maximum nesting depth: {max_depth}')
-                
-                # Check for potential issues
-                #logger.warning('=== Potential Issues ===')
-                #issues_found = False
-                
-                #for node in f.walk_nodes():
-                #    if hasattr(node, 'shape'):
-                #        # Check for empty arrays
-                #        if 0 in node.shape:
-                #            logger.warning(f'⚠️  Empty array detected: {node._v_pathname} (shape: {node.shape})')
-                #            issues_found = True
-                #        
-                #        # Check for very large arrays
-                #        if np.prod(node.shape) > 1e9:
-                #            logger.warning(f'⚠️  Very large array: {node._v_pathname} ({np.prod(node.shape):,} elements)')
-                #            issues_found = True
-                #        
-                #        # Check for unusual dtypes
-                #        if hasattr(node, 'dtype'):
-                #             if node.dtype == 'object':
-                #                logger.warning(f'⚠️  Object dtype: {node._v_pathname}')
-                #                issues_found = True
-                #            elif str(node.dtype).startswith('|S'):  # String dtype
-                #                logger.warning(f'⚠️  String dtype: {node._v_pathname} ({node.dtype})')
-                #                issues_found = True
-                
-                #if not issues_found:
-                #    logger.warning('No obvious issues detected')
-                    
+                if '/lname' in f:
+                    lname = f.root.lname.read()
+                if '/rname' in f:
+                    rname = f.root.rname.read()
             except Exception as e:
-                logger.error(f'Error during structure analysis: {e}')
+                logger.warning(f'Could not read locus/read names: {e}')
+            
+            # Display locus and read name information
+            logger.warning('=== Dataset Information ===')
+            if lname is not None:
+                logger.warning(f'Locus names (lname):')
+                logger.warning(f'  Shape: {lname.shape}')
+                logger.warning(f'  Dtype: {lname.dtype}')
+                logger.warning(f'  Elements: {len(lname):,}')
+                logger.warning(f'  Memory: {len(lname) * lname.dtype.itemsize / (1024**2):.2f} MB')
+                # Show sample locus names based on max_loci parameter
+                if len(lname) > 0:
+                    sample_loci = lname[:min(max_loci, len(lname))]
+                    logger.warning(f'  Sample loci ({len(sample_loci)} of {len(lname):,}): {[x.decode() if isinstance(x, bytes) else x for x in sample_loci]}')
+                logger.warning('')
+            
+            if rname is not None:
+                logger.warning(f'Read names (rname):')
+                logger.warning(f'  Shape: {rname.shape}')
+                logger.warning(f'  Dtype: {rname.dtype}')
+                logger.warning(f'  Elements: {len(rname):,}')
+                logger.warning(f'  Memory: {len(rname) * rname.dtype.itemsize / (1024**2):.2f} MB')
+                # Show sample read names based on max_reads parameter
+                if len(rname) > 0:
+                    sample_reads = rname[:min(max_reads, len(rname))]
+                    logger.warning(f'  Sample reads ({len(sample_reads)} of {len(rname):,}): {[x.decode() if isinstance(x, bytes) else x for x in sample_reads]}')
+                logger.warning('')
+            
+            # Process each selected haplotype
+            for i in matching_indices:
+                haplotype = hname[i]
+                haplotype_path = f'/h{i}'
+                
+                if haplotype_path not in f:
+                    logger.warning(f'Haplotype {haplotype} ({haplotype_path}) not found, skipping')
+                    continue
+                
+                logger.warning(f'=== Haplotype {haplotype} (h{i}) ===')
+                
+                # Debug information for this haplotype
+                try:
+                    h_node = f.get_node(haplotype_path)
+                    logger.warning(f'  Node type: {type(h_node).__name__}')
+                    logger.warning(f'  Node title: {h_node._v_title}')
+                    logger.warning(f'  Children: {len(h_node._v_children)}')
+                    
+                    # Show child nodes
+                    for child_name, child_node in h_node._v_children.items():
+                        if hasattr(child_node, 'shape'):
+                            shape = child_node.shape
+                            dtype = child_node.dtype if hasattr(child_node, 'dtype') else 'Unknown'
+                            total_elements = np.prod(shape) if shape else 0
+                            memory_usage = total_elements * child_node.dtype.itemsize if hasattr(child_node, 'dtype') else 0
+                            
+                            logger.warning(f'    {child_name}:')
+                            logger.warning(f'      Shape: {shape}')
+                            logger.warning(f'      Dtype: {dtype}')
+                            logger.warning(f'      Elements: {total_elements:,}')
+                            logger.warning(f'      Memory: {memory_usage / (1024**2):.2f} MB')
+                    
+                except Exception as e:
+                    logger.error(f'  Error getting debug info for haplotype {haplotype}: {e}')
+
+                if show_matrix:
+                    
+                    logger.warning('')
+                    
+                    # Matrix display for this haplotype
+                    try:
+                        # Read CSC matrix components
+                        h_node = f.get_node(haplotype_path)
+                        indptr = h_node.indptr.read()
+                        indices = h_node.indices.read()
+                        
+                        # Check if data exists
+                        has_data = False
+                        data = None
+                        try:
+                            data = h_node.data.read()
+                            has_data = True
+                        except Exception:
+                            pass
+                        
+                        if not has_data and not incidence_only:
+                            logger.warning('  No data array found and not incidence-only mode')
+                            continue
+                        
+                        # Convert to scipy sparse matrix
+                        from scipy.sparse import csc_matrix
+                        
+                        # Get the expected shape from the file metadata
+                        expected_shape = None
+                        try:
+                            shape_attr = f.root._v_attrs.shape
+                            if isinstance(shape_attr, (tuple, list)) and len(shape_attr) == 3:
+                                num_loci_file, num_haplotypes_file, num_reads_file = shape_attr
+                                expected_shape = (num_reads_file, num_loci_file)
+                                logger.debug(f'  Using expected shape from tuple metadata: {expected_shape}')
+                            else:
+                                logger.debug(f'  Shape attribute is not in expected format: {type(shape_attr)} = {shape_attr}')
+                        except Exception as e:
+                            logger.debug(f'  Could not get shape from file metadata: {e}')
+                        
+                        # Always use the expected shape if available, otherwise fall back to data inference
+                        if expected_shape is None:
+                            logger.debug(f'  Falling back to shape inference from data')
+                        
+                        if has_data:
+                            if expected_shape:
+                                sparse_matrix = csc_matrix((data, indices, indptr), shape=expected_shape)
+                            else:
+                                sparse_matrix = csc_matrix((data, indices, indptr))
+                        else:
+                            # For incidence-only, create matrix with ones
+                            if expected_shape:
+                                sparse_matrix = csc_matrix((np.ones_like(indices), indices, indptr), shape=expected_shape)
+                            else:
+                                sparse_matrix = csc_matrix((np.ones_like(indices), indices, indptr))
+                        
+                        # Get actual dimensions
+                        num_reads, num_loci = sparse_matrix.shape
+                        logger.warning(f'  Matrix shape: {num_reads} {matrix_row_label} × {num_loci} loci')
+                        logger.warning(f'  Total non-zero elements: {sparse_matrix.nnz:,}')
+                        
+                        # Check if we should use dense format
+                        max_dense_size = 20  # Maximum size for dense display
+                        use_dense = dense and num_loci <= max_dense_size and num_reads <= max_dense_size
+                        
+                        if use_dense or dense:
+                            # Always display the dense matrix for the specified region
+                            dense_cap = 1000
+                            display_reads = min(max_reads, num_reads, dense_cap)
+                            display_loci = min(max_loci, num_loci, dense_cap)
+                            if max_reads > dense_cap or max_loci > dense_cap:
+                                logger.warning(f'  Requested dense display region ({max_reads}×{max_loci}) exceeds {dense_cap}×{dense_cap}. Showing only first {dense_cap}×{dense_cap}.')
+                            dense_matrix = sparse_matrix.toarray()
+                            if display_reads == 0 or display_loci == 0:
+                                logger.warning(f'  No data to display in the specified region (reads: {display_reads}, loci: {display_loci})')
+                            else:
+                                logger.warning(f'  Dense matrix ({display_reads}×{display_loci} of {num_reads}×{num_loci}):')
+                                for row in range(display_reads):
+                                    row_str = '  '
+                                    for col in range(display_loci):
+                                        val = dense_matrix[row, col]
+                                        if incidence_only or not has_data:
+                                            row_str += '1 ' if val > 0 else '0 '
+                                        else:
+                                            row_str += f'{val} '
+                                    logger.warning(row_str)
+                                if display_reads < num_reads or display_loci < num_loci:
+                                    logger.warning(f'  ... (showing {display_reads} of {num_reads} reads, {display_loci} of {num_loci} loci)')
+                        else:
+                            # Use sparse format (original logic)
+                            if dense and (num_loci > max_dense_size or num_reads > max_dense_size):
+                                logger.warning(f'  Matrix too large for dense display (>{max_dense_size}×{max_dense_size}), showing sparse format')
+                            
+                            # Find some actual data to display
+                            coo_matrix = sparse_matrix.tocoo()
+                            
+                            if coo_matrix.nnz == 0:
+                                logger.warning('  (completely empty matrix)')
+                            else:
+                                # Filter elements to only show those within max_reads and max_loci range
+                                valid_mask = (coo_matrix.row < max_reads) & (coo_matrix.col < max_loci)
+                                filtered_rows = coo_matrix.row[valid_mask]
+                                filtered_cols = coo_matrix.col[valid_mask]
+                                filtered_vals = coo_matrix.data[valid_mask]
+                                
+                                if len(filtered_rows) == 0:
+                                    logger.warning(f'  No non-zero elements in first {max_reads} reads × {max_loci} loci region')
+                                    logger.warning(f'  Total non-zero elements in full matrix: {coo_matrix.nnz:,}')
+                                    
+                                    # Show a sample from the full matrix for context
+                                    sample_size = min(10, coo_matrix.nnz)
+                                    if sample_size < coo_matrix.nnz:
+                                        # Take a random sample
+                                        import random
+                                        sample_indices = random.sample(range(coo_matrix.nnz), sample_size)
+                                        sample_rows = coo_matrix.row[sample_indices]
+                                        sample_cols = coo_matrix.col[sample_indices]
+                                        sample_vals = coo_matrix.data[sample_indices]
+                                    else:
+                                        sample_rows = coo_matrix.row
+                                        sample_cols = coo_matrix.col
+                                        sample_vals = coo_matrix.data
+                                    
+                                    # Sort by row, then column for consistent display
+                                    sorted_indices = np.lexsort((sample_cols, sample_rows))
+                                    rows = sample_rows[sorted_indices]
+                                    cols = sample_cols[sorted_indices]
+                                    vals = sample_vals[sorted_indices]
+                                    
+                                    logger.warning(f'  Sample of {len(rows)} non-zero elements from full matrix:')
+                                    for idx in range(len(rows)):
+                                        row, col, val = rows[idx], cols[idx], vals[idx]
+                                        if incidence_only or not has_data:
+                                            logger.warning(f'  [{row},{col}]: 1')
+                                        else:
+                                            logger.warning(f'  [{row},{col}]: {val}')
+                                    
+                                    if len(rows) < coo_matrix.nnz:
+                                        logger.warning(f'  ... and {coo_matrix.nnz - len(rows):,} more elements')
+                                else:
+                                    # Sort by row, then column for consistent display
+                                    sorted_indices = np.lexsort((filtered_cols, filtered_rows))
+                                    rows = filtered_rows[sorted_indices]
+                                    cols = filtered_cols[sorted_indices]
+                                    vals = filtered_vals[sorted_indices]
+                                    
+                                    logger.warning(f'  Non-zero elements in first {max_reads} reads × {max_loci} loci:')
+                                    
+                                    # Show all elements in the specified range
+                                    for idx in range(len(rows)):
+                                        row, col, val = rows[idx], cols[idx], vals[idx]
+                                        if incidence_only or not has_data:
+                                            logger.warning(f'  [{row},{col}]: 1')
+                                        else:
+                                            logger.warning(f'  [{row},{col}]: {val}')
+                                    
+                                    # Show statistics about the data distribution
+                                    logger.warning(f'  Found {len(rows)} elements in specified range')
+                                    if coo_matrix.nnz > len(rows):
+                                        logger.warning(f'  ... and {coo_matrix.nnz - len(rows):,} more elements outside this range')
+                                
+                                # Also show some statistics about the data distribution
+                                logger.warning(f'  Full matrix index ranges: rows 0-{coo_matrix.shape[0]-1}, cols 0-{coo_matrix.shape[1]-1}')
+                                
+                                # Check if there's data in the first few rows/cols
+                                early_data = (coo_matrix.row < 100) & (coo_matrix.col < 100)
+                                if early_data.any():
+                                    logger.warning(f'  Found {early_data.sum()} elements in first 100x100 region')
+                                else:
+                                    logger.warning('  No data in first 100x100 region (very sparse matrix)')
+                    
+                    except Exception as e:
+                        logger.error(f'  Error processing matrix for haplotype {haplotype}: {e}')
+                    
+                    logger.warning('')
     
     except Exception as e:
         logger.error(f'Error opening file: {e}')

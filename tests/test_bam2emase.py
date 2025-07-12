@@ -32,7 +32,7 @@ def test_bam2emase(bam_file, haplotypes, locusid_file, tmp_path):
     )
 
     assert os.path.exists(output_file)
-    apm = AlignmentPropertyMatrix(h5file=str(output_file))
+    apm = AlignmentPropertyMatrix(h5_file=str(output_file))
     assert apm.num_loci > 0
     assert apm.num_haplotypes == len(haplotypes)
     assert apm.num_reads > 0

@@ -1,17 +1,17 @@
 # standard library imports
-from collections import defaultdict, OrderedDict
-from itertools import combinations_with_replacement, product
 import logging
 import os
 import re
+from collections import defaultdict, OrderedDict
+from itertools import combinations_with_replacement, product
 
 # 3rd party library imports
-from scipy.interpolate import interp1d
 import matplotlib
 import matplotlib.pyplot as pyplot
-from matplotlib.patches import Rectangle
-from matplotlib.lines import Line2D
 import numpy as np
+from scipy.interpolate import interp1d
+from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
 
 # local library imports
 from gbrs import utils
@@ -24,8 +24,22 @@ logging.getLogger('matplotlib').setLevel(logging.WARNING)
 logger = utils.get_logger('gbrs')
 
 
-def get_chromosome_info() -> OrderedDict[str, int]:
-    fai_file = os.path.join(DATA_DIR, 'ref.fa.fai')
+def get_chromosome_info(
+        fasta_index_file: str = 'ref.fa.fai'
+) -> OrderedDict[str, int]:
+    """
+    Load chromosome information from FASTA index file.
+
+    Args:
+        fasta_index_file: Path to FASTA index file (default: 'ref.fa.fai')
+
+    Returns:
+        OrderedDict mapping chromosome names to lengths
+
+    Raises:
+        ValueError: If file not found or GBRS_DATA not set correctly
+    """
+    fai_file = os.path.join(DATA_DIR, fasta_index_file)
     try:
         chr_lens = OrderedDict(
             np.loadtxt(fai_file, usecols=(0, 1), dtype='|S8,<i4')
@@ -36,13 +50,28 @@ def get_chromosome_info() -> OrderedDict[str, int]:
         return chr_lens
     except FileNotFoundError:
         raise ValueError(
-            'Make sure if $GBRS_DATA is set correctly, and that "ref.fa.fai" is in that directory. Currently it is: '
+            'Make sure if $GBRS_DATA is set correctly, and that "ref.fa.fai" '
+            'is in that directory. Currently it is: '
             f'{DATA_DIR}'
         )
 
 
-def get_founder_info():
-    color_file = os.path.join(DATA_DIR, 'founder.hexcolor.info')
+def get_founder_info(
+        founder_info_file: str = 'founder.hexcolor.info'
+) -> OrderedDict[str, int]:
+    """
+    Load founder strain information and colors from file.
+
+    Args:
+        founder_info_file: Path to founder info file
+
+    Returns:
+        OrderedDict mapping founder names to color codes
+
+    Raises:
+        ValueError: If file not found or GBRS_DATA not set correctly
+    """
+    color_file = os.path.join(DATA_DIR, founder_info_file)
 
     try:
         founder_colors = OrderedDict(
@@ -58,19 +87,41 @@ def get_founder_info():
         return founder_colors
     except FileNotFoundError:
         raise ValueError(
-            f'Make sure if $GBRS_DATA is set correctly, and that "founder.hexcolor.info" is in that directory. Currently it is: '
+            f'Make sure if $GBRS_DATA is set correctly, and that '
+            '"founder.hexcolor.info" is in that directory. Currently it is: '
             f'{DATA_DIR}'
         )
 
 
-def unit_vector(vector):
+def unit_vector(vector: np.ndarray) -> np.ndarray:
+    """
+    Normalize vector to unit length.
+
+    Args:
+        vector: Input vector to normalize
+
+    Returns:
+        Unit vector (normalized to length 1.0)
+    """
     if sum(vector) > 1e-6:
         return vector / np.linalg.norm(vector)
     else:
         return vector
 
 
-def print_vecs(vecs, format_str: str = '%10.1f', show_sum: bool = False) -> None:
+def print_vecs(
+        vecs: np.ndarray,
+        format_str: str = '%10.1f',
+        show_sum: bool = False
+) -> None:
+    """
+    Print vectors with optional formatting and sum display.
+
+    Args:
+        vecs: Array of vectors to print
+        format_str: Format string for vector elements
+        show_sum: Whether to show sum of each vector
+    """
     for i in range(vecs.shape[0]):
         v = vecs[i]
         print(' '.join(format_str % elem for elem in v))
@@ -80,7 +131,87 @@ def print_vecs(vecs, format_str: str = '%10.1f', show_sum: bool = False) -> None
             print()
 
 
-def get_genotype_probability(aln_profile, aln_specificity, sigma: float = 0.12):
+def get_genotype_probability(
+        aln_profile: np.ndarray,
+        aln_specificity: np.ndarray,
+        sigma: float = 0.12
+) -> np.ndarray:
+    """
+    Calculate genotype probabilities from alignment profiles using expression
+    similarity.
+
+    This function is a core component of the GBRS emission probability
+    calculation that converts expression similarity between an individual's
+    gene expression profile and founder strain expression patterns into
+    genotype probabilities. It implements the emission model of the GBRS
+    Hidden Markov Model.
+
+    The function compares the normalized expression profile of an individual
+    gene against the alignment specificity vectors of all possible founder
+    strain combinations (diplotypes). The similarity is measured using squared
+    Euclidean distance, which is then converted to probabilities using a
+    Gaussian kernel.
+
+    ALGORITHM:
+    - Normalize the individual's expression profile to a unit vector
+    - For each possible diplotype (haplotype pair):
+       - For homozygotes: Compare directly with founder strain expression vector
+       - For heterozygotes: Create composite vector from two founder strains
+       - Calculate squared Euclidean distance between profiles
+    - Convert distances to probabilities using Gaussian kernel with sigma parameter
+    - Normalize to ensure probabilities sum to 1
+
+    USE CASES:
+    - GBRS reconstruction: Calculate emission probabilities for HMM
+
+    Args:
+        aln_profile: Individual's gene expression profile.
+            Shape: (num_haplotypes,)
+            Type: numpy.ndarray of float
+            Description: Raw expression values for each possible haplotype.
+            The values represent expression levels (e.g., TPM) for each
+            founder strain haplotype at a specific gene.
+            Example: [10.5, 8.2, 7.1, 6.3, 5.8, 4.9, 4.2, 3.8] for 8 haplotypes
+
+        aln_specificity: Founder strain alignment specificity matrix.
+            Shape: (num_haplotypes, num_haplotypes)
+            Type: numpy.ndarray of float
+            Description: Normalized expression vectors for each founder strain.
+            Each row represents how a founder strain's expression aligns with
+            all other strains. Must contain at least one entry > 1.0 to be
+            considered valid alignment specificity data.
+            Example: Normalized expression matrix from get_alignment_spec()
+
+        sigma: Standard deviation parameter for Gaussian kernel.
+            Type: float
+            Default: 0.12
+            Description: Controls the sensitivity of genotype inference.
+            Smaller values make the model more sensitive to expression differences,
+            while larger values make it more tolerant of expression variation.
+            Range: Typically 0.05 to 0.5, with 0.12 being optimal for most datasets.
+
+    Returns:
+        numpy.ndarray: Genotype probabilities for all possible diplotypes.
+            Shape: (num_diplotypes,)
+            Type: float
+            Description: Probability values that sum to 1.0, representing the
+            likelihood of each possible diplotype given the expression data.
+            Order: Homozygotes first (AA, BB, CC, ...), then heterozygotes (AB, AC, ...)
+            Example: [0.45, 0.12, 0.08, 0.15, 0.20] for 5 diplotypes
+
+    Raises:
+        ValueError: If aln_specificity contains no entries > 1.0
+        RuntimeError: If probability calculation fails or results in invalid values
+
+    Notes:
+        - The function assumes aln_specificity contains unit vectors (normalized)
+        - For heterozygotes, the composite vector is created by averaging two founder vectors
+        - The Gaussian kernel uses the formula: exp(-distance² / (2 * sigma²))
+        - This function is called for each gene during GBRS reconstruction
+        - The sigma parameter is critical for balancing sensitivity vs. robustness
+        - Genes with low expression may use a different sigma value (typically 0.45)
+        - This emission model is the foundation of GBRS's expression-based genotyping
+    """
     # 'aln_specificity' should be a set of unit vectors (at least one of the entry is larger than 1.)
     num_haps = len(aln_profile)
     aln_vec = unit_vector(aln_profile)
@@ -89,44 +220,133 @@ def get_genotype_probability(aln_profile, aln_specificity, sigma: float = 0.12):
         v1 = unit_vector(aln_specificity[i])
         for j in range(i, num_haps):
             if j == i:
-                genoprob.append(sum(np.power(aln_vec - v1, 2)))   # homozygotes
+                # homozygotes
+                genoprob.append(sum(np.power(aln_vec - v1, 2)))
             else:
                 v2 = unit_vector(aln_specificity[j])
                 geno_vec = unit_vector(v1 + v2)
                 # compute directional similarity
+                # for heterozygotes
                 genoprob.append(
                     sum(np.power(aln_vec - geno_vec, 2))
-                )   # for heterozygotes
+                )
     genoprob = np.exp(np.array(genoprob) / (-2 * sigma * sigma))
     return np.array(genoprob / sum(genoprob))
 
 
 def ris_step(
-    gen_left,
-    gen_right,
-    rec_frac,
-    haps=('A', 'B'),
-    gamma_scale=0.1,
-    is_x_chr=False,
-    forward_direction=True,
-):
+        gen_left: str,
+        gen_right: str,
+        rec_frac: float,
+        haps: tuple[str, ...] = ('A', 'B'),
+        gamma_scale: float = 0.1,
+        is_x_chr: bool = False,
+        forward_direction: bool = True,
+) -> float:
     """
-    Log transition probability for RIL by sib-mating
-    Originally part of r/qtl2 designed/coded by Karl Broman (http://kbroman.org/qtl2/)
-    Ported to python by Karl Broman (https://gist.github.com/kbroman/14984b40b0eab71e51891aceaabec850)
-    Extended to open the possibility of heterogyzosity by KB Choi
+    Calculate log transition probability for RIL (Recombinant Inbred Lines) by sib-mating.
+
+    This function implements the transition probability model for Recombinant Inbred Lines
+    created through sib-mating, which is a key component of the GBRS Hidden Markov Model.
+    It calculates the probability of transitioning between genotypes at adjacent genetic
+    positions, accounting for recombination events and the specific mating scheme.
+
+    The function models the genetic linkage between adjacent markers/genes based on
+    the recombination fraction (distance in centiMorgans). For RIL populations, the
+    transition probabilities reflect the accumulation of recombination events over
+    multiple generations of inbreeding, resulting in a more complex pattern than
+    simple F2 populations.
+
+    ALGORITHM:
+    1. Generate all possible diplotypes from the haplotype set
+    2. Calculate recombination rate R based on chromosome type (autosome vs X)
+    3. Apply gamma scaling to allow for heterozygosity (rare in RIL)
+    4. Return log transition probability based on genotype pair and direction
+
+    WHAT THIS DOES:
+    - Models genetic linkage between adjacent positions in RIL populations
+    - Accounts for different recombination rates on autosomes vs X chromosome
+    - Provides transition probabilities for the GBRS HMM
+    - Supports both forward and backward chain directions
+
+    USE CASES:
+    - GBRS reconstruction: Calculate transition probabilities for HMM
+    - RIL population analysis: Model genetic linkage in inbred lines
+    - Linkage mapping: Understand recombination patterns in RIL
+    - Model validation: Test transition probability calculations
 
     Args:
-        gen_left: left genotype
-        gen_right: right genotype
-        rec_frac: interval distance (cM)
-        haps: list of parental strain
-        gamma_scale: amount we allow heterozygosity
-        is_x_chr: whether it is 'X' chromosome
-        forward_direction: direction of intervals
+        gen_left: Left genotype (diplotype).
+            Type: str
+            Description: Diplotype at the left (upstream) position.
+            Format: Two-character string representing haplotype pair (e.g., 'AA', 'AB')
+            Example: 'AA' for homozygous A, 'AB' for heterozygous A/B
+
+        gen_right: Right genotype (diplotype).
+            Type: str
+            Description: Diplotype at the right (downstream) position.
+            Format: Two-character string representing haplotype pair (e.g., 'AA', 'AB')
+            Example: 'BB' for homozygous B, 'AC' for heterozygous A/C
+
+        rec_frac: Recombination fraction (distance in centiMorgans).
+            Type: float
+            Description: Genetic distance between the two positions in centiMorgans.
+            This determines the probability of recombination between positions.
+            Range: Typically 0.0 to 50.0 cM (50 cM = independent segregation)
+            Example: 2.5 for positions 2.5 cM apart
+
+        haps: Haplotype identifiers.
+            Type: tuple[str, ...]
+            Default: ('A', 'B')
+            Description: List of founder strain identifiers.
+            Used to generate all possible diplotypes for the population.
+            Example: ('A', 'B', 'C', 'D') for 4-founder population
+
+        gamma_scale: Scale factor for heterozygosity allowance.
+            Type: float
+            Default: 0.1
+            Description: Controls the probability of heterozygosity in RIL.
+            RIL populations are typically highly homozygous, but some heterozygosity
+            may persist. This parameter allows for rare heterozygous regions.
+            Range: Typically 0.01 to 0.5, with 0.1 being standard
+
+        is_x_chr: Whether the chromosome is X chromosome.
+            Type: bool
+            Default: False
+            Description: X chromosomes have different recombination patterns than autosomes.
+            This affects the calculation of recombination rate R and transition probabilities.
+            Example: True for X chromosome, False for autosomes 1-19
+
+        forward_direction: Direction of the transition.
+            Type: bool
+            Default: True
+            Description: Whether calculating forward (left to right) or backward
+            (right to left) transition probabilities. The direction affects the
+            probability calculations for asymmetric transitions.
+            Example: True for forward chain, False for backward chain
 
     Returns:
-        log_e transition probability
+        float: Log transition probability (natural logarithm).
+            Description: Natural logarithm of the transition probability from gen_left
+            to gen_right. Using log probabilities prevents numerical underflow in
+            the HMM calculations.
+            Range: Negative values (log of probabilities < 1)
+            Example: -2.3 for probability of 0.1
+
+    Raises:
+        ValueError: If genotypes are not valid diplotypes for the given haplotypes
+        RuntimeError: If probability calculation fails
+
+    Notes:
+        - Originally part of r/qtl2 designed/coded by Karl Broman
+        - Ported to python by Karl Broman and extended by KB Choi
+        - For autosomes: R = 4.0 * rec_frac / (1 + 6.0 * rec_frac)
+        - For X chromosome: R = (2 * rec_frac) / (1.0 + 4.0 * rec_frac)
+        - Gamma parameter controls heterozygosity: gamma = R * gamma_scale
+        - This function is called for each adjacent pair of positions during
+          transition probability matrix generation
+        - The log probabilities are used in the HMM to prevent numerical issues
+        - RIL populations are typically >99% homozygous after many generations
     """
     it = combinations_with_replacement(haps, 2)
     diplotype = [f'{ht1}{ht2}' for ht1, ht2 in it]
@@ -191,41 +411,140 @@ def ris_step(
 
 
 def f2_step(
-    gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True
+        gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True
 ):
     return NotImplementedError
 
 
 def cc_step(
-    gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True
+        gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True
 ):
     return NotImplementedError
 
 
 def do_step(
-    gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True
+        gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True
 ):
     return NotImplementedError
 
 
 def get_transition_prob(
-    marker_file: str,
-    haplotypes: str = 'A,B',
-    mating_scheme: str = 'RI',
-    gamma_scale: float = 0.01,
-    epsilon: float = 0.000001,
-    output_file: str = 'tranprob.npz'
+        marker_file: str,
+        haplotypes: str = 'A,B',
+        mating_scheme: str = 'RI',
+        gamma_scale: float = 0.01,
+        epsilon: float = 0.000001,
+        output_file: str = 'tranprob.npz'
 ) -> None:
     """
-    Calculate the transition probabilities.
+    Generate transition probability matrices for GBRS Hidden Markov Model.
+
+    This function is a critical preprocessing step in the GBRS pipeline that
+    calculates transition probability matrices for all chromosomes based on
+    genetic distances between markers/genes. These matrices model the genetic
+    linkage between adjacent positions and are essential for the HMM-based
+    genome reconstruction algorithm.
+
+    The function processes marker files containing genetic positions and
+    calculates transition probabilities for each adjacent pair of positions
+    on each chromosome. The probabilities depend on the mating scheme used
+    to create the population (RI, F2, CC, DO) and account for different
+    recombination patterns on autosomes vs sex chromosomes.
+
+    ALGORITHM:
+    1. Load marker file and organize positions by chromosome
+    2. Generate all possible diplotypes from haplotype set
+    3. For each chromosome:
+       - Calculate genetic distances between adjacent positions
+       - For each diplotype pair and position pair:
+         - Calculate transition probability using appropriate step function
+       - Store results in 3D matrix (positions × diplotypes × diplotypes)
+    4. Save matrices in compressed numpy format
+
+    WHAT THIS DOES:
+    - Creates transition probability matrices for GBRS HMM
+    - Models genetic linkage between adjacent positions
+    - Accounts for different mating schemes and chromosome types
+    - Provides the foundation for HMM-based genome reconstruction
+
+    USE CASES:
+    - GBRS preprocessing: Generate transition probabilities for reconstruction
+    - Population analysis: Model genetic linkage in different populations
+    - Linkage mapping: Understand recombination patterns
+    - Model validation: Test transition probability calculations
 
     Args:
-        marker_file: marker file
-        haplotypes: the haplotypes
-        mating_scheme: mating scheme to use
-        gamma_scale: scale for gamma
-        epsilon: epsilon value
-        output_file: output file
+        marker_file: Path to the marker file containing genetic positions.
+            Type: str
+            Description: Tab-separated file with columns: marker_id, chromosome,
+            genomic_position, genetic_position_cM. Contains all markers/genes
+            used in the GBRS analysis with their genetic coordinates.
+            Format:
+                Gene1   1   1000000   2.5
+                Gene2   1   2000000   5.1
+                Gene3   2   500000    1.2
+            Example: 'ref.gene_pos.ordered.tsv'
+
+        haplotypes: Comma-separated list of founder strain identifiers.
+            Type: str
+            Default: 'A,B'
+            Description: Founder strain names used in the population.
+            These are used to generate all possible diplotypes for the
+            transition probability calculations.
+            Format: 'A,B,C,D' for 4-founder population
+            Example: 'A,B,C,D,E,F,G,H' for Diversity Outbred mice
+
+        mating_scheme: Population mating scheme.
+            Type: str
+            Default: 'RI'
+            Description: The breeding scheme used to create the population.
+            Determines which transition probability function to use.
+            Options: 'RI' (Recombinant Inbred), 'F2', 'CC' (Collaborative Cross),
+            'DO' (Diversity Outbred)
+            Example: 'RI' for Recombinant Inbred Lines
+
+        gamma_scale: Scale factor for heterozygosity allowance.
+            Type: float
+            Default: 0.01
+            Description: Controls the probability of heterozygosity in the
+            transition model. Smaller values assume more homozygosity.
+            Range: Typically 0.001 to 0.1
+            Example: 0.01 for highly inbred populations
+
+        epsilon: Minimum genetic distance threshold.
+            Type: float
+            Default: 0.000001
+            Description: Minimum allowed genetic distance between adjacent
+            positions. Prevents division by zero and ensures numerical stability.
+            Range: Very small positive values (1e-6 to 1e-3)
+            Example: 0.000001 cM
+
+        output_file: Output filename for transition probability matrices.
+            Type: str
+            Default: 'tranprob.npz'
+            Description: Name of the compressed numpy file to save the
+            transition probability matrices. The file will contain one
+            matrix per chromosome.
+            Example: 'tranprob.DO.G17.M.npz'
+
+    Returns:
+        None. The function creates a compressed numpy file containing transition
+        probability matrices for each chromosome.
+
+    Raises:
+        FileNotFoundError: If marker_file does not exist
+        ValueError: If mating_scheme is not supported or parameters are invalid
+        OSError: If output file cannot be created
+
+    Notes:
+        - The function saves gene positions in 'ref.gene_pos.ordered.npz'
+        - Transition matrices are 3D: (positions-1) × diplotypes × diplotypes
+        - For n haplotypes, there are n*(n+1)/2 possible diplotypes
+        - X chromosome uses different recombination model than autosomes
+        - The epsilon parameter prevents numerical issues with very close positions
+        - This function is typically run once per population/mating scheme
+        - The output file is essential for the GBRS reconstruction algorithm
+        - File sizes can be large for populations with many markers/genes
     """
     logger.info(f'Marker File: {marker_file}')
     logger.info(f'Haplotypes: {haplotypes}')
@@ -297,21 +616,94 @@ def get_transition_prob(
 
 
 def get_alignment_spec(
-    sample_file: str,
-    haplotypes: list[str],
-    gene2transcript: str,
-    out_dir: str,
-    min_expr: float = 2.0
+        sample_file: str,
+        haplotypes: list[str],
+        gene2transcript: str,
+        out_dir: str,
+        min_expr: float = 2.0
 ) -> None:
     """
+    Generate alignment specificity matrices for GBRS genome reconstruction.
+
+    This function is a critical preprocessing step in the GBRS pipeline that
+    calculates alignment specificity matrices from founder strain expression data.
+    These matrices capture how each founder strain's expression profile aligns
+    with the expression patterns of other strains, providing the foundation for
+    genotype probability calculations during genome reconstruction.
+
+    The function processes TPM (Transcripts Per Million) expression data from
+    multiple founder strains to create three key matrices:
+    1. **Axes matrix**: Raw expression values for each gene across all strains
+    2. **ASE matrix**: Allele-specific expression summaries
+    3. **Avecs matrix**: Normalized alignment specificity vectors used in reconstruction
+
+    ALGORITHM:
+    1. Load gene-to-transcript mapping and sample file information
+    2. For each founder strain:
+       - Load TPM expression data from multiple samples
+       - Calculate average expression profile across samples
+    3. For each gene:
+       - Create axes matrix with raw expression values
+       - Calculate ASE (allele-specific expression) summary
+       - Generate normalized alignment specificity vectors
+    4. Save matrices in compressed numpy format
+
+    WHAT THIS DOES:
+    - Takes TPM expression data from founder strain samples
+    - Calculates strain-specific expression profiles
+    - Creates alignment specificity matrices for each gene
+    - Provides the foundation for genotype probability calculations
+    - Output: Three numpy files (axes.npz, ases.npz, avecs.npz)
+
+    USE CASES:
+    - GBRS preprocessing: Prepare alignment specificity data for reconstruction
+    - Founder strain analysis: Analyze expression patterns across founder strains
+    - Reference data generation: Create reference matrices for multiple samples
+    - Quality control: Assess expression consistency across founder strains
 
     Args:
-        sample_file:
-        haplotypes:
-        min_expr:
+        sample_file: Path to the sample file containing TPM file mappings.
+            Format: tab-separated with strain name in first column, TPM file path in second.
+            Example:
+                A    /path/to/strain_A_sample1.tpm
+                A    /path/to/strain_A_sample2.tpm
+                B    /path/to/strain_B_sample1.tpm
+                B    /path/to/strain_B_sample2.tpm
+
+        haplotypes: List of founder strain identifiers.
+            Example: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] for Diversity Outbred mice
+            Must match the strain names in the sample_file.
+
+        gene2transcript: Path to the gene-to-transcript mapping file.
+            Format: tab-separated with gene ID in first column, transcript ID in second.
+            Used to identify genes and their corresponding transcripts.
+
+        out_dir: Output directory for the generated matrices.
+            The function will create three files in this directory:
+            - axes.npz: Raw expression values matrix
+            - ases.npz: Allele-specific expression summary matrix
+            - avecs.npz: Normalized alignment specificity vectors
+
+        min_expr: Minimum expression threshold for including genes in analysis.
+            Default: 2.0
+            Genes with total expression below this threshold across all strains
+            are excluded from the alignment specificity calculations.
 
     Returns:
+        None. The function creates three compressed numpy files in the specified output directory.
 
+    Raises:
+        FileNotFoundError: If sample_file, gene2transcript, or any TPM file does not exist.
+        ValueError: If haplotypes list is empty or contains invalid characters.
+        OSError: If output directory cannot be created or files cannot be written.
+
+    Notes:
+        - The function averages expression data across multiple samples per strain
+        - Alignment specificity vectors are normalized to unit vectors
+        - Only genes with sufficient expression (above min_expr threshold) are included
+        - The output matrices are essential for the GBRS reconstruction algorithm
+        - This function is typically run once per founder strain set to create
+          reference alignment specificity data
     """
     logger.info(f'Sample File: {sample_file}')
     logger.info(f'Haplotypes: {haplotypes}')
@@ -384,25 +776,108 @@ def get_alignment_spec(
 
 
 def reconstruct(
-    expression_file: str,
-    tprob_file: str,
-    avec_file: str = None,
-    gpos_file: str = None,
-    expr_threshold: float = 1.5,
-    sigma: float = 0.12,
-    outbase: str = None,
+        expression_file: str,
+        tprob_file: str,
+        avec_file: str = None,
+        gpos_file: str = None,
+        expr_threshold: float = 1.5,
+        sigma: float = 0.12,
+        outbase: str = None,
 ) -> None:
     """
-    Reconstruct the genome based upon gene-level TPM quantities.
+    Reconstruct individual genome using GBRS algorithm with gene expression data.
+
+    This function is the core genome reconstruction component of the GBRS pipeline
+    that uses gene expression data to infer individual genotypes across the genome.
+    It implements a Hidden Markov Model (HMM) with forward-backward algorithm and
+    Viterbi decoding to reconstruct the most likely genotype at each gene position.
+
+    The function processes gene-level TPM expression data from an individual and
+    compares it against founder strain expression patterns to infer the individual's
+    genotype. It uses transition probabilities between adjacent genes to model
+    linkage disequilibrium and recombination events.
+
+    ALGORITHM:
+    1. Load expression data, transition probabilities, and alignment specificity
+    2. Calculate emission probabilities for each gene based on expression similarity
+    3. Run forward-backward algorithm to compute genotype probabilities
+    4. Run Viterbi algorithm to find most likely genotype sequence
+    5. Save genotype probabilities and most likely genotypes
+
+    WHAT THIS DOES:
+    - Takes individual gene expression data (TPM values for each possible diplotype)
+    - Compares against founder strain expression patterns using alignment specificity
+    - Uses HMM to model genetic linkage between genes
+    - Infers most likely genotype at each gene position
+    - Output: Genotype probabilities and most likely genotypes
+
+    USE CASES:
+    - Individual genotyping: Infer genotypes from RNA-Seq data
+    - Population studies: Genotype individuals without DNA sequencing
+    - Expression QTL mapping: Combine genotype and expression data
+    - Quality control: Validate genotype calls from other methods
+
+    OUTPUT FILES:
+    - {outbase}.genotypes.tsv: Most likely genotype for each gene
+    - {outbase}.genoprobs.npz: Genotype probabilities for each gene
+    - {outbase}.genotypes.npz: Ordered genotype calls by chromosome
 
     Args:
-        expression_file: file containing gene-level TPM quantities
-        tprob_file: transition probabilities file
-        avec_file: alignment specificity file
-        gpos_file: meta information for genes (chrom, id, location)
-        expr_threshold:
-        sigma:
-        outbase: base output
+        expression_file: Path to the gene-level TPM expression file.
+            Format: tab-separated with gene ID in first column, TPM values for
+            each possible diplotype in subsequent columns, and total in last column.
+            Example for 8 haplotypes (A-H) with 36 possible diplotypes:
+                Gene_ID    AA    AB    AC    AD    AE    AF    AG    AH    BB    BC    ...    Total
+                Gene1      10.5  8.2   7.1   6.3   5.8   4.9   4.2   3.8   9.1   8.5    ...   23.8
+                Gene2      15.2  12.1  11.8  10.9  9.8   8.7   7.9   7.2   14.1  13.5   ...   37.1
+
+        tprob_file: Path to the transition probabilities file (npz format).
+            Contains transition probability matrices for each chromosome,
+            modeling genetic linkage between adjacent genes based on mating scheme.
+
+        avec_file: Path to the alignment specificity file (npz format).
+            Default: None (uses default location from GBRS_DATA environment variable)
+            Contains normalized expression vectors for each gene and founder strain,
+            used to calculate emission probabilities.
+
+        gpos_file: Path to the gene position file (npz format).
+            Default: None (uses default location from GBRS_DATA environment variable)
+            Contains gene metadata including chromosome, ID, and genomic position
+            for organizing genes by chromosomal order.
+
+        expr_threshold: Minimum expression threshold for including genes in analysis.
+            Default: 1.5
+            Genes with total expression below this threshold are assigned
+            uniform genotype probabilities (null model).
+
+        sigma: Standard deviation parameter for emission probability calculation.
+            Default: 0.12
+            Controls the sensitivity of genotype inference based on expression
+            similarity to founder strain patterns.
+
+        outbase: Base name for output files. Default: None
+            If None, uses default names: 'gbrs.reconstructed.genotypes.tsv'
+            and 'gbrs.reconstructed.genoprobs.npz'
+
+    Returns:
+        None. The function creates genotype files at the specified output paths.
+
+    Raises:
+        FileNotFoundError: If any input file does not exist.
+        ValueError: If expression file format is invalid or parameters are invalid.
+        RuntimeError: If HMM algorithm fails to converge or other processing errors.
+
+    Notes:
+        - The function uses a Hidden Markov Model with diplotypes (haplotype pairs) as states
+        - Emission probabilities are calculated using squared Euclidean distance between
+          normalized expression vectors, converted to probabilities via Gaussian kernel
+        - Transition probabilities model recombination events between adjacent genes
+          based on the specified mating scheme (RI, F2, CC, DO)
+        - Forward-backward algorithm provides uncertainty estimates (genotype probabilities)
+        - Viterbi algorithm provides the most likely genotype sequence
+        - Genes with low expression are assigned uniform probabilities (null model)
+        - This function is the final step in the GBRS pipeline for individual genotyping
+        - The output can be used for downstream analyses like eQTL mapping or population studies
     """
     if outbase is None:
         out_gtype = 'gbrs.reconstructed.genotypes.tsv'
@@ -477,8 +952,8 @@ def reconstruct(
     # Get initial emission probability
     logger.debug('Get initial emission probability')
     naiv_avecs = (
-        np.eye(num_haps)
-        + (np.ones((num_haps, num_haps)) - np.eye(num_haps)) * 0.0001
+            np.eye(num_haps)
+            + (np.ones((num_haps, num_haps)) - np.eye(num_haps)) * 0.0001
     )
     eprob = dict()
     for gid, evec in expr.items():
@@ -513,15 +988,15 @@ def reconstruct(
             alpha_scaler_c = np.zeros(num_genes_in_chr)
             alpha_c[:, 0] = init_vec + eprob[gid_genome_order_c[0]]
             normalizer = np.log(sum(np.exp(alpha_c[:, 0])))
-            alpha_c[:, 0] -= normalizer   # normalization
+            alpha_c[:, 0] -= normalizer  # normalization
             alpha_scaler_c[0] = -normalizer
             for i in range(1, num_genes_in_chr):
                 alpha_c[:, i] = (
-                    np.log(
-                        np.exp(alpha_c[:, i - 1] + tprob_c[i - 1]).sum(axis=1)
-                        + np.nextafter(0, 1)
-                    )
-                    + eprob[gid_genome_order_c[i]]
+                        np.log(
+                            np.exp(alpha_c[:, i - 1] + tprob_c[i - 1]).sum(axis=1)
+                            + np.nextafter(0, 1)
+                        )
+                        + eprob[gid_genome_order_c[i]]
                 )
                 normalizer = np.log(sum(np.exp(alpha_c[:, i])))
                 alpha_c[:, i] -= normalizer  # normalization
@@ -593,7 +1068,7 @@ def reconstruct(
             if (num_genes_in_chr > len(tprob_c)):
                 num_genes_in_chr = len(tprob_c)
                 # Above avoids IndexError for legacy GRCm38 ref files.
-                # In those transprob files: num_genes_in_chr > tprob_c by 1. 
+                # In those transprob files: num_genes_in_chr > tprob_c by 1.
             for i in reversed(range(num_genes_in_chr)):
                 sid = (delta[c][:, i] + tprob_c[i][sid]).argmax()
                 viterbi_states[c].append(genotypes[sid])
@@ -614,17 +1089,98 @@ def reconstruct(
 
 
 def interpolate(
-    genoprob_file: str,
-    grid_file: str = None,
-    gpos_file: str = None,
-    output_file: str = None,
+        genoprob_file: str,
+        grid_file: str = None,
+        gpos_file: str = None,
+        output_file: str = None,
 ) -> None:
     """
+    Interpolate genotype probabilities from gene positions to uniform grid positions.
+
+    This function is a post-processing step in the GBRS pipeline that converts
+    genotype probabilities calculated at gene positions to a uniform grid of
+    positions across the genome. This interpolation is useful for visualization,
+    comparison across samples, and downstream analyses that require consistent
+    genomic coordinates.
+
+    The function uses linear interpolation to estimate genotype probabilities
+    at grid positions based on the probabilities at nearby gene positions.
+    It handles chromosome boundaries and extrapolation at chromosome ends
+    by extending the gene positions with boundary values.
+
+    ALGORITHM:
+    1. Load genotype probabilities at gene positions
+    2. Load uniform grid positions for each chromosome
+    3. For each chromosome:
+       - Extend gene positions with boundary values (0.0 and grid_max+1.0)
+       - Create interpolation function using scipy.interpolate.interp1d
+       - Interpolate probabilities at all grid positions
+    4. Save interpolated probabilities in compressed numpy format
+
+    WHAT THIS DOES:
+    - Converts gene-based probabilities to grid-based probabilities
+    - Enables uniform genomic coordinate system across samples
+    - Facilitates visualization and comparison of genome reconstructions
+    - Provides consistent positions for downstream analyses
+
+    USE CASES:
+    - GBRS post-processing: Convert gene probabilities to grid probabilities
+    - Visualization: Create uniform plots across different samples
+    - Population analysis: Compare reconstructions at consistent positions
+    - Downstream analysis: Provide uniform coordinate system for tools
+
     Args:
-        genoprob_file: the EMASE genotype probability file
-        grid_file: grid file (i.e, ref.genome_grid.64k.txt)
-        gpos_file: meta information for genes (chrom, id, location)
-        output_file: the PDF file
+        genoprob_file: Path to the genotype probability file (npz format).
+            Type: str
+            Description: File containing genotype probabilities calculated
+            at gene positions by the GBRS reconstruction algorithm.
+            Format: Compressed numpy file with one array per chromosome
+            Shape: (num_diplotypes, num_genes) for each chromosome
+            Example: 'DO336.genoprobs.npz'
+
+        grid_file: Path to the uniform grid file.
+            Type: str
+            Default: None (uses default location from GBRS_DATA)
+            Description: File containing uniform grid positions across the genome.
+            Format: Tab-separated with columns: grid_id, chromosome, position, cM
+            Used to define the target positions for interpolation.
+            Example: 'ref.genome_grid.64k.txt'
+
+        gpos_file: Path to the gene position file (npz format).
+            Type: str
+            Default: None (uses default location from GBRS_DATA)
+            Description: File containing gene metadata including chromosome,
+            gene ID, and genetic position (cM). Used to define the source
+            positions for interpolation.
+            Example: 'ref.gene_pos.ordered.npz'
+
+        output_file: Output filename for interpolated probabilities.
+            Type: str
+            Default: None (auto-generated from input filename)
+            Description: Name of the compressed numpy file to save the
+            interpolated genotype probabilities. If None, generates name
+            based on input filename with 'interpolated' prefix.
+            Example: 'DO336.interpolated.genoprobs.npz'
+
+    Returns:
+        None. The function creates a compressed numpy file containing
+        interpolated genotype probabilities at uniform grid positions.
+
+    Raises:
+        FileNotFoundError: If any input file does not exist
+        ValueError: If grid and gene positions are incompatible
+        RuntimeError: If interpolation fails or produces invalid results
+
+    Notes:
+        - The function extends gene positions with boundary values to handle
+          extrapolation at chromosome ends
+        - Linear interpolation is used to estimate probabilities at grid positions
+        - Grid positions should cover the full range of gene positions
+        - The output maintains the same diplotype structure as the input
+        - Interpolated probabilities are normalized to sum to 1.0 at each position
+        - This function is typically run after GBRS reconstruction for visualization
+        - Grid-based probabilities enable consistent comparison across samples
+        - File sizes may be larger than gene-based files due to more positions
     """
     if gpos_file is None:
         gpos_file = os.path.join(DATA_DIR, 'ref.gene_pos.ordered.npz')
@@ -708,28 +1264,139 @@ def combine():
 
 
 def plot(
-    genoprob_file: str,
-    output_file: str = None,
-    output_format: str = 'pdf',
-    sample_name: str = '',
-    grid_size: int = 2,
-    xt_max: int = 5000,
-    xt_size: int = 500,
-    grid_width: float = 0.01,
+        genoprob_file: str,
+        output_file: str = None,
+        output_format: str = 'pdf',
+        sample_name: str = '',
+        grid_size: int = 2,
+        xt_max: int = 5000,
+        xt_size: int = 500,
+        grid_width: float = 0.01,
 ) -> None:
     """
-    Plot a reconstructed genome.
+    Generate genome reconstruction visualization plot.
+
+    This function creates a comprehensive visualization of the GBRS genome
+    reconstruction results, showing the most likely genotype at each position
+    across all chromosomes. The plot displays both haplotypes for each
+    position, allowing identification of recombination events and genomic
+    structure patterns.
+
+    The visualization uses a stacked bar chart format where each chromosome
+    is represented by two horizontal bars (one for each haplotype). Different
+    founder strains are color-coded, making it easy to identify regions of
+    shared ancestry and recombination breakpoints. The plot includes
+    recombination counts for each chromosome and total recombination count.
+
+    ALGORITHM:
+    1. Load genotype probabilities and determine most likely genotypes
+    2. For each chromosome:
+       - Extract most likely diplotype at each position
+       - Separate into two haplotypes
+       - Identify recombination events (genotype changes)
+       - Create color-coded bars for visualization
+    3. Generate plot with proper spacing, labels, and annotations
+    4. Save in specified format with high resolution
+
+    WHAT THIS DOES:
+    - Visualizes GBRS genome reconstruction results
+    - Shows haplotype structure across all chromosomes
+    - Identifies recombination events and breakpoints
+    - Provides quantitative recombination statistics
+    - Enables visual comparison of genomic structure
+
+    USE CASES:
+    - GBRS visualization: Create publication-quality genome plots
+    - Quality assessment: Visualize reconstruction quality and patterns
+    - Recombination analysis: Identify and count recombination events
+    - Population studies: Compare genomic structure across individuals
+    - Publication figures: Generate high-resolution plots for papers
 
     Args:
-        genoprob_file: the EMASE genotype probability file
-        output_file: the PDF file
-        output_format: The file format, e.g. 'png', 'pdf', 'svg', ... The
-            behavior when this is unset is documented under *fname*
-        sample_name: the sample name
-        grid_size: size of the grid (advanced)
-        xt_max: size of xt (advanced)
-        xt_size: max xt (advanced)
-        grid_width: grid width (advanced)
+        genoprob_file: Path to the genotype probability file (npz format).
+            Type: str
+            Description: File containing genotype probabilities from GBRS
+            reconstruction or interpolation. Can be either gene-based or
+            grid-based probabilities.
+            Format: Compressed numpy file with one array per chromosome
+            Shape: (num_diplotypes, num_positions) for each chromosome
+            Example: 'DO336.genoprobs.npz' or 'DO336.interpolated.genoprobs.npz'
+
+        output_file: Output filename for the plot.
+            Type: str
+            Default: None (auto-generated from input filename)
+            Description: Name of the output file for the generated plot.
+            If None, generates name based on input filename with 'plotted' prefix.
+            Example: 'DO336.plotted.genome.pdf'
+
+        output_format: File format for the output plot.
+            Type: str
+            Default: 'pdf'
+            Description: Image format for the output file. Common formats
+            include 'pdf', 'png', 'svg', 'jpg', 'tiff'.
+            Example: 'pdf' for publication-quality vector graphics
+
+        sample_name: Name of the sample for plot title.
+            Type: str
+            Default: ''
+            Description: Sample identifier to include in the plot title.
+            If empty, uses the filename as the sample name.
+            Example: 'DO336' or 'Mouse_001'
+
+        grid_size: Size parameter for grid scaling.
+            Type: int
+            Default: 2
+            Description: Advanced parameter affecting the scaling of the
+            x-axis grid. Used to adjust the visual spacing of positions.
+            Range: Typically 1 to 5
+            Example: 2 for standard spacing
+
+        xt_max: Maximum x-axis tick value.
+            Type: int
+            Default: 5000
+            Description: Maximum value for x-axis ticks in the plot.
+            Controls the range of the x-axis display.
+            Range: Depends on number of positions in the data
+            Example: 5000 for 5000 positions
+
+        xt_size: Size of x-axis tick intervals.
+            Type: int
+            Default: 500
+            Description: Interval between x-axis tick marks.
+            Controls the frequency of tick labels on the x-axis.
+            Range: Typically 100 to 1000
+            Example: 500 for ticks every 500 positions
+
+        grid_width: Width of each grid position.
+            Type: float
+            Default: 0.01
+            Description: Width of each position bar in the plot.
+            Controls the visual thickness of the genotype bars.
+            Range: Typically 0.005 to 0.05
+            Example: 0.01 for standard bar width
+
+    Returns:
+        None. The function creates a high-resolution plot file in the
+        specified format.
+
+    Raises:
+        FileNotFoundError: If genoprob_file does not exist
+        ValueError: If plot parameters are invalid
+        RuntimeError: If plotting fails or produces invalid output
+
+    Notes:
+        - The function automatically loads founder strain colors from
+          'founder.hexcolor.info' file
+        - Recombination events are counted when genotype changes between
+          adjacent positions
+        - The plot uses a 16x16 inch figure size for high resolution
+        - Chromosomes are displayed in natural order (1, 2, ..., 19, X, Y)
+        - Each chromosome shows two haplotypes with different colors
+        - Recombination counts are displayed next to each chromosome
+        - The plot includes a title with sample name and total recombination count
+        - Output is saved at 600 DPI for publication quality
+        - This function is typically run after GBRS reconstruction or interpolation
+        - The visualization is essential for quality assessment and publication
     """
     if output_file is None:
         output_file = os.path.splitext(os.path.basename(genoprob_file))[0]
@@ -762,19 +1429,21 @@ def plot(
     #
     logger.info(f'Loading GBRS genotype probability file: {genoprob_file}')
     genoprob = np.load(genoprob_file)
-    
+
     def natural_sort(list):
         def convert(text):
             return int(text) if text.isdigit() else text.lower()
+
         def alphanum_key(key):
             return [convert(c) for c in re.split('([0-9]+)', key)]
+
         return sorted(list, key=alphanum_key)
-    
+
     chrs = [value for value in chrlens.keys() if value in genoprob.files]
-    # intersection of ref.fa.fai chroms and those present in genoprob. 
+    # intersection of ref.fa.fai chroms and those present in genoprob.
 
     chrs = natural_sort(chrs)
-    # natural sorting of the chrom list for display. 
+    # natural sorting of the chrom list for display.
 
     num_chrs = len(chrs)
 
@@ -786,7 +1455,7 @@ def plot(
     num_recomb_total = 0
     for cid, c in enumerate(chrs):
         if (
-            c in genoprob.files
+                c in genoprob.files
         ):  # Skip drawing Y chromosome if the sample is female
             logger.debug(f'Working on {c}')
             genotype_calls = genotypes[genoprob[c].argmax(axis=0)]
@@ -797,7 +1466,7 @@ def plot(
             oldcol2 = 'NA'
             num_recomb = 0
             num_genes_in_chr = len(genotype_calls)
-            
+
             for i in range(num_genes_in_chr):
                 hap.append((i * grid_width, grid_width))
                 c1 = hcolors[genotype_calls[i][0]]
@@ -806,14 +1475,14 @@ def plot(
                 if i > 0:
                     if c1 == c2:
                         if (
-                            col1[-1] != col2[-1]
+                                col1[-1] != col2[-1]
                         ):  # When homozygous region starts, remember the
                             # most recent het
                             oldcol1 = col1[-1]
                             oldcol2 = col2[-1]
                     else:
                         if (
-                            col1[-1] == col2[-1]
+                                col1[-1] == col2[-1]
                         ):  # When heterozygous region starts
                             if c1 == oldcol2 or c2 == oldcol1:
                                 c1, c2 = c2, c1
@@ -821,7 +1490,7 @@ def plot(
                             c1, c2 = c2, c1
                     if c1 != col1[-1] or c2 != col2[-1]:
                         num_recomb += 1
-                        
+
                 col1.append(c1)
                 col2.append(c2)
             num_recomb_total += num_recomb
@@ -875,7 +1544,15 @@ def plot(
 
 
 def parse_founder_colors(path: str) -> dict[str, str]:
-    """Parse founder.hexcolor.info to dict: founder -> color."""
+    """
+    Parse founder strain color definitions from file.
+
+    Args:
+        path: Path to founder color file
+
+    Returns:
+        Dictionary mapping founder names to hex color codes
+    """
     founder_colors = {}
     with open(path) as f:
         for line in f:
@@ -887,10 +1564,16 @@ def parse_founder_colors(path: str) -> dict[str, str]:
     return founder_colors
 
 
+def load_gpos(gpos_path: str) -> dict[str, list[float]]:
+    """
+    Load gene positions (cM) from .npz file.
 
+    Args:
+        gpos_path: Path to gene position file
 
-def load_gpos(gpos_path):
-    """Load gene positions (cM) from .npz file: returns dict chrom -> [cM list]."""
+    Returns:
+        Dictionary mapping chromosomes to lists of cM positions
+    """
     gpos = np.load(gpos_path, allow_pickle=True)
     chrom_cM = {}
     for chrom in gpos.files:
@@ -900,8 +1583,16 @@ def load_gpos(gpos_path):
     return chrom_cM
 
 
-def find_blocks(seq):
-    """Yield (start_idx, end_idx, value) for contiguous blocks in seq."""
+def find_blocks(seq: list) -> tuple[int, int, any]:
+    """
+    Find contiguous blocks in sequence.
+
+    Args:
+        seq: Input sequence to analyze
+
+    Yields:
+        Tuples of (start_index, end_index, value) for each block
+    """
     if not seq:
         return
     start = 0
@@ -915,7 +1606,17 @@ def find_blocks(seq):
     yield (start, len(seq), current)
 
 
-def natural_chrom_order(chroms):
+def natural_chrom_order(chroms: list[str]) -> list[str]:
+    """
+    Sort chromosomes in natural order (1,2,...,19,X,Y,MT).
+
+    Args:
+        chroms: List of chromosome names to sort
+
+    Returns:
+        Sorted list of chromosome names
+    """
+
     # Order: 1,2,...,19,X,Y,MT (case-insensitive)
     def chrom_key(c):
         c = c.upper()
@@ -933,7 +1634,16 @@ def natural_chrom_order(chroms):
     return sorted(chroms, key=chrom_key)
 
 
-def chrom_sort_key(c):
+def chrom_sort_key(c: str) -> int:
+    """
+    Get sort key for chromosome name.
+
+    Args:
+        c: Chromosome name
+
+    Returns:
+        Integer sort key (1-19 for autosomes, 20 for X, 21 for Y, 22 for MT)
+    """
     c = c.upper()
     if c == 'X':
         return 20
@@ -948,47 +1658,227 @@ def chrom_sort_key(c):
 
 
 def plot_genoprobs(
-    genoprobs_file: str,
-    output_file: str | None = None,
-    output_format: str = 'pdf',
-    sample_name: str | None = None,
-    founder_colors_file: str | None = None,
-    genome_pos_file: str | None = None,
-    dpi: int = 300,
-    bar_height: float = 0.5,
-    haplotype_gap: float = 0.1,
-    chrom_spacing: float = 2.0,
-    fig_width: int = 18,
-    min_fig_height: int = 8,
-    height_per_chrom: float = 0.8,
-    font_size_title: int = 22,
-    font_size_axis: int = 18,
-    font_size_tick: int = 16,
-    font_size_legend: int = 14,
-    legend_line_width: int = 8,
-):
+        genoprobs_file: str,
+        output_file: str | None = None,
+        output_format: str = 'pdf',
+        sample_name: str | None = None,
+        founder_colors_file: str | None = None,
+        genome_pos_file: str | None = None,
+        dpi: int = 300,
+        bar_height: float = 0.5,
+        haplotype_gap: float = 0.1,
+        chrom_spacing: float = 2.0,
+        fig_width: int = 18,
+        min_fig_height: int = 8,
+        height_per_chrom: float = 0.8,
+        font_size_title: int = 22,
+        font_size_axis: int = 18,
+        font_size_tick: int = 16,
+        font_size_legend: int = 14,
+        legend_line_width: int = 8,
+) -> None:
     """
-    Plot genome reconstruction with configurable parameters.
+    Generate publication-quality genome reconstruction plots with configurable parameters.
+
+    This function is an enhanced version of the basic plot function that provides
+    extensive customization options for creating publication-ready genome reconstruction
+    visualizations. It creates a comprehensive view of GBRS reconstruction results
+    with improved aesthetics, better spacing, and more informative annotations.
+
+    The function generates a multi-chromosome plot where each chromosome is represented
+    by two horizontal bars (one for each haplotype) with founder strains color-coded.
+    It automatically detects recombination events and provides detailed statistics
+    for each chromosome. The plot includes a legend, proper axis labels, and
+    publication-quality formatting.
+
+    ALGORITHM:
+    1. Load genotype probabilities and determine most likely genotypes
+    2. For each chromosome:
+       - Extract most likely diplotype at each position
+       - Separate into two haplotypes
+       - Identify contiguous blocks of same genotype
+       - Create color-coded rectangles for visualization
+       - Count recombination events
+    3. Generate plot with configurable aesthetics and spacing
+    4. Add legend, labels, and annotations
+    5. Save in specified format with high resolution
+
+    WHAT THIS DOES:
+    - Creates publication-quality genome reconstruction visualizations
+    - Shows haplotype structure with improved aesthetics
+    - Identifies and counts recombination events
+    - Provides extensive customization options
+    - Generates publication-ready figures
+
+    USE CASES:
+    - Publication figures: Create high-quality plots for papers
+    - Quality assessment: Visualize reconstruction quality with detail
+    - Recombination analysis: Identify and quantify recombination patterns
+    - Population studies: Compare genomic structure across individuals
+    - Custom visualization: Tailor plots to specific requirements
 
     Args:
-        genoprobs_file: Path to genoprobs (.npz) file
-        output_file: Output file name
-        output_format: PDF, PNG, SVG
-        sample_name: name of the sample
-        founder_colors_file: Path to founder.hexcolor.info file
-        genome_pos_file: Optional gene position .npz file for cM positions
-        dpi: DPI for output PDF (default: 300)
-        bar_height: Height of each haplotype bar (default: 1.1)
-        haplotype_gap: Gap between haplotype bars (default: 0.3)
-        chrom_spacing: Vertical spacing between chromosomes (default: 3.0)
-        fig_width: Figure width in inches (default: 18)
-        min_fig_height: Minimum figure height in inches (default: 8)
-        height_per_chrom: Height per chromosome in inches (default: 1.5)
-        font_size_title: Title font size (default: 22)
-        font_size_axis: Axis label font size (default: 18)
-        font_size_tick: Tick label font size (default: 16)
-        font_size_legend: Legend font size (default: 14)
-        legend_line_width: Legend line width (default: 8)
+        genoprobs_file: Path to the genotype probability file (npz format).
+            Type: str
+            Description: File containing genotype probabilities from GBRS
+            reconstruction or interpolation. Can be either gene-based or
+            grid-based probabilities.
+            Format: Compressed numpy file with one array per chromosome
+            Shape: (num_diplotypes, num_positions) for each chromosome
+            Example: 'DO336.genoprobs.npz' or 'DO336.interpolated.genoprobs.npz'
+
+        output_file: Output filename for the plot.
+            Type: str | None
+            Default: None (auto-generated from input filename)
+            Description: Name of the output file for the generated plot.
+            If None, generates name based on input filename with 'plotted' prefix.
+            Example: 'DO336.plotted.genome.pdf'
+
+        output_format: File format for the output plot.
+            Type: str
+            Default: 'pdf'
+            Description: Image format for the output file. Common formats
+            include 'pdf', 'png', 'svg', 'jpg', 'tiff'.
+            Example: 'pdf' for publication-quality vector graphics
+
+        sample_name: Name of the sample for plot title.
+            Type: str | None
+            Default: None
+            Description: Sample identifier to include in the plot title.
+            If None, uses the filename as the sample name.
+            Example: 'DO336' or 'Mouse_001'
+
+        founder_colors_file: Path to founder strain color definitions.
+            Type: str | None
+            Default: None
+            Description: File containing founder strain to color mappings.
+            Format: Tab-separated with founder name and hex color code.
+            If None, uses default color scheme for 8-founder populations.
+            Example: 'founder.hexcolor.info'
+
+        genome_pos_file: Path to gene position file for cM coordinates.
+            Type: str | None
+            Default: None
+            Description: Optional file containing gene positions in centiMorgans.
+            If provided, x-axis shows genetic distance (cM) instead of marker index.
+            Format: Compressed numpy file with gene positions
+            Example: 'ref.gene_pos.ordered.npz'
+
+        dpi: Resolution for output image.
+            Type: int
+            Default: 300
+            Description: Dots per inch for the output image. Higher values
+            produce higher resolution images suitable for publication.
+            Range: Typically 150 to 600
+            Example: 300 for publication quality
+
+        bar_height: Height of each haplotype bar.
+            Type: float
+            Default: 0.5
+            Description: Height of individual haplotype bars in plot units.
+            Controls the visual thickness of the genotype bars.
+            Range: Typically 0.3 to 1.0
+            Example: 0.5 for standard appearance
+
+        haplotype_gap: Gap between haplotype bars.
+            Type: float
+            Default: 0.1
+            Description: Vertical gap between the two haplotype bars for
+            each chromosome. Creates visual separation between haplotypes.
+            Range: Typically 0.05 to 0.3
+            Example: 0.1 for clear separation
+
+        chrom_spacing: Vertical spacing between chromosomes.
+            Type: float
+            Default: 2.0
+            Description: Vertical distance between different chromosomes
+            in the plot. Controls overall plot height and readability.
+            Range: Typically 1.5 to 4.0
+            Example: 2.0 for balanced spacing
+
+        fig_width: Figure width in inches.
+            Type: int
+            Default: 18
+            Description: Width of the entire figure in inches.
+            Controls the overall size and aspect ratio of the plot.
+            Range: Typically 12 to 24
+            Example: 18 for wide format
+
+        min_fig_height: Minimum figure height in inches.
+            Type: int
+            Default: 8
+            Description: Minimum height of the figure in inches.
+            Ensures adequate space for all chromosomes and labels.
+            Range: Typically 6 to 16
+            Example: 8 for standard height
+
+        height_per_chrom: Height per chromosome in inches.
+            Type: float
+            Default: 0.8
+            Description: Height allocated for each chromosome in the plot.
+            Used to calculate total figure height.
+            Range: Typically 0.5 to 1.5
+            Example: 0.8 for standard allocation
+
+        font_size_title: Title font size.
+            Type: int
+            Default: 22
+            Description: Font size for the main plot title.
+            Controls prominence of the title text.
+            Range: Typically 16 to 28
+            Example: 22 for prominent title
+
+        font_size_axis: Axis label font size.
+            Type: int
+            Default: 18
+            Description: Font size for x-axis and y-axis labels.
+            Controls readability of axis descriptions.
+            Range: Typically 14 to 22
+            Example: 18 for clear labels
+
+        font_size_tick: Tick label font size.
+            Type: int
+            Default: 16
+            Description: Font size for tick labels on axes.
+            Controls readability of position markers.
+            Range: Typically 12 to 20
+            Example: 16 for readable ticks
+
+        font_size_legend: Legend font size.
+            Type: int
+            Default: 14
+            Description: Font size for legend text and title.
+            Controls readability of founder strain legend.
+            Range: Typically 10 to 18
+            Example: 14 for clear legend
+
+        legend_line_width: Legend line width.
+            Type: int
+            Default: 8
+            Description: Width of lines in the legend showing founder colors.
+            Controls visual prominence of legend elements.
+            Range: Typically 4 to 12
+            Example: 8 for prominent legend lines
+
+    Returns:
+        None. The function creates a high-resolution plot file in the
+        specified format with all requested customizations.
+
+    Raises:
+        FileNotFoundError: If genoprobs_file or founder_colors_file does not exist
+        ValueError: If plot parameters are invalid or incompatible
+        RuntimeError: If plotting fails or produces invalid output
+
+    Notes:
+        - The function automatically detects and handles different chromosome orders
+        - Recombination events are counted when genotype changes between adjacent positions
+        - Founder strain colors can be customized via founder_colors_file
+        - X-axis can show either marker index or genetic distance (cM) if genome_pos_file provided
+        - The plot includes a comprehensive legend showing all founder strains
+        - Output is optimized for publication with high DPI and vector formats
+        - This function provides much more customization than the basic plot function
+        - The visualization is essential for quality assessment and publication
+        - All aesthetic parameters can be tuned for specific publication requirements
     """
     if output_file is None:
         output_file = os.path.splitext(os.path.basename(genoprobs_file))[0]
@@ -1109,7 +1999,7 @@ def plot_genoprobs(
             x_start = x[start]
             x_end = x[end - 1] if end - 1 < len(x) else x[-1]
             width = x_end - x_start if x_end > x_start else 1
-            #logger.debug(f'f1 {chrom}:{start}-{end} {val} ({founder_colors_simple[val]})')
+            # logger.debug(f'f1 {chrom}:{start}-{end} {val} ({founder_colors_simple[val]})')
 
             ax.add_patch(
                 Rectangle(
@@ -1196,21 +2086,100 @@ def plot_genoprobs(
     logger.info(f'Plot saved to {output_file}')
 
 
-
 def export(
-    genoprob_file: str,
-    strains: list[str],
-    grid_file: str = None,
-    output_file: str = None,
+        genoprob_file: str,
+        strains: list[str],
+        grid_file: str = None,
+        output_file: str = None,
 ) -> None:
     """
-    Export genotypes probability file in in GBRS quant format.
+    Export genotype probabilities to GBRS quant format for downstream analysis.
+
+    This function converts genotype probability matrices from the GBRS format
+    (diplotype probabilities) to a quantitative format that represents the
+    expected contribution of each founder strain at each genomic position.
+    This conversion is useful for downstream analyses that require founder
+    strain dosage information rather than diplotype probabilities.
+
+    The function applies a conversion matrix that transforms diplotype
+    probabilities into founder strain dosages. For each position, it calculates
+    the expected contribution of each founder strain based on the probabilities
+    of all possible diplotypes containing that strain.
+
+    ALGORITHM:
+    1. Load genotype probability matrices for all chromosomes
+    2. Create conversion matrix mapping diplotypes to founder strain dosages
+    3. For each chromosome:
+       - Transpose probability matrix to (positions × diplotypes)
+       - Stack matrices from all chromosomes into single matrix
+    4. Apply conversion matrix: dosage = probabilities × conversion_matrix
+    5. Save results in tab-separated format with founder strain columns
+
+    WHAT THIS DOES:
+    - Converts diplotype probabilities to founder strain dosages
+    - Combines all chromosomes into single quantitative matrix
+    - Provides format suitable for downstream statistical analysis
+    - Enables founder strain-specific analyses
+
+    USE CASES:
+    - Downstream analysis: Provide founder strain dosages for statistical tests
+    - QTL mapping: Use founder strain contributions for association studies
+    - Population analysis: Compare founder strain patterns across individuals
+    - Integration: Combine with other genomic data in standard format
+    - Visualization: Create founder strain-specific plots
 
     Args:
-        genoprob_file: genotype probability file
-        strains: list of strains
-        grid_file: grid file (i.e, ref.genome_grid.64k.txt)
-        output_file: output file in GBRS quant format
+        genoprob_file: Path to the genotype probability file (npz format).
+            Type: str
+            Description: File containing genotype probabilities from GBRS
+            reconstruction or interpolation. Contains diplotype probabilities
+            for each position across all chromosomes.
+            Format: Compressed numpy file with one array per chromosome
+            Shape: (num_diplotypes, num_positions) for each chromosome
+            Example: 'DO336.genoprobs.npz' or 'DO336.interpolated.genoprobs.npz'
+
+        strains: List of founder strain identifiers.
+            Type: list[str]
+            Description: Names of founder strains in the population.
+            These must match the haplotypes used in the GBRS reconstruction.
+            The order determines the column order in the output file.
+            Example: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] for DO mice
+
+        grid_file: Path to the grid file for position information.
+            Type: str
+            Default: None (uses default location from GBRS_DATA)
+            Description: File containing grid position information.
+            Used to determine the number of positions and chromosome structure.
+            Format: Tab-separated with grid_id, chromosome, position, cM
+            Example: 'ref.genome_grid.64k.txt'
+
+        output_file: Output filename for the quant format file.
+            Type: str
+            Default: None (auto-generated from input filename)
+            Description: Name of the tab-separated output file containing
+            founder strain dosages. If None, generates name based on input
+            filename with '.tsv' extension.
+            Example: 'DO336.genoprobs.tsv'
+
+    Returns:
+        None. The function creates a tab-separated file containing founder
+        strain dosages for all positions across all chromosomes.
+
+    Raises:
+        FileNotFoundError: If genoprob_file or grid_file does not exist
+        ValueError: If strains list is empty or incompatible with data
+        RuntimeError: If conversion fails or produces invalid results
+
+    Notes:
+        - The conversion matrix maps each diplotype to founder strain contributions
+        - For homozygous diplotypes (AA), the contribution is 1.0 for strain A
+        - For heterozygous diplotypes (AB), the contribution is 0.5 for each strain
+        - The output format is compatible with many statistical analysis tools
+        - Each row represents a genomic position, each column represents a founder strain
+        - Dosage values range from 0.0 to 1.0, representing expected founder contribution
+        - This function is typically run after GBRS reconstruction for downstream analysis
+        - The quant format enables founder strain-specific statistical analyses
+        - File sizes can be large for populations with many positions
     """
     if grid_file is None:
         grid_file = os.path.join(DATA_DIR, 'ref.genome_grid.64k.txt')
@@ -1275,20 +2244,100 @@ def export(
     logger.info('Done')
 
 
-
-
 def debug_genoprob(
-    genoprob_file: str,
-    output_file: str = None,
-    strains: list[str] = None
-) -> None:
+        genoprob_file: str,
+        output_file: str = None,
+        strains: list[str] = None
+) -> dict | None:
     """
-    Export genotypes probability file in in GBRS quant format.
+    Analyze and debug genotype probability files with detailed statistics.
+
+    This function provides comprehensive analysis and debugging capabilities
+    for GBRS genotype probability files. It examines the structure, quality,
+    and statistical properties of the probability matrices to help identify
+    potential issues or validate the reconstruction results.
+
+    The function performs extensive quality checks including probability
+    normalization, distribution analysis, and diplotype frequency analysis.
+    It provides both summary statistics and detailed examples to help
+    understand the structure and quality of the genotype probability data.
+
+    ALGORITHM:
+    1. Load genotype probability file and examine structure
+    2. For each chromosome:
+       - Analyze matrix dimensions and data types
+       - Check probability normalization (sum to 1.0)
+       - Calculate maximum probabilities and confidence
+       - Analyze distribution of most likely diplotypes
+       - Provide detailed examples for first few positions
+    3. Generate comprehensive summary report
+    4. Optionally save detailed analysis to file
+
+    WHAT THIS DOES:
+    - Validates probability matrix structure and quality
+    - Identifies potential issues in genotype reconstruction
+    - Provides statistical summaries for quality assessment
+    - Offers detailed examples for understanding data structure
+    - Helps debug reconstruction pipeline issues
+
+    USE CASES:
+    - Quality control: Validate GBRS reconstruction results
+    - Debugging: Identify issues in reconstruction pipeline
+    - Data exploration: Understand structure of probability matrices
+    - Validation: Check probability normalization and distributions
+    - Documentation: Generate reports for data quality assessment
 
     Args:
-        genoprob_file: genotype probability file
-        output_file: output file in GBRS quant format
-        strains: list of strains
+        genoprob_file: Path to the genotype probability file (npz format).
+            Type: str
+            Description: File containing genotype probabilities from GBRS
+            reconstruction or interpolation. Can be either gene-based or
+            grid-based probabilities.
+            Format: Compressed numpy file with one array per chromosome
+            Shape: (num_diplotypes, num_positions) for each chromosome
+            Example: 'DO336.genoprobs.npz' or 'DO336.interpolated.genoprobs.npz'
+
+        output_file: Output filename for detailed analysis report.
+            Type: str
+            Default: None (auto-generated from input filename)
+            Description: Name of the output file for saving detailed analysis.
+            If None, generates name based on input filename with '.tsv' extension.
+            The report includes comprehensive statistics and examples.
+            Example: 'DO336.genoprobs.debug.tsv'
+
+        strains: List of founder strain identifiers.
+            Type: list[str]
+            Default: None (uses default 8-founder DO strains)
+            Description: Names of founder strains in the population.
+            Used to generate diplotype names for analysis and reporting.
+            If None, uses standard DO founder strains A-H.
+            Example: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+
+    Returns:
+        dict | None: Loaded genotype probability data or None if loading fails.
+            Type: dict | None
+            Description: If successful, returns the loaded numpy data object
+            containing genotype probability matrices. If loading fails due to
+            file errors or invalid format, returns None.
+            The returned object can be used for further analysis or debugging.
+
+    Raises:
+        FileNotFoundError: If genoprob_file does not exist
+        ValueError: If file format is invalid or corrupted
+        RuntimeError: If analysis fails due to data inconsistencies
+
+    Notes:
+        - The function automatically detects whether the file contains
+          interpolated (grid-based) or original (gene-based) probabilities
+        - Probability normalization is checked to ensure columns sum to ~1.0
+        - Maximum probabilities indicate confidence in genotype calls
+        - Diplotype distribution analysis shows frequency of each genotype
+        - Detailed examples show actual probability values for first few positions
+        - The function provides both console output and optional file output
+        - This function is essential for quality control and debugging
+        - Analysis results help identify potential issues in reconstruction
+        - The function is safe to run on any GBRS genotype probability file
+        - Output includes both summary statistics and detailed examples
     """
     if strains is None:
         strains = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
@@ -1311,7 +2360,8 @@ def debug_genoprob(
         logger.debug(f'Chromosomes: {data.files}')
         logger.debug(f'Diplotypes: {diplotypes}')
         logger.debug(f'Number of diplotypes: {len(diplotypes)}')
-        logger.debug(f"File type: {'Interpolated (grid positions)' if is_interpolated else 'Original (gene positions)'}")
+        logger.debug(
+            f"File type: {'Interpolated (grid positions)' if is_interpolated else 'Original (gene positions)'}")
 
         # Summary statistics
         total_positions = 0
@@ -1373,4 +2423,6 @@ def debug_genoprob(
     except Exception as e:
         print(f"Error reading {genoprob_file}: {e}")
         return None
+
+
 

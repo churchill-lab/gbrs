@@ -35,7 +35,7 @@ def test_bam2emase_paired(tmp_path, bam_file_1, bam_file_2, locusid_file):
 
     assert os.path.exists(output_file)
 
-    apm = AlignmentPropertyMatrix(h5file=output_file)
+    apm = AlignmentPropertyMatrix(h5_file=output_file)
     # this class formats the h5 into a specific format for use downstream.
     # testing this class is done seperately, and is used here to obtain correct matrix formatting.
 

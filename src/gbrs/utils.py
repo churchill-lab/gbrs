@@ -4,6 +4,7 @@ import os
 
 # 3rd party library imports
 from rich.logging import RichHandler
+import numpy as np
 
 # local library imports
 #
@@ -23,7 +24,8 @@ def get_logger(logger_name: str = 'gbrs') -> logging.Logger:
 
 
 def configure_logging(
-    logger_name: str = 'gbrs', level: int = 0
+    logger_name: str = 'gbrs',
+    level: int = 0
 ) -> logging.Logger:
     """
     Configure the logger with the specified `level`. Valid `level` values
@@ -91,7 +93,8 @@ def configure_logging(
 
 
 def nvli(value, default) -> int:
-    """Returns `value` as an int if `value` can be converted, else `default`.
+    """
+    Returns `value` as an int if `value` can be converted, else `default`.
 
     Args:
         value: The value to evaluate and convert to an it.
@@ -109,7 +112,7 @@ def nvli(value, default) -> int:
     return ret
 
 
-def check_file(file_name: str, mode: str | None = "r") -> str:
+def check_file(file_name: str, mode: str | None = 'r') -> str:
     """
     Check if file_name exists and accessible for reading or writing.
 
@@ -130,8 +133,6 @@ def check_file(file_name: str, mode: str | None = "r") -> str:
 
         raise FileNotFoundError(f"The following file does not exist: {file_name}")
     elif mode == 'r':
-        file_dir = '.'
-
         if file_name:
             file_name = os.path.abspath(file_name)
             file_dir = os.path.dirname(file_name)
@@ -159,23 +160,28 @@ def is_comment(s: str) -> bool:
 
 def get_names(id_file: str) -> list[str]:
     """
-    Load a file and get the names.
-
+    Load a file and get the names from the first column.
+    
     Args:
-        id_file: the name of the file to open
+        id_file: Path to the tab-separated file to read
 
     Returns:
-        A list of the names in the file.
+        A list of unique names from the first column, preserving order of first appearance
+
+    Example:
+        For a file with content:
+            ENSMUST00000000001    0.0
+            ENSMUST00000000003    0.0
+            ENSMUST00000000010    0.0
+            
+        Returns: ['ENSMUST00000000001', 'ENSMUST00000000003', 'ENSMUST00000000010']
     """
-    ids = dict()
-    master_id = 0
-    with open(id_file) as fh:
-        for line in fh:
-            item = line.rstrip().split('\t')
-            g = item[0]
-            if g not in ids:
-                ids[g] = master_id
-                master_id += 1
-    num_ids = len(ids)
-    names = {index: name for name, index in ids.items()}
-    return [names[k] for k in range(num_ids)]
+    try:
+        # read only the first column, skip comment lines
+        data = np.loadtxt(id_file, dtype=str, delimiter='\t', usecols=0, 
+                         comments='#', encoding='utf-8')
+        # remove duplicates while preserving order (Python 3.7+)
+        names = list(dict.fromkeys(data))
+        return names
+    except Exception as e:
+        raise RuntimeError(f"Failed to load names from {id_file}: {e}")

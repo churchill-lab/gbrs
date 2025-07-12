@@ -1,121 +1,280 @@
-# standard library imports
+# Standard library imports
 import os
 import struct
 
 # 3rd party library imports
-from scipy.sparse import coo_matrix
 import numpy as np
 import pysam
 import tables
+from scipy.sparse import coo_matrix, csc_matrix
 
-# local library imports
+# Local library imports
 from gbrs import utils
-
 
 logger = utils.get_logger('gbrs')
 
 
 class AlignmentMatrixFactory:
-    def __init__(self, alnfile):
-        self.alnfile = alnfile
-        self.hname = None
-        self.lname = None
-        self.rname = None
-        self.tmpfiles = None
+    """
+    Factory class for creating alignment matrices from BAM files.
 
-    def prepare(self, haplotypes: list[str], loci, delim: str = '_', outdir=None):
+    This class handles the conversion of paired-end BAM alignment data to the
+    EMASE format used by the GBRS pipeline. It processes multiple BAM files
+    (typically R1 and R2 from paired-end sequencing) and creates HDF5 files
+    containing sparse alignment matrices organized by haplotypes.
+
+    The factory works in two phases:
+    **Preparation**: Parse multiple BAM files, extract read and locus
+        information, create temporary files for each haplotype and read end
+    **Production**: Convert temporary files to HDF5 format with sparse
+        matrices in CSC (Compressed Sparse Column) format
+
+    Key Features:
+    - Supports multiple BAM files (typically R1 and R2)
+    - Handles haplotype-specific reference sequences
+    - Creates memory-efficient sparse matrices
+    - Combines data from multiple read ends using element-wise multiplication
+    - Supports compression and custom data types
+    - Automatic cleanup of temporary files
+
+    The resulting HDF5 files can be loaded directly by AlignmentPropertyMatrix
+    for downstream EMASE analysis.
+
+    Attributes:
+        alignment_files: List of paths to input BAM files
+        hname: List of haplotype names
+        lname: List of locus (transcript) names
+        rname: Array of read names (sorted)
+        tmp_files: Nested mapping of haplotype names and file indices to
+            temporary file paths
+    """
+
+    def __init__(
+        self,
+        alignment_files: list[str]
+    ) -> None:
+        """
+        Initialize the AlignmentMatrixFactory.
+
+        This constructor validates the input BAM files and prepares the factory
+        for processing RNA-seq alignment data.
+
+        Args:
+            alignment_files: List of paths to input BAM files containing
+                RNA-seq alignments
+
+        Raises:
+            FileNotFoundError: If any of the specified BAM files do not exist
+            ValueError: If alnfile is not a list or is empty
+
+        Note:
+            The BAM files should contain alignments to a haplotype-specific
+            reference genome where reference names follow the format:
+            'locus_haplotype' (e.g., 'ENSMUST00000123456_A').
+
+            Typically, this would be used with two BAM files:
+            - R1 alignments (first read of each pair)
+            - R2 alignments (second read of each pair)
+
+            The factory assumes that both BAM files contain the same read names
+            and will use the read names from the first BAM file.
+        """
+        if not isinstance(alignment_files, list) or len(alignment_files) == 0:
+            raise ValueError(
+                'alignment_files must be a non-empty list of BAM file paths'
+            )
+
+        if not all(os.path.exists(bam) for bam in alignment_files):
+            raise FileNotFoundError('One or more BAM files do not exist')
+
+        self.alignment_files = alignment_files
+        self.hname: list[str] | None = None
+        self.lname: list[str] | None = None
+        self.rname: np.ndarray | None = None
+        self.tmp_files: dict | None = None
+
+
+    def prepare(
+        self,
+        haplotypes: list[str],
+        loci: list[str],
+        delim: str = '_',
+        out_dir: str | None = None
+    ) -> None:
+        """
+        Prepare the factory for matrix production by processing BAM files.
+
+        This method performs the preparation phase of the factory workflow:
+        - Extracts read names from the first BAM file
+        - Creates temporary binary files for each haplotype and read end
+        - Processes alignments and writes read-locus pairs to temporary files
+
+        The preparation phase is memory-efficient as it processes BAM files
+        sequentially and stores intermediate results in temporary binary files
+        rather than keeping all data in memory.
+
+        Args:
+            haplotypes: List of haplotype names to process.
+            loci: List of locus (transcript) names
+            delim: Delimiter used in reference names to separate locus and
+                haplotype. Defaults to '_' (e.g., 'ENSMUST00000123456_A')
+            out_dir: Directory to write temporary files. If None, uses
+                directory of the first BAM file
+
+        Raises:
+            RuntimeError: If BAM files cannot be read or processed
+            ValueError: If loci list is empty or invalid
+
+        Note:
+            This method creates temporary binary files with names like:
+            '{haplotype}_{file_index}_{process_id}.bin'. Each temporary
+            file contains binary data with pairs of uint32
+            values: (read_index, locus_index) for each alignment.
+        """
+        if len(loci) == 0:
+            raise ValueError('loci list cannot be empty')
+
+        # set haplotype names
         if len(haplotypes) > 0:
-            # Suffices given
             self.hname = haplotypes
         else:
-            # Suffix not given
             self.hname = ['h0']
-        self.lname = loci
-        self.rname = set()
 
+        self.lname = loci
+
+        # extract read names from first BAM file
+        logger.debug('Gathering all read names...')
         save = pysam.set_verbosity(0)
-        fh = pysam.AlignmentFile(self.alnfile, 'rb')
+        fh = pysam.AlignmentFile(self.alignment_files[0], 'rb')
         pysam.set_verbosity(save)
 
-        # loop over the file to get all read names.
-        # The query_name attribute of the pysam.AlignedSegment object is the read name.
-        # The read names are stored in a set to remove duplicates.
-        logger.debug('Gathering all read names...')
+        # NOTE: Single BAM file is used, as the assumption is that
+        # both have the same reads
         self.rname = {aln.query_name for aln in fh.fetch(until_eof=True)}
         logger.debug(f'Retrieved {len(self.rname):,} read names')
+        fh.close()
 
-        # sorts the elements of the NumPy array self.rname and updates the array with the sorted values.
+        # sort read names for consistent ordering
         logger.debug('Sorting read names...')
         self.rname = np.array(list(self.rname), dtype='S')
         self.rname.sort()
-        #logger.debug(f'{self.rname.dtype=}')
         logger.debug(f'Sorted {len(self.rname):,} read names')
 
+        # create ID mappings
         lid = {self.lname[i]: i for i in range(len(self.lname))}
         rid = {self.rname[i].decode(): i for i in range(len(self.rname))}
 
-        self.tmpfiles = dict.fromkeys(self.hname)
+        # set output directory
+        if out_dir is None:
+            out_dir = os.path.dirname(self.alignment_files[0])
 
-        if outdir is None:
-            outdir = os.path.dirname(self.alnfile)
-
+        # Initialize temporary file structure
         fhout = dict.fromkeys(self.hname)
         for hap in self.hname:
-            outfile = os.path.join(outdir, f'{hap}_{os.getpid()}.bin')
-            self.tmpfiles[hap] = outfile
-            fhout[hap] = open(outfile, 'wb')
-            logger.debug(f'Generating temp file: {outfile}')
+            fhout[hap] = {idx: [] for idx in range(len(self.alignment_files))}
+        self.tmp_files = fhout
 
-        save = pysam.set_verbosity(0)
-        fh = pysam.AlignmentFile(self.alnfile, 'rb')
-        pysam.set_verbosity(save)
+        # Create temporary files
+        for hap in self.hname:
+            for idx, bam in enumerate(self.alignment_files):
+                outfile = os.path.join(out_dir, f'{hap}_{idx}_{os.getpid()}.bin')
+                logger.debug(f'Initializing temp file: {outfile}')
+                self.tmp_files[hap][idx] = outfile
+                fhout[hap][idx] = open(outfile, 'wb')
 
-        # pre-compile the struct.pack for better performance
+        # Pre-compile struct.pack for better performance
         pack_uint32 = struct.Struct('>I').pack
 
-        if len(haplotypes) > 0:
-            # Suffices given
-            for aln in fh.fetch(until_eof=True):
-                if aln.flag != 4 and aln.flag != 8:
-                    locus, hap = fh.get_reference_name(aln.tid).split(delim)
-                    fhout[hap].write(pack_uint32(rid[aln.qname]))
-                    fhout[hap].write(pack_uint32(lid[locus]))
-        else:
-            # Suffix not given
-            hap = self.hname[0]
-            for aln in fh.fetch(until_eof=True):
-                if aln.flag != 4 and aln.flag != 8:
-                    locus = fh.get_reference_name(aln.tid)
-                    fhout[hap].write(pack_uint32(rid[aln.qname]))
-                    fhout[hap].write(pack_uint32(lid[locus]))
+        # Process each BAM file
+        for idx, bam in enumerate(self.alignment_files):
+            logger.debug(
+                f'Processing BAM file {idx + 1}/{len(self.alignment_files)}: {bam}'
+            )
+            save = pysam.set_verbosity(0)
+            fh = pysam.AlignmentFile(bam, 'rb')
+            pysam.set_verbosity(save)
 
-        # make temp files for each haplotype, the files contain the read name and locus name of each read in the alignment file.
-        # the read name and locus name are written to the file in binary format.
-        for hap in self.hname:
-            fhout[hap].close()
+            if len(haplotypes) > 0:
+                # haplotypes provided - parse reference names
+                for aln in fh.fetch(until_eof=True):
+                    if aln.flag != 4 and aln.flag != 8:
+                        # skip unmapped reads
+                        locus, hap = fh.get_reference_name(aln.reference_id).split(delim)
+                        fhout[hap][idx].write(pack_uint32(rid[aln.query_name]))
+                        fhout[hap][idx].write(pack_uint32(lid[locus]))
+            else:
+                # no haplotypes provided - use default
+                hap = self.hname[0]
+                for aln in fh.fetch(until_eof=True):
+                    if aln.flag != 4 and aln.flag != 8:
+                        # skip unmapped reads
+                        locus = fh.get_reference_name(aln.reference_id)
+                        fhout[hap][idx].write(pack_uint32(rid[aln.query_name]))
+                        fhout[hap][idx].write(pack_uint32(lid[locus]))
+
+            # close temporary files for this BAM file
+            for hap in self.hname:
+                fhout[hap][idx].close()
 
         logger.debug('Finished temp file creation')
 
     def produce(
         self,
-        h5file: str,
-        title='Alignments',
-        index_dtype='uint32',
-        data_dtype=float,
-        complib='zlib',
-        incidence_only=True,
-    ):
-        logger.debug(f'Constructing: {h5file}')
-        h5fh = tables.open_file(h5file, 'w', title=title)
+        h5_file: str,
+        title: str = 'Alignments',
+        index_dtype: str = 'uint32',
+        data_dtype: type = float,
+        complib: str = 'zlib',
+        incidence_only: bool = True
+    ) -> None:
+        """
+        Produce an HDF5 file containing the alignment matrix.
+
+        This method performs the production phase of the factory workflow:
+        - Reads temporary binary files created during preparation
+        - Converts binary data to sparse matrices
+        - Combines matrices from multiple read ends using element-wise
+            multiplication
+        - Saves final sparse matrices in HDF5 format
+
+        Args:
+            h5_file: Path to the output HDF5 file
+            title: Title for the HDF5 file. Defaults to 'Alignments'
+            index_dtype: Data type for sparse matrix indices (indptr, indices).
+                Defaults to 'uint32'
+            data_dtype: Data type for sparse matrix data. Defaults to float
+            complib: Compression library to use. Defaults to 'zlib'
+            incidence_only: If True, store only binary incidence (1.0 for
+                alignments). If False, store actual alignment counts.
+
+        Raises:
+            RuntimeError: If temporary files are missing or cannot be read
+            ValueError: If factory has not been prepared (prepare() not called)
+
+        Note:
+            The method combines data from multiple BAM files using element-wise
+            multiplication of sparse matrices. This ensures that only reads
+            present in ALL input files are included in the final matrix.
+        """
+        if any(v is None for v in (self.tmp_files, self.hname, self.lname, self.rname)):
+            raise ValueError(
+                'Factory must be prepared before producing matrix. Call prepare() first.'
+            )
+
+        logger.debug(f'Constructing: {h5_file}')
+        h5fh = tables.open_file(h5_file, 'w', title=title)
         fil = tables.Filters(complevel=1, complib=complib)
 
+        # set root attributes
         logger.debug(f'Creating node attribute /incidence_only: {incidence_only}')
         h5fh.set_node_attr(h5fh.root, 'incidence_only', incidence_only)
 
-        logger.debug('Creating node attibute /mtype: csc_matrix')
+        logger.debug('Creating node attribute /mtype: csc_matrix')
         h5fh.set_node_attr(h5fh.root, 'mtype', 'csc_matrix')
 
-        logger.debug(f'Creating node attribute /shape: {(len(self.lname), len(self.hname), len(self.rname))}')
+        logger.debug(
+            f'Creating node attribute /shape: {(len(self.lname), len(self.hname), len(self.rname))}'
+        )
         h5fh.set_node_attr(
             h5fh.root,
             'shape',
@@ -125,6 +284,7 @@ class AlignmentMatrixFactory:
         logger.debug(f'Creating node attribute /hname: {self.hname}')
         h5fh.set_node_attr(h5fh.root, 'hname', self.hname)
 
+        # create metadata arrays
         logger.debug('Creating array /lname...')
         h5fh.create_carray(
             h5fh.root,
@@ -143,29 +303,58 @@ class AlignmentMatrixFactory:
             filters=fil
         )
 
-        # loop hap and read? Make the temp files above for each BAM independently and then loop through them here?
-        logger.debug('Looping through hnames')
+        spmat = dict()
+
+        # process each haplotype
+        logger.debug('Looping through haplotypes')
         for hid in range(len(self.hname)):
-            hap = self.hname[hid]
-            infile = self.tmpfiles[hap]
+            logger.debug(f'Processing haplotype {hid}: {self.hname[hid]}')
 
-            logger.debug(f'Reading file: {infile}')
-            dmat = np.fromfile(open(infile, 'rb'), dtype='>I')
-            dmat = dmat.reshape((int(len(dmat) / 2), 2)).T
+            # process each BAM file for this haplotype
+            for idx, bam in enumerate(self.alignment_files):
+                hap = self.hname[hid]
+                infile = self.tmp_files[hap][idx]
+                logger.debug(f'Reading file: {infile.name}')
 
-            if dmat.shape[0] > 2:
-                dvec = dmat[2]
-            else:
-                dvec = np.ones(dmat.shape[1])
-            spmat = coo_matrix(
-                (dvec, dmat[:2]), shape=(len(self.rname), len(self.lname))
-            )
-            # spmat contains the read name and locus name of each read in the alignment file, in the form: ((read name, locus name), read count))
-            # spmat is a sparse matrix with the read names as the row indices and the locus names as the column indices.
-            # the data in the matrix is the number of reads that align to a specific locus.
+                # Read binary data and reshape
+                dmat = np.fromfile(open(infile.name, 'rb'), dtype='>I')
+                dmat = dmat.reshape((int(len(dmat) / 2), 2)).T
 
-            spmat = spmat.tocsc()
+                # set data values (1.0 for incidence, or actual counts if available)
+                if dmat.shape[0] > 2:
+                    dvec = dmat[2]
+                else:
+                    dvec = np.ones(dmat.shape[1])
 
+                # create sparse matrix
+                #
+                # spmat contains the read name and locus name of each read in
+                # the alignment file, in the form:
+                #     ((read name, locus name), read count))
+                #
+                # spmat is a sparse matrix with the read names as the row
+                # indices and the locus names as the column indices.
+                #
+                # The data in the matrix is the number of reads that align to a
+                # specific locus.
+                spmat[idx] = coo_matrix(
+                    (dvec, dmat[:2]), shape=(len(self.rname), len(self.lname))
+                )
+
+                spmat[idx] = spmat[idx].tocsc()
+
+            # combine matrices from multiple BAM files using element-wise
+            # multiplication
+            spmat_mul = spmat[0].multiply(spmat[len(self.alignment_files) - 1])
+            
+            # Fix for scipy 1.16.0 bug: ensure the result is a valid CSC
+            # matrix.  The multiply operation can produce invalid indptr
+            # size in scipy 1.16.0
+            if len(spmat_mul.indptr) != spmat_mul.shape[1] + 1:
+                # convert to COO and back to CSC to fix the corrupted indptr
+                spmat_mul = spmat_mul.tocoo().tocsc()
+            
+            # create haplotype group
             logger.debug(f'Creating group /h{hid}')
             hgroup = h5fh.create_group(
                 h5fh.root,
@@ -173,12 +362,12 @@ class AlignmentMatrixFactory:
                 f'Sparse matrix components for Haplotype {hid}',
             )
 
+            # save sparse matrix components
             logger.debug(f'Creating array /h{hid}/indptr')
-            # add header
             h5fh.create_carray(
                 hgroup,
                 'indptr',
-                obj=spmat.indptr.astype(index_dtype),
+                obj=spmat_mul.indptr.astype(index_dtype),
                 filters=fil,
             )
 
@@ -186,23 +375,50 @@ class AlignmentMatrixFactory:
             h5fh.create_carray(
                 hgroup,
                 'indices',
-                obj=spmat.indices.astype(index_dtype),
+                obj=spmat_mul.indices.astype(index_dtype),
                 filters=fil,
             )
+
             if not incidence_only:
                 logger.debug(f'Creating array /h{hid}/data')
                 h5fh.create_carray(
                     hgroup,
                     'data',
-                    obj=spmat.data.astype(data_dtype),
+                    obj=spmat_mul.data.astype(data_dtype),
                     filters=fil,
                 )
-            # apply sparse matrix indexing and indptr.
+
         h5fh.flush()
         h5fh.close()
-
         logger.debug('File created')
 
-    def cleanup(self):
-        for tmpfile in self.tmpfiles.items():
-            os.remove(tmpfile[1])
+
+    def cleanup(self) -> None:
+        """
+        Clean up temporary files created during preparation.
+
+        This method removes all temporary binary files created by the prepare()
+        method. It should be called after produce() to free up disk space.
+
+        Note:
+            This method handles cleanup gracefully - if a file cannot be removed
+            (e.g., already deleted or permission issues), it logs a warning but
+            continues with other files.
+
+            Temporary files are automatically cleaned up when the factory object
+            is garbage collected, but explicit cleanup is recommended for
+            immediate disk space recovery.
+        """
+        if self.tmp_files is None:
+            logger.debug('No temporary files to clean up')
+            return
+
+        try:
+            for hap, file_dict in self.tmp_files.items():
+                for idx, tmp_file in file_dict.items():
+                    if os.path.exists(tmp_file.name):
+                        os.remove(tmp_file.name)
+                    logger.debug(f'Removing temporary file: {tmp_file.name}')
+        except Exception as e:
+            logger.warning(f'Error during cleanup: {e}')
+

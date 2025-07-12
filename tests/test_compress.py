@@ -29,7 +29,7 @@ def test_compress(tmp_path, emase_file_1, emase_file_2):
 
     assert os.path.exists(output_file)
 
-    apm = AlignmentPropertyMatrix(h5file=output_file)
+    apm = AlignmentPropertyMatrix(h5_file=output_file)
     # this class formats the h5 into a specific format for use downstream.
     # testing this class is done separately, and is used here to obtain correct matrix formatting.
 

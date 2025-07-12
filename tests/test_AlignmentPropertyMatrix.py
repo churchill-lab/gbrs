@@ -25,7 +25,7 @@ def test_initialization(empty_matrix):
 
 
 def test_copy(emase_file):
-    matrix = AlignmentPropertyMatrix(h5file=emase_file)
+    matrix = AlignmentPropertyMatrix(h5_file=emase_file)
     copied_matrix = matrix.copy()
     assert copied_matrix.shape == matrix.shape
     assert copied_matrix.num_loci == matrix.num_loci
@@ -34,7 +34,7 @@ def test_copy(emase_file):
 
 
 def test_sum(emase_file):
-    matrix = AlignmentPropertyMatrix(h5file=emase_file)
+    matrix = AlignmentPropertyMatrix(h5_file=emase_file)
     # matrix.shape is num_loci, num_haplotypes, num_reads
 
     sum_locus = matrix.sum(axis=matrix.Axis.LOCUS)
@@ -48,41 +48,41 @@ def test_sum(emase_file):
 
 
 def test_normalize_reads(emase_file):
-    matrix = AlignmentPropertyMatrix(h5file=emase_file)
+    matrix = AlignmentPropertyMatrix(h5_file=emase_file)
     matrix.normalize_reads(axis=matrix.Axis.LOCUS)
     assert matrix.data[0].shape == (6, 2)
 
 
 def test_save_and_load(tmp_path, emase_file):
-    matrix = AlignmentPropertyMatrix(h5file=emase_file)
+    matrix = AlignmentPropertyMatrix(h5_file=emase_file)
     file_path = tmp_path / "r1.h5"
     matrix.save(file_path)
 
-    loaded_matrix = AlignmentPropertyMatrix(h5file=file_path)
+    loaded_matrix = AlignmentPropertyMatrix(h5_file=file_path)
     assert loaded_matrix.shape == matrix.shape
     assert np.array_equal(loaded_matrix.data[0].toarray(), matrix.data[0].toarray())
 
 
 def test_get_unique_reads(emase_file):
-    matrix = AlignmentPropertyMatrix(h5file=emase_file)
+    matrix = AlignmentPropertyMatrix(h5_file=emase_file)
     unique_reads = matrix.get_unique_reads()
     assert unique_reads.shape == matrix.shape
 
 
 def test_count_unique_reads(emase_file):
-    matrix = AlignmentPropertyMatrix(h5file=emase_file)
+    matrix = AlignmentPropertyMatrix(h5_file=emase_file)
     unique_counts = matrix.count_unique_reads()
     assert unique_counts.shape == (2, 2)
 
 
 def test_report_alignment_counts(tmp_path, emase_file):
-    matrix = AlignmentPropertyMatrix(h5file=emase_file)
+    matrix = AlignmentPropertyMatrix(h5_file=emase_file)
     file_path = tmp_path / "alignment_counts.txt"
     matrix.report_alignment_counts(file_path)
     assert file_path.exists()
 
 
 def test_combine(emase_file):
-    matrix = AlignmentPropertyMatrix(h5file=emase_file)
+    matrix = AlignmentPropertyMatrix(h5_file=emase_file)
     combined_matrix = matrix.combine(matrix)
     assert combined_matrix.shape == (2, 2, 12)

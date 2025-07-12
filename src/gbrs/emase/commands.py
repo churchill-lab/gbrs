@@ -1,3 +1,34 @@
+"""
+EMASE Command-Line Interface
+
+This module provides the command-line interface for the EMASE (Expectation-Maximization
+for Allele-Specific Expression) tools. It implements a comprehensive set of commands
+for processing RNA-seq alignment data and quantifying allele-specific expression.
+
+Main Commands:
+    bam2emase: Convert BAM files to EMASE format
+    combine: Merge multiple EMASE files
+    count-alignments: Generate alignment count statistics
+    count-shared-multireads-pairwise: Analyze shared multiread patterns
+    create-hybrid: Create hybrid transcriptome from multiple haplotypes
+    get-common-alignments: Find reads with identical alignment patterns
+    get-common-alignments-optimized: Optimized version of get-common-alignments
+    pull-out-unique-reads: Extract reads with unique alignment patterns
+    prepare: Prepare EMASE reference files
+    run: Run EMASE algorithm for expression quantification
+
+Utility Commands:
+    h5-compare: Compare HDF5 files for differences
+    h5-inspect: Inspect EMASE HDF5 files
+
+Usage:
+    emase --help                    # Show all commands
+    emase bam2emase --help         # Show help for specific command
+    emase run --help               # Show help for EMASE algorithm
+
+For detailed documentation, see: https://github.com/churchill-lab/gbrs
+"""
+
 # standard library imports
 from pathlib import Path
 from typing import Annotated, Optional
@@ -24,11 +55,11 @@ class SectionedGroup(TyperGroup):
 
         # Hardcoded groups
         main_commands = [
-            'bam2emase', 'bam2emase-paired', 'combine', 'count-alignments', 'count-shared-multireads-pairwise',
+            'bam2emase', 'combine', 'count-alignments', 'count-shared-multireads-pairwise',
             'create-hybrid', 'get-common-alignments', 'get-common-alignments-optimized',
             'pull-out-unique-reads', 'prepare', 'run'
         ]
-        utility_commands = ['h5-compare', 'h5-debug']
+        utility_commands = ['h5-compare', 'h5-inspect']
 
         shown = set()
 
@@ -75,49 +106,9 @@ def common(
 ):
     pass
 
-
 @app.command(help='Convert BAM alignment files to EMASE format for allele-specific expression analysis')
 def bam2emase(
-    alignment_file: Annotated[Path, typer.Option('-i', '--alignment-file', exists=True, dir_okay=False, resolve_path=True, help='Input BAM file containing RNA-seq alignments')],
-    haplotypes: Annotated[list[str], typer.Option('-h', '--haplotype-char', help='Haplotype identifiers (e.g., A,B,C,D). Can specify multiple times or comma-separated')],
-    locusid_file: Annotated[Path, typer.Option('-m', '--locus-ids', exists=True, dir_okay=False, resolve_path=True, help='Transcript/locus information file')],
-    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Output EMASE file (HDF5 format). Auto-generated if not specified')] = None,
-    delim: Annotated[str, typer.Option('-d', '--delim', help='Delimiter between transcript ID and haplotype in BAM file')] = '_',
-    index_dtype: Annotated[str, typer.Option('--index-dtype', help='Data type for matrix indices (advanced users only)')] = 'uint32',
-    data_dtype: Annotated[str, typer.Option('--data-dtype', help='Data type for matrix values (advanced users only)')] = 'uint8',
-    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
-) -> None:
-    logger = utils.configure_logging('gbrs', verbose)
-    logger.debug('bam2emase')
-    try:
-        # haplotype shortcut: the following command line options are all equal
-        # -h A,B,C,D,E,F,G,H
-        # -h A -h B -h C -h D -h E -h F -h G -h H
-        # -h A,B,C,D -h E -h F -h G,H
-        all_haplotypes: list[str] = []
-        for x in haplotypes:
-            all_haplotypes.extend(x.split(','))
-
-        locusid_file = str(locusid_file) if locusid_file else None
-        output_file = str(output_file) if output_file else None
-
-        emase_utils.bam2emase(
-            alignment_file=str(alignment_file),
-            haplotypes=all_haplotypes,
-            locusid_file=locusid_file,
-            output_file=output_file,
-            delim=delim,
-            index_dtype=index_dtype,
-            data_dtype=data_dtype
-        )
-    except Exception as e:
-        if logger.level == logging.DEBUG:
-            logger.exception(e)
-        else:
-            logger.error(e)
-
-@app.command(help='Convert BAM alignment files to EMASE format for allele-specific expression analysis')
-def bam2emase_paired(alignment_files: Annotated[list[Path], typer.Option('-i', '--alignment-files', exists=False, dir_okay=False, resolve_path=True, help='Input BAM file containing RNA-seq alignments, can separate files by "," or have multiple -i')],
+    alignment_files: Annotated[list[Path], typer.Option('-i', '--alignment-files', exists=False, dir_okay=False, resolve_path=True, help='Input BAM file containing RNA-seq alignments, can separate files by "," or have multiple -i')],
     haplotypes: Annotated[list[str], typer.Option('-h', '--haplotype-char', help='Haplotype identifiers (e.g., A,B,C,D). Can specify multiple times or comma-separated')],
     locusid_file: Annotated[Path, typer.Option('-m', '--locus-ids', exists=True, dir_okay=False, resolve_path=True, help='Transcript/locus information file')],
     output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Output EMASE file (HDF5 format). Auto-generated if not specified')] = None,
@@ -382,16 +373,29 @@ def h5_compare(
             logger.error(e)
 
 
-@app.command(help='Display information about HDF5 file structure and contents')
-def h5_debug(
+@app.command(help='Inspect bam2emase HDF5 file with debug information and matrix display')
+def h5_inspect(
     h5_file: Annotated[Path, typer.Option('-i', '--h5-file', exists=False, dir_okay=False, resolve_path=True, help='HDF5 file to inspect')],
+    haplotypes: Annotated[list[str], typer.Option('-h', '--haplotype', help='Haplotype names to display (e.g., A,B). Can specify multiple times or comma-separated. Default: all')] = None,
+    show_matrix: Annotated[bool, typer.Option('-m', '--show-matrix', help='Show matrix for each haplotype')] = False,
+    max_loci: Annotated[int, typer.Option('-l', '--max-loci', help='Maximum number of loci to display')] = 10,
+    max_reads: Annotated[int, typer.Option('-r', '--max-reads', help='Maximum number of reads to display')] = 10,
+    dense: Annotated[bool, typer.Option('-d', '--dense', help='Display matrices in dense format instead of sparse')] = False,
     verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
 ) -> None:
     logger = utils.configure_logging('gbrs', verbose)
-    logger.debug('h5_debug')
+    logger.debug('h5_inspect')
     try:
         h5_file = utils.check_file(str(h5_file), 'r')
-        h5_utils.debug_h5_file(h5_file)
+        
+        # Process haplotype list
+        all_haplotypes = None
+        if haplotypes:
+            all_haplotypes = []
+            for x in haplotypes:
+                all_haplotypes.extend(x.split(','))
+        
+        h5_utils.h5_inspect(h5_file, all_haplotypes, show_matrix, max_loci, max_reads, dense)
     except Exception as e:
         if logger.level == logging.DEBUG:
             logger.exception(e)

@@ -14,7 +14,34 @@ logger = utils.get_logger('gbrs')
 
 class EMfactory:
     """
-    A class that coordinate Expectation-Maximization
+    Expectation-Maximization (EM) algorithm implementation for allele-specific expression analysis.
+    
+    This class implements the EMASE (Expectation-Maximization for Allele-Specific Expression)
+    algorithm, which estimates allele-specific expression levels from RNA-seq alignment data.
+    The algorithm iteratively updates alignment probabilities and expression estimates until
+    convergence.
+    
+    The EM algorithm consists of two main steps that are repeated:
+    1. **Expectation (E-step)**: Update alignment probabilities given current expression estimates
+    2. **Maximization (M-step)**: Update expression estimates given current alignment probabilities
+    
+    Key Features:
+    - Supports multiple normalization models for handling multi-mapping reads
+    - Handles transcript length normalization for proper expression quantification
+    - Provides convergence monitoring and iteration control
+    - Supports pseudocount addition for regularization
+    - Generates comprehensive output reports
+    
+    This implementation is based on the methodology described in:
+    - Munger et al. (2014) Genetics 198:59-73
+    - Choi et al. (2020) bioRxiv 10.1101/2020.10.11.335323
+    
+    Attributes:
+        probability (AlignmentPropertyMatrix): Alignment probability matrix
+        allelic_expression (numpy.ndarray): Current allele-specific expression estimates
+        grp_conv_mat (scipy.sparse.csc_matrix): Group conversion matrix for transcript isoforms
+        t2t_mat (scipy.sparse.csc_matrix): Transcript-to-transcript incidence matrix
+        target_lengths (numpy.ndarray): Effective lengths for transcript length normalization
     """
 
     def __init__(self, alignments):
@@ -24,6 +51,7 @@ class EMfactory:
         self.t2t_mat = None
         self.target_lengths = None
 
+
     def prepare(
         self,
         pseudocount: float = 0.0,
@@ -31,12 +59,38 @@ class EMfactory:
         read_length: int = 100
     ) -> None:
         """
-        Initializes the probability of read origin according to the alignment profile
-
+        Initialize the EM algorithm with alignment data and optional parameters.
+        
+        This method sets up the EM algorithm by:
+        1. Creating group conversion matrices for transcript isoforms
+        2. Loading transcript length information for normalization
+        3. Initializing allele-specific expression estimates
+        4. Applying pseudocount regularization if specified
+        
         Args:
-            pseudocount: Uniform prior for allele specificity estimation
-            lenfile: lengths file
-            read_length: default read length
+            pseudocount (float, optional): Uniform prior added to all expression estimates
+                for regularization. Defaults to 0.0 (no regularization).
+            lenfile (str, optional): Path to transcript length file. The file should contain
+                tab-separated values with transcript name and effective length. If provided,
+                expression estimates are normalized by transcript length.
+            read_length (int, optional): Default read length for length normalization.
+                Used to calculate effective transcript length. Defaults to 100.
+                
+        Raises:
+            RuntimeError: If transcript length file is invalid or missing transcripts
+            
+        Note:
+            The lenfile format should be:
+            ```
+            Transcript1    1000
+            Transcript2    1500
+            Transcript3    800
+            ```
+            
+            Effective length = transcript_length - read_length + 1
+            
+            Pseudocount regularization helps prevent zero expression estimates
+            and improves algorithm stability, especially for low-coverage transcripts.
         """
         if self.probability.num_groups > 0:
             self.grp_conv_mat = lil_matrix(
@@ -110,6 +164,7 @@ class EMfactory:
                 orig_allelic_expression_sum / self.allelic_expression.sum()
             )  # original depth scale
 
+
     def reset(self, pseudocount: float = 0.0) -> None:
         """
         Initializes the probability of read origin according to the alignment
@@ -137,24 +192,51 @@ class EMfactory:
                 orig_allelic_expression_sum / self.allelic_expression.sum()
             )  # original depth scale
 
+
     def get_allelic_expression(self, at_group_level: bool = False):
         if at_group_level:
             return self.allelic_expression * self.grp_conv_mat
         else:
             return self.allelic_expression.copy()
 
+
     def update_probability_at_read_level(self, model: int = 3) -> None:
         """
-        Updates the probability of read origin at read level
-
-        Normalization model:
-            1: Gene->Allele->Isoform
-            2: Gene->Isoform->Allele
-            3: Gene->Isoform*Allele
-            4: Gene*Isoform*Allele
-
+        Update alignment probabilities at the read level (E-step of EM algorithm).
+        
+        This method implements the Expectation step of the EM algorithm, updating
+        the probability that each read originated from each possible transcript-haplotype
+        combination given the current expression estimates.
+        
+        The method supports four different normalization models for handling
+        multi-mapping reads and transcript isoforms:
+        
+        **Model 1: Gene->Allele->Isoform**
+        - Normalize first across haplotypes, then across isoforms within each haplotype
+        - Assumes hierarchical structure: gene → allele → isoform
+        
+        **Model 2: Gene->Isoform->Allele**  
+        - Normalize first across isoforms, then across haplotypes within each isoform
+        - Assumes hierarchical structure: gene → isoform → allele
+        
+        **Model 3: Gene->Isoform*Allele** (default)
+        - Normalize across both isoforms and haplotypes simultaneously
+        - Assumes independent effects of isoform and allele
+        
+        **Model 4: Gene*Isoform*Allele**
+        - No hierarchical normalization, treats all combinations equally
+        - Assumes complete independence between gene, isoform, and allele
+        
         Args:
-            model: Normalization model
+            model (int): Normalization model to use (1, 2, 3, or 4). Defaults to 3.
+                
+        Note:
+            This method modifies the probability matrix in-place. The choice of
+            normalization model can significantly affect results, especially for
+            genes with multiple isoforms or complex allele-specific patterns.
+            
+            Model 3 is recommended for most applications as it provides a good
+            balance between biological realism and computational efficiency.
         """
         self.probability.reset()  # reset to alignment incidence matrix
         if model == 1:
@@ -211,6 +293,7 @@ class EMfactory:
                 'The read normalization model should be 1, 2, 3, or 4.'
             )
 
+
     def update_allelic_expression(self, model: int = 3) -> None:
         """
         A single EM step: Update probability at read level and then re-estimate allelic specific expression
@@ -231,6 +314,7 @@ class EMfactory:
                 self.allelic_expression, self.target_lengths
             )
 
+
     def run(
         self,
         model: int,
@@ -239,19 +323,50 @@ class EMfactory:
         verbose: bool = True
     ) -> None:
         """
-        Runs EM iterations
-
-        Normalization model:
-            1: Gene->Allele->Isoform
-            2: Gene->Isoform->Allele
-            3: Gene->Isoform*Allele
-            4: Gene*Isoform*Allele
-
+        Run the complete EM algorithm until convergence.
+        
+        This method executes the full EM algorithm, iterating between the
+        Expectation and Maximization steps until convergence or maximum
+        iterations is reached.
+        
+        The algorithm monitors convergence by tracking changes in TPM
+        (Transcripts Per Million) values between iterations. Convergence
+        is achieved when the total absolute change in TPM values across
+        all transcripts falls below the specified tolerance.
+        
         Args:
-            model: Normalization model
-            tol: Tolerance for termination
-            max_iters: Maximum number of iterations until termination
-            verbose: Display information on how EM is running
+            model (int): Normalization model to use (1, 2, 3, or 4):
+                - 1: Gene->Allele->Isoform
+                - 2: Gene->Isoform->Allele  
+                - 3: Gene->Isoform*Allele (recommended)
+                - 4: Gene*Isoform*Allele
+            tol (float, optional): Convergence tolerance. Algorithm stops when
+                total TPM change < tol * 1,000,000. Defaults to 0.001.
+            max_iters (int, optional): Maximum number of EM iterations.
+                Defaults to 999.
+            verbose (bool, optional): If True, print progress information.
+                Defaults to True.
+                
+        Note:
+            The convergence criterion is based on TPM values rather than
+            raw expression values to ensure scale-invariant convergence.
+            
+            Typical convergence requires 10-50 iterations depending on
+            data complexity and tolerance settings.
+            
+            If the algorithm doesn't converge within max_iters, the final
+            estimates may not be optimal. Consider increasing max_iters
+            or adjusting the tolerance.
+            
+        Examples:
+            # Run with default settings
+            em_factory.run(model=3)
+            
+            # Run with strict convergence
+            em_factory.run(model=3, tol=0.0001, max_iters=2000)
+            
+            # Run silently
+            em_factory.run(model=3, verbose=False)
         """
         np.seterr(all='raise')
         np.seterr(under='ignore')
@@ -286,8 +401,13 @@ class EMfactory:
                     % (num_iters, h, m, s, err_sum)
                 )
 
+
     def report_read_counts(
-        self, filename, grp_wise=False, reorder='as-is', notes=None
+        self,
+        filename,
+        grp_wise=False,
+        reorder='as-is',
+        notes=None
     ):
         """
         Export read counts
@@ -300,12 +420,15 @@ class EMfactory:
             notes: notes for the group
         """
         expected_read_counts = self.probability.sum(axis=APM.Axis.READ)
+
         if grp_wise:
             lname = self.probability.gname
             expected_read_counts = expected_read_counts * self.grp_conv_mat
         else:
             lname = self.probability.lname
+
         total_read_counts = expected_read_counts.sum(axis=0)
+
         if reorder == 'decreasing':
             report_order = np.argsort(total_read_counts.flatten())
             report_order = report_order[::-1]
@@ -314,24 +437,37 @@ class EMfactory:
         elif reorder == 'as-is':
             # report in the original locus order
             report_order = np.arange(len(lname))
+
         cntdata = np.vstack((expected_read_counts, total_read_counts))
         fhout = open(filename, 'w')
+
         fhout.write('locus\t' + '\t'.join(self.probability.hname) + '\ttotal')
+
         if notes is not None:
             fhout.write('\tnotes')
+
         fhout.write('\n')
+
         for locus_id in report_order:
             lname_cur = lname[locus_id]
             lout = [lname_cur]
             lout.extend(list(map(str, cntdata[:, locus_id].ravel())))
             fhout.write('\t'.join(lout))
+
             if notes is not None:
                 fhout.write('\t%s' % notes[lname_cur])
+
             fhout.write('\n')
         fhout.close()
 
+
     def report_depths(
-        self, filename, tpm=True, grp_wise=False, reorder='as-is', notes=None
+        self,
+        filename,
+        tpm=True,
+        grp_wise=False,
+        reorder='as-is',
+        notes=None
     ) -> None:
         """
         Exports expected depths
@@ -350,9 +486,12 @@ class EMfactory:
         else:
             lname = self.probability.lname
             depths = self.allelic_expression
+
         if tpm:
             depths *= 1000000.0 / depths.sum()
+
         total_depths = depths.sum(axis=0)
+
         if reorder == 'decreasing':
             report_order = np.argsort(total_depths.flatten())
             report_order = report_order[::-1]
@@ -361,12 +500,17 @@ class EMfactory:
         elif reorder == 'as-is':
             # report in the original locus order
             report_order = np.arange(len(lname))
+
         cntdata = np.vstack((depths, total_depths))
         fhout = open(filename, 'w')
+
         fhout.write('locus\t' + '\t'.join(self.probability.hname) + '\ttotal')
+
         if notes is not None:
             fhout.write('\tnotes')
+
         fhout.write('\n')
+
         for locus_id in report_order:
             lname_cur = lname[locus_id]
             fhout.write(
@@ -374,13 +518,18 @@ class EMfactory:
                     [lname_cur] + list(map(str, cntdata[:, locus_id].ravel()))
                 )
             )
+
             if notes is not None:
                 fhout.write(f'\t{notes[lname_cur]}')
+
             fhout.write('\n')
         fhout.close()
 
+
     def export_posterior_probability(
-        self, filename: str, title: str = 'Posterior Probability'
+        self,
+        filename: str,
+        title: str = 'Posterior Probability'
     ) -> None:
         """
         Writes the posterior probability of read origin.
@@ -389,4 +538,4 @@ class EMfactory:
             filename: File name for output
             title: the title of the posterior probability matrix
         """
-        self.probability.save(h5file=filename, title=title)
+        self.probability.save(h5_file=filename, title=title)
