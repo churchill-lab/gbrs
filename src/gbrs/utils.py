@@ -28,8 +28,7 @@ def configure_logging(
     level: int = 0
 ) -> logging.Logger:
     """
-    Configure the logger with the specified `level`. Valid `level` values
-    are:
+    Configure the logger with the specified `level`. Valid `level` values are:
 
     ======  =================================
     level   logging value
@@ -41,8 +40,8 @@ def configure_logging(
 
     Anything greater than 2 is treated as 2.
 
-    if the environment variable ENSIMPL_APP_DEBUG is set to 1,
-    there will be more detailed debugging information.
+    if the environment variable GBRS_APP_DEBUG is set to 1, there will be more detailed
+    debugging information.
 
     Args:
         logger_name: The name of the logger.
@@ -178,7 +177,9 @@ def get_names(id_file: str) -> list[str]:
     """
     try:
         # read only the first column, skip comment lines
-        data = np.loadtxt(id_file, dtype=str, delimiter='\t', usecols=0, 
+        data = np.loadtxt(
+            id_file,
+            dtype=str, delimiter='\t', usecols=0,
                          comments='#', encoding='utf-8')
         # remove duplicates while preserving order (Python 3.7+)
         names = list(dict.fromkeys(data))

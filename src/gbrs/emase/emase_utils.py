@@ -37,30 +37,24 @@ def bam2emase(
     """
     Convert BAM file to EMASE format (HDF5) for allele-specific expression analysis.
 
-    This function is a core component of the GBRS pipeline that transforms standard
-    RNA-Seq alignment data (BAM format) into the specialized EMASE format required
-    for allele-specific expression analysis in multiparent populations.
-
-    The function processes BAM files where reads have been aligned to a hybrid
-    transcriptome containing transcripts from all founder strains. Reference names
-    in the BAM files must follow the pattern: {transcript_id}{delim}{haplotype}
-    (e.g., "ENSMUST00000000001_A" for transcript ENSMUST00000000001 from haplotype A).
+    The function processes BAM files where reads have been aligned to a hybrid transcriptome
+    containing transcripts from all strains. Reference names in the BAM files must follow the
+    pattern:
+        {transcript_id}{delim}{haplotype}
+        (e.g., "ENSMUST00000000001_A" for transcript ENSMUST00000000001 from haplotype A)
 
     The output is an HDF5 file containing sparse matrices that efficiently represent
     the alignment relationships between paired reads, loci (transcripts), and haplotypes.
 
     Args:
         alignment_files: List of paths to input BAM files containing paired-end RNA-Seq alignments.
-            Typically contains two files: one for R1 reads and one for R2 reads.
-            Example: ['sample_R1.bam', 'sample_R2.bam']
             All BAM files must be aligned to the same hybrid transcriptome.
 
-        haplotypes: List of haplotype identifiers representing founder strains.
+        haplotypes: List of haplotype identifiers representing strains.
             For example, Diversity Outbred mice: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
             These identifiers must match those used in the BAM reference names.
 
         locusid_file: Path to the transcript/locus information file (TSV format).
-            Expected format: tab-separated values with transcript IDs in the first column.
             Example:
                 ENSMUST00000000001    0
                 ENSMUST00000000002    0
@@ -68,24 +62,16 @@ def bam2emase(
             The second column is typically 0 and used for additional metadata.
 
         output_file: Path for the output EMASE file (HDF5 format).
-            Default: 'alignments.transcriptome.h5'
-            The file will contain sparse matrices organized by haplotype.
 
         delim: Delimiter string between transcript ID and haplotype in BAM reference names.
-            Default: '_'
-            Example: If BAM references are "ENSMUST00000000001_A", use delim='_'
 
         index_dtype: Data type for matrix indices in the output HDF5 file.
-            Default: 'uint32'
-            Options: 'uint16', 'uint32', 'uint64'
             Choose based on the scale of your dataset:
             - uint16: Up to 65,535 loci/reads (small datasets)
             - uint32: Up to 4.3 billion loci/reads (most datasets)
             - uint64: For extremely large datasets
 
         data_dtype: Data type for matrix values in the output HDF5 file.
-            Default: 'uint8'
-            Options: 'uint8', 'uint16', 'uint32', 'float32'
             - uint8: Binary presence/absence (most memory efficient)
             - uint16/uint32: For read counts or alignment scores
             - float32: For alignment probabilities or weights
@@ -115,16 +101,13 @@ def bam2emase(
             └── ...
 
     Implementation Details:
-        1. Parses the locus ID file to extract transcript names
-        2. Creates a PairedAlignmentMatrixFactory to handle multiple BAM files
-        3. Extracts all unique read names from fits BAM file (assumes all reads are the same).
-        4. Creates temporary binary files for each haplotype and BAM file.
-        5. Processes alignments from all files and builds sparse matrices
-        6. Saves data in compressed HDF5 format
-        7. Cleans up temporary files
-
-    Notes:
-        - Output files are typically smaller than the combined input BAM files due to compression
+        - Parses the locus ID file to extract transcript names
+        - Creates a AlignmentMatrixFactory to handle multiple BAM files
+        - Extracts all unique read names from fits BAM file (assumes all reads are the same).
+        - Creates temporary binary files for each haplotype and BAM file.
+        - Processes alignments from all files and builds sparse matrices
+        - Saves data in compressed HDF5 format
+        - Cleans up temporary files
     """
     logger.info(f'BAM Files: {alignment_files}')
     logger.info(f'Locus ID File: {locusid_file}')
@@ -144,48 +127,29 @@ def bam2emase(
     logger.info(f'Saving EMASE Formatted File: {output_file}')
     amf.produce(output_file, index_dtype=index_dtype, data_dtype=data_dtype)
     amf.cleanup()
+
     logger.info('Done')
 
 
-def combine(
-        emase_files: list[str],
-        output_file: str,
-        comp_lib: str = 'zlib'
-) -> None:
+def combine(emase_files: list[str], output_file: str, comp_lib: str = 'zlib') -> None:
     """
-    Combine multiple EMASE files into a single file by concatenating read data.
-
-    This function merges multiple EMASE files by concatenating their read data
-    along the read dimension. It performs a UNION operation on read data,
-    combining all reads from all input files into a single EMASE file. This is
-    different from `get_common_alignments()` which performs an INTERSECTION
-    operation.
+    Combine multiple EMASE files into a single file by concatenating read data.  This merges
+    multiple EMASE files by concatenating their read data along the read dimension. It performs a
+    UNION operation on read data, combining all reads from all input files into a single EMASE file.
+    This is different from `get_common_alignments()` which performs an INTERSECTION operation.
 
     ALGORITHM:
-    1. Load the first EMASE file as the base matrix
-    2. For each subsequent file:
+    - Load the first EMASE file as the base matrix
+    - For each subsequent file:
        - Load the EMASE file
        - Verify compatibility (same loci, haplotypes, structure)
        - Concatenate read data: combined_reads = [reads1, reads2, reads3, ...]
-    3. Save the combined result
-
-    WHAT THIS DOES:
-    - Takes multiple EMASE files (can have different reads)
-    - Combines all read data into a single file
-    - Preserves all alignment information from all files
-    - Result: Single EMASE file with all reads from all input files
-    - Output: EMASE file with same structure but more reads
-
-    USE CASES:
-    - Sample pooling: Combine multiple biological samples
-    - Replicate merging: Combine technical or biological replicates
-    - Batch processing: Merge files from different sequencing runs
-    - Data consolidation: Create single file for downstream analysis
+    - Save the combined result
 
     DIFFERENCE FROM OTHER FUNCTIONS:
     - combine(): UNION operation - combines all reads from all files
-    - get_common_alignments(): INTERSECTION operation - only keeps reads that align
-      consistently across all files
+    - get_common_alignments(): INTERSECTION operation - only keeps reads that align consistently
+        across all files
     - compress(): Groups identical alignment patterns (equivalence classes)
 
     REQUIREMENTS:
@@ -194,31 +158,19 @@ def combine(
     - Files can have different reads (unlike get_common_alignments)
 
     Args:
-        emase_files: List of EMASE file paths to combine. Files must have
-            compatible structure (same loci and haplotypes).
+        emase_files: List of EMASE file paths to combine. Files must have compatible structure
+            (same loci and haplotypes).
 
-        output_file: Path for the output combined EMASE file. The file will
-            contain all reads from all input files.
+        output_file: Path for the output combined EMASE file. The file will contain all reads from
+            all input files.
 
         comp_lib: Compression library to use for the output HDF5 file.
-            Default: 'zlib' (good balance of compression and speed)
             Options: 'zlib', 'lzo', 'bzip2', 'blosc'
-
-    Returns:
-        None. The function creates a combined EMASE file at the specified output_file path.
 
     Raises:
         FileNotFoundError: If any EMASE file does not exist.
         ValueError: If files have incompatible structure (different loci/haplotypes).
         RuntimeError: If matrices are not finalized or other processing errors.
-
-    Implementation Details:
-        1. Loads each EMASE file using AlignmentPropertyMatrix
-        2. Validates compatibility between files (loci, haplotypes)
-        3. Uses the combine() method to concatenate matrices along read dimension
-        4. Preserves metadata from the first file (loci, haplotypes)
-        5. Concatenates read names from all files
-        6. Saves the combined result with specified compression
     """
     for f in emase_files:
         logger.info(f'EMASE file: {f}')
@@ -244,31 +196,24 @@ def combine(
 
     logger.info(f'Saving EMASE file {output_file}')
     amf_final.save(h5_file=output_file, complib=comp_lib)
+
     logger.info('Dome')
 
 
-def count_alignments(
-        alignment_file: str,
-        group_file: str,
-        outbase: str = 'emase'
-) -> None:
+def count_alignments(alignment_file: str, group_file: str, outbase: str = 'emase') -> None:
     """
     Count the number of alignments for each locus and gene in EMASE format data.
 
-    This function analyzes EMASE alignment data to generate alignment count reports
-    at both the transcript (isoform) and gene levels. It is part of the GBRS pipeline
-    for quantifying allele-specific expression in multiparent populations.
-
     The function processes an EMASE file containing sparse matrices of read alignments
     to transcripts from different founder haplotypes. It generates two output files:
-    1. Isoform-level alignment counts: counts per transcript
-    2. Gene-level alignment counts: aggregated counts per gene
+        1. Isoform-level alignment counts: counts per transcript
+        2. Gene-level alignment counts: aggregated counts per gene
 
     ALGORITHM:
-    1. Load the EMASE file with group information
-    2. Generate isoform-level alignment counts
-    3. Bundle data to save memory
-    4. Generate gene-level alignment counts
+    - Load the EMASE file with group information
+    - Generate isoform-level alignment counts
+    - Bundle data to save memory
+    - Generate gene-level alignment counts
 
     OUTPUT FILES:
     - {outbase}.isoforms.alignment_counts: Alignment counts per transcript
@@ -276,33 +221,20 @@ def count_alignments(
 
     Args:
         alignment_file: Path to the EMASE file (HDF5 format) containing alignment data.
-            The file should contain sparse matrices representing read alignments to
-            transcripts from different founder haplotypes.
 
-        group_file: Path to the group file containing transcript-to-gene mapping.
-            This file enables aggregation of transcript-level counts to gene-level counts.
+        group_file: Path to the group file containing transcript-to-gene mapping. This file enables
+            aggregation of transcript-level counts to gene-level counts.
             Format: tab-separated with transcript ID in first column, gene ID in second.
 
-        outbase: Base name for output files. Default: 'emase'
+        outbase: Base name for output files.
             Output files will be named:
             - {outbase}.isoforms.alignment_counts
             - {outbase}.genes.alignment_counts
-
-    Returns:
-        None. The function creates alignment count files at the specified outbase path.
 
     Raises:
         FileNotFoundError: If alignment_file or group_file does not exist.
         ValueError: If the EMASE file format is invalid or incompatible.
         RuntimeError: If the AlignmentPropertyMatrix cannot be loaded or processed.
-
-    Notes:
-        - The function uses memory optimization by bundling inline data between
-          isoform and gene-level processing.
-        - Gene-level counts are aggregated from transcript-level counts using
-          the group file mapping.
-        - This function is typically used after bam2emase() to analyze alignment
-          patterns in the processed data.
     """
     logger.info(f'Alignment File: {alignment_file}')
     logger.info(f'Group File: {group_file}')
@@ -330,18 +262,16 @@ def count_alignments(
 
 def get_num_shared_multireads(amf: AlignmentPropertyMatrix) -> np.ndarray:
     """
-    Calculate the number of shared multireads between all pairs of loci.
-
-    This function computes a pairwise similarity matrix that counts how many reads
-    are shared between each pair of loci (transcripts/genes) across all haplotypes.
-    It is used for analyzing read distribution patterns and identifying loci with
-    similar alignment profiles.
+    Calculate the number of shared multireads between all pairs of loci. Computes a pairwise
+    similarity matrix that counts how many reads are shared between each pair of loci
+    (transcripts/genes) across all haplotypes. It is used for analyzing read distribution patterns
+    and identifying loci with similar alignment profiles.
 
     ALGORITHM:
-    1. Sum alignment matrix across haplotype dimension to get total alignments per locus
-    2. Convert to binary matrix (presence/absence of alignments)
-    3. Compute pairwise similarity: cnt_mat = haplotype_sum.T * haplotype_sum
-    4. Result: symmetric matrix where cnt_mat[i,j] = number of reads shared between loci i and j
+    - Sum alignment matrix across haplotype dimension to get total alignments per locus
+    - Convert to binary matrix (presence/absence of alignments)
+    - Compute pairwise similarity: cnt_mat = haplotype_sum.T * haplotype_sum
+    - Result: symmetric matrix where cnt_mat[i,j] = number of reads shared between loci i and j
 
     WHAT THIS DOES:
     - Takes an AlignmentPropertyMatrix with dimensions (loci, haplotypes, reads)
@@ -351,20 +281,11 @@ def get_num_shared_multireads(amf: AlignmentPropertyMatrix) -> np.ndarray:
 
     Args:
         amf: AlignmentPropertyMatrix object containing alignment data.
-            Should have dimensions (num_loci, num_haplotypes, num_reads).
-            The matrix represents read alignments to transcripts from different haplotypes.
 
     Returns:
         np.ndarray: Symmetric matrix of shape (num_loci, num_loci) where each element
             [i,j] represents the number of reads shared between loci i and j.
             Diagonal elements represent the total number of reads aligned to each locus.
-
-    Notes:
-        - The result is a symmetric matrix: cnt_mat[i,j] = cnt_mat[j,i]
-        - Diagonal elements give the total number of reads per locus
-        - Off-diagonal elements give the number of reads shared between locus pairs
-        - This function is typically used for analyzing read distribution patterns
-          and identifying loci with similar alignment profiles.
     """
     haplotype_sum = amf.sum(axis=AlignmentPropertyMatrix.Axis.HAPLOTYPE)
     haplotype_sum.data = np.ones(haplotype_sum.nnz)
@@ -378,23 +299,20 @@ def count_shared_multireads_pairwise(
         outbase: str = 'emase'
 ) -> None:
     """
-    Count shared multireads between all pairs of loci at both transcript and gene levels.
-
-    This function analyzes EMASE alignment data to identify and quantify reads that
-    align to multiple loci (transcripts or genes). It generates pairwise similarity
-    matrices that show how many reads are shared between each pair of loci, which is
-    useful for understanding read distribution patterns and identifying loci with
-    similar expression profiles.
+    Count shared multireads between all pairs of loci at both transcript and gene levels. Generates
+    pairwise similarity matrices that show how many reads are shared between each pair of loci,
+    which is useful for understanding read distribution patterns and identifying loci with similar
+    expression profiles.
 
     The function processes alignment data at two levels:
-    1. Transcript (isoform) level: analyzes shared reads between individual transcripts
-    2. Gene level: analyzes shared reads between genes (aggregated from transcripts)
+    - Transcript (isoform) level: analyzes shared reads between individual transcripts
+    - Gene level: analyzes shared reads between genes (aggregated from transcripts)
 
     ALGORITHM:
-    1. Load EMASE file with group information
-    2. Generate isoform-level shared read count matrix
-    3. Bundle data to save memory
-    4. Generate gene-level shared read count matrix
+    - Load EMASE file with group information
+    - Generate isoform-level shared read count matrix
+    - Bundle data to save memory
+    - Generate gene-level shared read count matrix
 
     OUTPUT FILES:
     - {outbase}.isoforms.shared_read_counts.npz: Compressed numpy array containing
@@ -404,34 +322,20 @@ def count_shared_multireads_pairwise(
 
     Args:
         alignment_file: Path to the EMASE file (HDF5 format) containing alignment data.
-            The file should contain sparse matrices representing read alignments to
-            transcripts from different founder haplotypes.
 
-        group_file: Path to the group file containing transcript-to-gene mapping.
-            This file enables aggregation of transcript-level analysis to gene-level analysis.
+        group_file: Path to the group file containing transcript-to-gene mapping. This file enables
+            aggregation of transcript-level analysis to gene-level analysis.
             Format: tab-separated with transcript ID in first column, gene ID in second.
 
-        outbase: Base name for output files. Default: 'emase'
+        outbase: Base name for output files.
             Output files will be named:
             - {outbase}.isoforms.shared_read_counts.npz
             - {outbase}.genes.shared_read_counts.npz
-
-    Returns:
-        None. The function creates compressed numpy files containing shared read count matrices.
 
     Raises:
         FileNotFoundError: If alignment_file or group_file does not exist.
         ValueError: If the EMASE file format is invalid or incompatible.
         RuntimeError: If the AlignmentPropertyMatrix cannot be loaded or processed.
-
-    Notes:
-        - The function uses memory optimization by bundling inline data between
-          isoform and gene-level processing.
-        - Output files are compressed numpy arrays (.npz format) for efficient storage.
-        - Each output file contains a symmetric matrix where element [i,j] represents
-          the number of reads shared between loci i and j.
-        - This function is useful for analyzing read distribution patterns and
-          identifying loci with similar alignment profiles.
     """
     logger.info(f'Alignment File: {alignment_file}')
     logger.info(f'Group File: {group_file}')
@@ -465,26 +369,18 @@ def create_hybrid(
         build_bowtie_index: bool = False
 ) -> None:
     """
-    Create a hybrid transcriptome by combining FASTA files from multiple founder haplotypes.
-
-    This function is a core component of the GBRS pipeline that creates a pooled
-    transcriptome for RNA-Seq alignment. It combines transcript sequences from
-    multiple founder strains (haplotypes) into a single FASTA file, with each
+    Create a hybrid transcriptome by combining FASTA files from multiple haplotypes. This combines
+    transcript sequences from multiple strains (haplotypes) into a single FASTA file, with each
     transcript ID suffixed by its haplotype identifier.
 
-    The function processes multiple FASTA files representing transcriptomes from
-    different founder strains (e.g., Diversity Outbred mouse founder strains A-H).
-    Each transcript in the output file is uniquely identified by appending the
-    haplotype suffix to the original transcript ID.
-
     ALGORITHM:
-    1. Create output directory if it doesn't exist
-    2. For each haplotype FASTA file:
+    - Create output directory if it doesn't exist
+    - For each haplotype FASTA file:
        - Read transcript sequences
        - Append haplotype suffix to transcript IDs
        - Write to pooled FASTA file
        - Record transcript lengths
-    3. Optionally build Bowtie index for alignment
+    - Optionally build Bowtie index for alignment
 
     OUTPUT FILES:
     - {output_file}: Pooled FASTA file containing all transcripts from all haplotypes
@@ -492,8 +388,8 @@ def create_hybrid(
     - {outbase}.bowtie1.*: Bowtie index files (if build_bowtie_index=True)
 
     Args:
-        fasta_list: List of paths to input FASTA files, one per founder haplotype.
-            Each file should contain transcript sequences from a single founder strain.
+        fasta_list: List of paths to input FASTA files, one per founder haplotype. Each file should
+            contain transcript sequences from a single strain.
             Example: ['strain_A.fa', 'strain_B.fa', 'strain_C.fa']
 
         haplotypes: List of haplotype identifiers corresponding to each FASTA file.
@@ -505,24 +401,13 @@ def create_hybrid(
             The file will contain all transcripts from all haplotypes with unique IDs.
 
         build_bowtie_index: Whether to build a Bowtie index for the pooled transcriptome.
-            Default: False
             If True, creates Bowtie index files for RNA-Seq read alignment.
-
-    Returns:
-        None. The function creates the pooled FASTA file and optional index files.
 
     Raises:
         FileNotFoundError: If any FASTA file does not exist.
         ValueError: If fasta_list and haplotypes have different lengths.
         OSError: If output directory cannot be created or files cannot be written.
         subprocess.CalledProcessError: If Bowtie index building fails.
-
-    Notes:
-        - Transcript IDs in the output follow the pattern: {original_id}_{haplotype}
-        - The function creates a transcript length file for downstream processing
-        - Bowtie index building can be time-consuming for large transcriptomes
-        - This function is typically used as the first step in the GBRS pipeline
-          to prepare the reference transcriptome for RNA-Seq alignment.
     """
     out_dir = os.path.dirname(output_file)
     if out_dir != '' and not os.path.exists(out_dir):
@@ -530,10 +415,11 @@ def create_hybrid(
 
     for x in fasta_list:
         logger.info(f'Fasta File: {x}')
+
     logger.info(f'Haplotype List: {haplotypes}')
     logger.info(f'Output File: {output_file}')
 
-    # Get pooled transcriptome
+    # get pooled transcriptome
     outbase = os.path.splitext(output_file)[0]
     num_haps = len(fasta_list)
     lenfile = f'{outbase}.info'
@@ -544,15 +430,14 @@ def create_hybrid(
     for hid in range(num_haps):
         fasta = fasta_list[hid]
         hapname = haplotypes[hid]
-        logger.info(
-            f'Adding suffix "_{hapname}" to the sequence ID\'s of {fasta}'
-        )
+        logger.info(f'Adding suffix "_{hapname}" to the sequence ID\'s of {fasta}')
         fh = open(fasta)
         line = fh.readline()  # the first fasta header
         line = f'{line.rstrip().split()[0]}_{hapname}'
         seqout.write(f'{line}\n')
         lenout.write(f'{line[1:]}\t')
         seq_len = 0
+
         for line in fh:
             if line[0] == '>':
                 line = f'{line.rstrip().split()[0]}_{hapname}\n'
@@ -561,12 +446,13 @@ def create_hybrid(
             else:
                 seq_len += len(line.rstrip())
             seqout.write(line)
+
         fh.close()
         lenout.write(f'{seq_len}\n')
     seqout.close()
     lenout.close()
 
-    # Build bowtie index for the pooled transcriptome
+    # build bowtie index for the pooled transcriptome
     if build_bowtie_index:
         out_index = f'{outbase}.bowtie1'
         logger.info('Building bowtie1 index (could take some time)')
@@ -581,28 +467,21 @@ def get_common_alignments(
         comp_lib: str = 'zlib'
 ) -> None:
     """
-    Find reads that align to the same loci across multiple EMASE files.
+    Find reads that align to the same loci across multiple EMASE files. Performs ELEMENT-WISE
+    MULTIPLICATION of sparse matrices to find reads that have identical alignment patterns across
+    all input files.
 
-    This function performs ELEMENT-WISE MULTIPLICATION of sparse matrices to
-    find reads that have identical alignment patterns across all input files.
-
-    The function performs an INTERSECTION operation on alignment data - it
-    only keeps reads that align consistently across all input files. This is
-    different from `combine()` which performs a UNION operation.
+    The function performs an INTERSECTION operation on alignment data - it only keeps reads that
+    align consistently across all input files. This is different from `combine()` which performs a
+    UNION operation.
 
     ALGORITHM:
-    1. Load the first EMASE file as the base matrix
-    2. For each subsequent file:
+    - Load the first EMASE file as the base matrix
+    - For each subsequent file:
        - Load the EMASE file
        - Verify read IDs are identical across files
        - Perform element-wise multiplication: aln_mat = aln_mat * aln_mat_next
-    3. Save the result
-
-    WHAT THIS DOES:
-    - Takes multiple EMASE files with the SAME reads
-    - For each read, only keeps alignments that exist in ALL files
-    - Result: Reads that align to the same loci in all input files
-    - Output: EMASE file with same structure but fewer non-zero elements
+    - Save the result
 
     DIFFERENCE FROM OTHER FUNCTIONS:
     - combine(): UNION operation - combines all reads from all files
@@ -615,12 +494,11 @@ def get_common_alignments(
     - Files should represent same sample
 
     Args:
-        emase_files: List of EMASE file paths to process. All files must have
-            identical read IDs and compatible structure (same loci and
-            haplotypes).
+        emase_files: List of EMASE file paths to process. All files must have identical read IDs
+            and compatible structure (same loci and haplotypes).
 
-        output_file: Path for the output common alignments EMASE file. If None,
-            auto-generates filename based on first input file.
+        output_file: Path for the output common alignments EMASE file. If None, auto-generates
+            filename based on first input file.
 
         comp_lib: Compression library to use for the output HDF5 file.
             Options: 'zlib', 'lzo', 'bzip2', 'blosc'
@@ -629,17 +507,13 @@ def get_common_alignments(
         FileNotFoundError: If any EMASE file does not exist.
         ValueError: If read IDs are not identical across files.
         RuntimeError: If matrices are not finalized or other processing errors.
-
-    Notes:
-        Only alignments that exist in ALL files are retained in the output.
-        For combining different samples or replicates, use combine() instead.
-        For grouping identical alignment patterns, use compress() instead.
     """
     if output_file is None:
         output_file = f'alignments.common.{os.path.basename(emase_files[0])}'
 
     for f in emase_files:
         logger.info(f'EMASE file: {f}')
+
     logger.info(f'Output File: {output_file}')
     logger.info(f'Compression Library: {comp_lib}')
 
@@ -681,10 +555,10 @@ def process_haplotype_optimized(
     Process a single haplotype across all EMASE files.
 
     Args:
-        haplotype_id: Index of the haplotype to process
-        emase_files: List of EMASE files
-        num_loci: Number of loci
-        num_reads: Number of reads
+        haplotype_id: Index of the haplotype to process.
+        emase_files: List of EMASE files.
+        num_loci: Number of loci.
+        num_reads: Number of reads.
 
     Returns:
         Tuple of (haplotype_id, indices, indptr, data) for the processed haplotype
@@ -805,23 +679,19 @@ def get_common_alignments_optimized(
         validate: bool = True
 ) -> None:
     """
-    Optimized version of get_common_alignments that finds reads with
-    identical alignment patterns across multiple EMASE files.
-
-    This function performs the same operation as get_common_alignments
-    but with significant memory and performance optimizations. It finds
-    reads that align to the same loci across all input files using
-    element-wise multiplication of sparse matrices, but processes data
-    haplotype-by-haplotype to reduce memory usage.
+    Optimized version of get_common_alignments that finds reads with identical alignment patterns
+    across multiple EMASE files. It finds reads that align to the same loci across all input files
+    using element-wise multiplication of sparse matrices, but processes data haplotype-by-haplotype
+    to reduce memory usage.
 
     ALGORITHM:
-    1. Load metadata (shape, locus names, read names) from the first file
-    2. Validate all files have identical dimensions and read IDs
-    3. Process each haplotype separately:
+    - Load metadata (shape, locus names, read names) from the first file
+    - Validate all files have identical dimensions and read IDs
+    - Process each haplotype separately:
        - Load haplotype data from all files using direct HDF5 access
        - Perform element-wise multiplication of sparse matrices
        - Store results for each haplotype
-    4. Combine all haplotype results and save to output file
+    - Combine all haplotype results and save to output file
 
     DIFFERENCES FROM ORIGINAL get_common_alignments:
 
@@ -840,23 +710,22 @@ def get_common_alignments_optimized(
        - Optimized: Processes haplotype-by-haplotype, allowing better memory management
        - Result: Can handle larger datasets that would exceed available memory
 
-    4. IMPLEMENTATION:
+    IMPLEMENTATION:
        - Original: Uses high-level AlignmentPropertyMatrix operations
        - Optimized: Uses low-level scipy.sparse operations for better performance
        - Result: More efficient sparse matrix operations
 
-    5. ERROR HANDLING:
+    ERROR HANDLING:
        - Original: Validates read IDs during AlignmentPropertyMatrix loading
        - Optimized: Validates dimensions and read IDs before processing (added validation)
        - Result: Better error detection while maintaining performance benefits
 
     Args:
-        emase_files: List of EMASE file paths to process. All files must have
-            identical read IDs and compatible structure (same loci and
-            haplotypes).
+        emase_files: List of EMASE file paths to process. All files must have identical read IDs
+            and compatible structure (same loci and haplotypes).
 
-        output_file: Path for the output common alignments EMASE file. If None,
-            auto-generates filename based on first input file.
+        output_file: Path for the output common alignments EMASE file. If None, auto-generates
+            filename based on first input file.
 
         comp_lib: Compression library to use for the output HDF5 file.
             Options: 'zlib', 'lzo', 'bzip2', 'blosc'
@@ -963,64 +832,42 @@ def pull_out_unique_reads(
         ignore_alleles: bool = False
 ) -> None:
     """
-    Extract unique reads from EMASE alignment data, optionally aggregating by gene groups.
-
-    This function filters EMASE alignment data to retain only unique reads, which can
-    be useful for reducing redundancy and focusing analysis on distinct read sequences.
-    It can operate at both transcript and gene levels, depending on whether a group
-    file is provided.
-
-    The function processes EMASE alignment data to identify and extract reads that
-    have unique alignment patterns. When a group file is provided, it first aggregates
-    alignments by gene groups before identifying unique reads.
+    Extract unique reads from EMASE alignment data, optionally aggregating by gene groups. Useful
+    for reducing redundancy and focusing analysis on distinct read sequences. It can operate at
+    both transcript and gene levels, depending on whether a group file is provided.
 
     ALGORITHM:
-    1. Load EMASE file with optional group information
-    2. If group file provided:
+    - Load EMASE file with optional group information
+    - If group file provided:
        - Bundle alignments by gene groups
        - Identify unique reads at gene level
        - Extract corresponding transcript-level alignments
-    3. If no group file:
+    - If no group file:
        - Identify unique reads directly at transcript level
-    4. Save filtered alignment data
+    - Save filtered alignment data
 
     Args:
         alignment_file: Path to the EMASE file (HDF5 format) containing alignment data.
-            The file should contain sparse matrices representing read alignments to
-            transcripts from different founder haplotypes.
 
         output_file: Path for the output EMASE file containing only unique reads.
-            The output will have the same structure as the input but with fewer reads.
 
-        group_file: Path to the group file containing transcript-to-gene mapping.
-            If provided, unique reads are identified at the gene level and then
-            mapped back to transcript-level alignments.
+        group_file: Path to the group file containing transcript-to-gene mapping. If provided,
+            unique reads are identified at the gene level and then mapped back to transcript-level
+            alignments.
             Format: tab-separated with transcript ID in first column, gene ID in second.
 
-        shallow: Whether to use shallow processing mode. Default: False
-            If True, uses memory-efficient processing that may be slower.
-            If False, loads full data into memory for faster processing.
+        shallow: True, uses memory-efficient processing that may be slower. False, loads full data
+            into memory for faster processing.
 
-        ignore_alleles: Whether to ignore haplotype information when identifying unique reads.
-            If True, reads are considered unique based only on locus alignment,
-            ignoring which haplotype they align to.
-            If False, haplotype information is considered in uniqueness determination.
-
-    Returns:
-        None. The function creates an EMASE file containing only unique reads.
+        ignore_alleles: Whether to ignore haplotype information when identifying unique reads. If
+            True, reads are considered unique based only on locus alignment, ignoring which
+            haplotype they align to. If False, haplotype information is considered in uniqueness
+            determination.
 
     Raises:
         FileNotFoundError: If alignment_file or group_file does not exist.
         ValueError: If the EMASE file format is invalid or incompatible.
         RuntimeError: If the AlignmentPropertyMatrix cannot be loaded or processed.
-
-    Notes:
-        - The function can significantly reduce the number of reads in the output file
-        - When ignore_alleles=True, reads aligning to the same locus across different
-          haplotypes are considered duplicates
-        - Shallow mode is useful for large datasets that don't fit in memory
-        - This function is useful for removing redundant reads before downstream analysis
-        - The output maintains the same structure as the input but with fewer reads
     """
     logger.info(f'Alignment File: {alignment_file}')
     logger.info(f'Group File: {group_file}')
@@ -1037,35 +884,27 @@ def pull_out_unique_reads(
     logger.info('Getting unique reads')
     if group_file:
         logger.debug('Using group file')
-        aln_mat_g = apm.bundle(reset=True, shallow=shallow)
-        aln_mat_g_uniq = aln_mat_g.get_unique_reads(
-            ignore_haplotype=ignore_alleles, shallow=shallow
-        )
-        num_alns_per_read = aln_mat_g_uniq.sum(axis=AlignmentPropertyMatrix.Axis.LOCUS).sum(
+        apm_g = apm.bundle(reset=True, shallow=shallow)
+        apm_g_unique = apm_g.get_unique_reads(ignore_haplotype=ignore_alleles, shallow=shallow)
+
+        num_alns_per_read = apm_g_unique.sum(axis=AlignmentPropertyMatrix.Axis.LOCUS).sum(
             axis=AlignmentPropertyMatrix.Axis.HAPLOTYPE
         )
-        aln_mat_uniq = apm.pull_alignments_from(
-            (num_alns_per_read > 0), shallow=shallow
-        )
+
+        apm_unique = apm.pull_alignments_from((num_alns_per_read > 0), shallow=shallow)
     else:
         logger.debug('Not using group file')
-        aln_mat_uniq = apm.get_unique_reads(
-            ignore_haplotype=ignore_alleles, shallow=shallow
-        )
+        apm_unique = apm.get_unique_reads(ignore_haplotype=ignore_alleles, shallow=shallow)
 
     logger.info(f'Saving EMASE Formatted File: {output_file}')
-    aln_mat_uniq.save(h5_file=output_file, shallow=shallow)
+    apm_unique.save(h5_file=output_file, shallow=shallow)
     logger.info('Done')
 
 
 def parse_gtf(gtf_fh) -> tuple[dict, dict]:
     """
-    Parse a GTF (Gene Transfer Format) file to extract gene and transcript annotations.
-
-    This function parses a GTF file to build comprehensive gene and transcript databases
-    that contain genomic coordinates, exon structures, and other annotation features.
-    It is used in the GBRS pipeline to extract transcript sequences from genome files
-    based on gene annotations.
+    Parse a GTF to build comprehensive gene and transcript lookup that contain genomic coordinates,
+    exon structures, and other annotation features.
 
     The function processes GTF entries for different feature types:
     - gene: Gene-level annotations with genomic coordinates
@@ -1074,25 +913,12 @@ def parse_gtf(gtf_fh) -> tuple[dict, dict]:
     - UTR: Untranslated region coordinates
     - start_codon/stop_codon: Translation start/stop sites
 
-    ALGORITHM:
-    1. Skip comment lines at the beginning of the file
-    2. Parse each GTF line into tab-separated fields
-    3. Extract attributes from the 9th field (semicolon-separated key-value pairs)
-    4. Process different feature types:
-       - gene: Create gene database entry
-       - transcript: Create transcript database entry
-       - exon: Add exon coordinates to transcript
-       - UTR/start_codon/stop_codon: Add feature coordinates
-    5. Build gene-transcript relationships
-
     Args:
         gtf_fh: File handle or iterable containing GTF file lines.
-            The file should be in standard GTF format with tab-separated fields:
-            chromosome, source, feature, start, end, score, strand, frame, attributes
 
     Returns:
         tuple[dict, dict]: A tuple containing two dictionaries:
-            - gdb (gene database): Dictionary mapping gene IDs to gene information
+            - gdb: Dictionary mapping gene IDs to gene information
                 Keys: gene IDs (str)
                 Values: dict containing:
                     - 'chr': chromosome name (str)
@@ -1102,7 +928,7 @@ def parse_gtf(gtf_fh) -> tuple[dict, dict]:
                     - 'isoform': set of transcript IDs (set)
                     - Additional attributes from GTF file
 
-            - tdb (transcript database): Dictionary mapping transcript IDs to transcript information
+            - tdb: Dictionary mapping transcript IDs to transcript information
                 Keys: transcript IDs (str)
                 Values: dict containing:
                     - 'chr': chromosome name (str)
@@ -1121,14 +947,6 @@ def parse_gtf(gtf_fh) -> tuple[dict, dict]:
     Raises:
         ValueError: If GTF file format is invalid or required attributes are missing.
         IndexError: If GTF line has insufficient fields.
-
-    Notes:
-        - The function handles both standard and non-standard GTF files
-        - Duplicate gene or transcript entries are reported as errors
-        - Exon coordinates are stored as (start, end) tuples
-        - The function builds gene-transcript relationships automatically
-        - CDS features are parsed but not stored (only coordinates are used)
-        - Unknown feature types are logged as errors but processing continues
     """
     gdb = dict()
     tdb = dict()
@@ -1192,7 +1010,9 @@ def parse_gtf(gtf_fh) -> tuple[dict, dict]:
                 gid = tdb[tid]['gene_id']
                 if gid in gdb:
                     gdb[gid]['isoform'].add(tid)
-                else:  # This is a non-standard case where the input gtf does not have detailed gene-level annotation
+                else:
+                    # this is a non-standard case where the input gtf does not have detailed
+                    # gene-level annotation
                     gdb[gid] = dict()
                     gdb[gid]['chr'] = chrom
                     gdb[gid]['isoform'] = set(tid)
@@ -1212,7 +1032,9 @@ def parse_gtf(gtf_fh) -> tuple[dict, dict]:
                     except:
                         pass
                     tdb[tid]['exon'].append((s, e))
-                else:  # This is a non-standard case where input gtf does not have detailed transcript-level annotation
+                else:
+                    # this is a non-standard case where input gtf does not have detailed
+                    # transcript-level annotation
                     tdb[tid] = dict()
                     tdb[tid]['chr'] = chrom
                     tdb[tid]['strand'] = strand
@@ -1234,14 +1056,10 @@ def parse_gtf(gtf_fh) -> tuple[dict, dict]:
     return gdb, tdb
 
 
-def get_fragment(start: int, end: int, chro: str, strand: str, genome: dict) -> Seq:
+def get_fragment(start: int, end: int, chrom: str, strand: str, genome: dict) -> Seq:
     """
-    Extract a genomic fragment and return the appropriate DNA sequence.
-
-    This function extracts a DNA sequence from a specified genomic region and
-    returns the appropriate strand based on the gene orientation. It is used
-    in the GBRS pipeline to extract transcript sequences from genome files
-    based on gene annotations.
+    Extracts a DNA sequence from a specified genomic region and returns the appropriate strand
+    based on the gene orientation.
 
     The function handles both positive and negative strand genes:
     - Positive strand (+): Returns the sequence as-is from the genome
@@ -1249,17 +1067,9 @@ def get_fragment(start: int, end: int, chro: str, strand: str, genome: dict) -> 
 
     Args:
         start: Start position of the genomic region (1-based coordinates).
-            Should be within the bounds of the specified chromosome.
-
         end: End position of the genomic region (1-based coordinates).
-            Should be greater than or equal to start.
-
-        chro: Chromosome name to extract the sequence from.
-            Must be a key in the genome dictionary.
-
+        chrom: Chromosome name to extract the sequence from.
         strand: Strand orientation of the gene ('+' or '-').
-            Determines whether to return the sequence as-is or its reverse complement.
-
         genome: Dictionary containing chromosome sequences.
             Keys: chromosome names (str)
             Values: Bio.SeqRecord.SeqRecord objects containing chromosome sequences
@@ -1276,12 +1086,8 @@ def get_fragment(start: int, end: int, chro: str, strand: str, genome: dict) -> 
 
     Notes:
         - Uses 1-based coordinates (GTF standard) but converts to 0-based for Python indexing
-        - The function assumes the genome dictionary contains Bio.SeqRecord objects
-        - For negative strand genes, the reverse complement is computed automatically
-        - This function is typically used in conjunction with parse_gtf() to extract
-          transcript sequences from genome files
     """
-    fragment = genome[chro].seq[(start - 1): end]
+    fragment = genome[chrom].seq[(start - 1): end]
     if strand == '-':
         fragment = fragment.reverse_complement()
     return fragment
@@ -1297,32 +1103,28 @@ def prepare(
         no_bowtie_index: bool = False
 ) -> None:
     """
-    Prepare transcriptome files for EMASE analysis from genome and annotation files.
-
-    This function is a comprehensive preparation step in the GBRS pipeline that
-    extracts transcript sequences from genome files using gene annotations and
-    creates the necessary files for downstream RNA-Seq analysis. It processes
-    multiple founder haplotypes to create a pooled transcriptome suitable for
-    allele-specific expression analysis.
+    Comprehensively extracts transcript sequences from genome files using gene annotations and
+    creates the necessary files for downstream RNA-Seq analysis. It processes multiple haplotypes
+    to create a pooled transcriptome suitable for allele-specific expression analysis.
 
     The function performs several key operations:
-    1. Parses GTF annotation files to extract gene and transcript information
-    2. Extracts transcript sequences from genome files based on exon coordinates
-    3. Creates a pooled transcriptome with haplotype-specific transcript IDs
-    4. Optionally builds Bowtie indices for RNA-Seq read alignment
-    5. Generates transcript length files and gene-transcript mappings
+    - Parses GTF annotation files to extract gene and transcript information
+    - Extracts transcript sequences from genome files based on exon coordinates
+    - Creates a pooled transcriptome with haplotype-specific transcript IDs
+    - Optionally builds Bowtie indices for RNA-Seq read alignment
+    - Generates transcript length files and gene-transcript mappings
 
     ALGORITHM:
-    1. Validate input files and create output directory
-    2. For each haplotype:
+    - Validate input files and create output directory
+    - For each haplotype:
        - Load genome sequence from FASTA file
        - Parse GTF annotation file
        - Extract transcript sequences using exon coordinates
        - Append haplotype suffix to transcript IDs
        - Write to pooled transcriptome file
-    3. Generate transcript length information
-    4. Optionally create gene-to-transcript mapping
-    5. Optionally build Bowtie index
+    - Generate transcript length information
+    - Optionally create gene-to-transcript mapping
+    - Optionally build Bowtie index
 
     OUTPUT FILES:
     - emase.transcripts.fa: Pooled transcriptome FASTA file
@@ -1369,16 +1171,15 @@ def prepare(
     Notes:
         - Transcript IDs in the output follow the pattern: {original_id}_{haplotype}
         - For single genome analysis, no haplotype suffix is added
-        - The function handles both compressed (.gz) and uncompressed files
-        - Bowtie index building can be time-consuming for large transcriptomes
-        - This function is typically used as the first step in the GBRS pipeline
-          to prepare reference transcriptomes for RNA-Seq alignment
     """
     for x in genome_files:
         logger.info(f'Genome File: {x}')
+
     logger.info(f'Haplotypes: {haplotypes}')
+
     for x in gtf_files:
         logger.info(f'GTF File: {x}')
+
     logger.info(f'Output Dir: {out_dir}')
     logger.info(f'Save Gene 2 Transcript Map: {save_g2tmap}')
     logger.info(f'Save DBs: {save_dbs}')
@@ -1395,18 +1196,23 @@ def prepare(
 
     if gtf_files is None:
         gtf_files = []
+
         for genome_file in genome_files:
             gtf_files.append(f'{os.path.splitext(genome_file)[0]}.gtf')
+
         gtf_files_str = '\n'.join(gtf_files)
         logger.info(f'Assuming there exist the following GTF files:\n{gtf_files_str}')
 
     if len(haplotypes) != num_haps or len(gtf_files) != num_haps:
-        logger.warning('The number of gtf files or specified haplotypes is not matching to the number of genomes.')
+        logger.warning(
+            'The number of gtf files or specified haplotypes is not '
+            'matching to the number of genomes.'
+        )
 
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
 
-    # Get pooled transcriptome
+    # get pooled transcriptome
     if num_haps > 1:
         transcriptome_file = os.path.join(out_dir, 'emase.pooled.transcripts.fa')
         len_file = os.path.join(out_dir, 'emase.pooled.transcripts.info')
@@ -1442,55 +1248,44 @@ def prepare(
         anno_fh.close()
 
         if num_haps == 1:
-            print(
-                f'Building {genome_name} transcriptome (Note: No suffix added to ID\'s)...'
-            )
+            logger.info(f'Building {genome_name} transcriptome (Note: No suffix added to ID\'s)...')
             if save_dbs:
                 import _pickle as cPickle
-
-                cPickle.dump(
-                    gdb, open(os.path.join(out_dir, 'emase.gdb.pkl'), 'wb')
-                )
-                cPickle.dump(
-                    tdb, open(os.path.join(out_dir, 'emase.tdb.pkl'), 'wb')
-                )
+                cPickle.dump(gdb, open(os.path.join(out_dir, 'emase.gdb.pkl'), 'wb'))
+                cPickle.dump(tdb, open(os.path.join(out_dir, 'emase.tdb.pkl'), 'wb'))
         elif num_haps > 1:
-            logger.info(
-                f'Building {genome_name} transcriptome using suffix "_{hap_name}"...',
-            )
+            logger.info(f'Building {genome_name} transcriptome using suffix "_{hap_name}"...')
 
         for tid in sorted(list(tdb.keys())):
             tinfo = tdb[tid]
             if tinfo['chr'] in genome:
-                # Filter out transcripts from chromosome that the input genome does not contain
+                # filter out transcripts from chromosome that the input genome does not contain
                 if num_haps > 1:
-                    # No need to add suffix if we deal with a single genome
+                    # no need to add suffix if we deal with a single genome
                     tid = f'{tid}_{hap_name}'
+
                 fragment = Seq('')
                 for exon in tinfo['exon']:
                     fragment += get_fragment(
-                        exon[0],
-                        exon[1],
-                        tinfo['chr'],
-                        tinfo['strand'],
-                        genome,
+                        start=exon[0],
+                        end=exon[1],
+                        chrom=tinfo['chr'],
+                        strand=tinfo['strand'],
+                        genome=genome
                     )
+
                 if len(fragment) > 0:
                     SeqIO.write(
                         SeqRecord(fragment, tid, '', ''), seq_out, 'fasta'
                     )
                 len_out.write(f'{tid}\t{len(fragment)}\n')
             else:
-                print(
-                    f'Skipping Transcript {tid} of Chromosome {tinfo["chr"]}...',
-                )
+                logger.info(f'Skipping Transcript {tid} of Chromosome {tinfo["chr"]}...')
     seq_out.close()
     len_out.close()
 
     if save_g2tmap:
-        with open(
-                os.path.join(out_dir, 'emase.gene2transcripts.tsv'), 'w'
-        ) as fhout:
+        with open(os.path.join(out_dir, 'emase.gene2transcripts.tsv'), 'w') as fhout:
             logger.info('Recording mapping of gene id to transcript id\'s...', )
             for gid in sorted(list(gdb.keys())):
                 if gdb[gid]['chr'] in genome:
@@ -1498,16 +1293,12 @@ def prepare(
                     item = item + list(gdb[gid]['isoform'])
                     fhout.write('\t'.join(item) + '\n')
 
-    #
-    # Build bowtie index for the pooled transcriptome
+
+    # build bowtie index for the pooled transcriptome
     if not no_bowtie_index:
-        out_index = os.path.join(
-            os.path.dirname(transcriptome_file), 'bowtie.transcripts'
-        )
+        out_index = os.path.join(os.path.dirname(transcriptome_file), 'bowtie.transcripts')
         logger.info('Building bowtie index...')
-        subprocess.call(
-            f'bowtie-build {transcriptome_file} {out_index}', shell=True
-        )
+        subprocess.call(f'bowtie-build {transcriptome_file} {out_index}', shell=True)
 
     logger.info('Done')
 
@@ -1528,25 +1319,25 @@ def run(
     """
     Run EMASE (Expectation-Maximization for Allele-Specific Expression) analysis.
 
-    This function is the core analysis component of the GBRS pipeline that performs
-    allele-specific expression quantification using an expectation-maximization
-    algorithm. It processes EMASE alignment data to estimate transcript abundances
-    and allele-specific expression levels in multiparent populations.
+    This function is the core analysis component of the GBRS pipeline that performs allele-specific
+    expression quantification using an expectation-maximization algorithm. It processes EMASE
+    alignment data to estimate transcript abundances and allele-specific expression levels in
+    multiparent populations.
 
-    The function implements the EMASE algorithm described in the scientific literature
-    for quantifying gene expression from RNA-Seq data while accounting for:
+    The function implements the EMASE algorithm described in the scientific literature for
+    quantifying gene expression from RNA-Seq data while accounting for:
     - Multi-mapping reads that align to multiple transcripts
     - Allele-specific expression differences between founder haplotypes
     - Transcript length biases in RNA-Seq quantification
     - Sequencing depth normalization
 
     ALGORITHM:
-    1. Load EMASE alignment data and optional group information
-    2. Initialize EMASE factory with alignment matrix
-    3. Prepare EMASE with transcript lengths and read length information
-    4. Run expectation-maximization algorithm with specified model
-    5. Generate transcript abundance estimates (TPM and read counts)
-    6. Optionally generate gene-level estimates and additional reports
+    - Load EMASE alignment data and optional group information
+    - Initialize EMASE factory with alignment matrix
+    - Prepare EMASE with transcript lengths and read length information
+    - Run expectation-maximization algorithm with specified model
+    - Generate transcript abundance estimates (TPM and read counts)
+    - Optionally generate gene-level estimates and additional reports
 
     OUTPUT FILES:
     - {outbase}.isoforms.tpm: Transcript-level TPM (Transcripts Per Million) estimates
@@ -1559,23 +1350,21 @@ def run(
 
     Args:
         alignment_file: Path to the EMASE file (HDF5 format) containing alignment data.
-            The file should contain sparse matrices representing read alignments to
-            transcripts from different founder haplotypes.
 
-        group_file: Path to the group file containing transcript-to-gene mapping.
-            If provided, enables gene-level analysis in addition to transcript-level analysis.
+        group_file: Path to the group file containing transcript-to-gene mapping. If provided,
+            enables gene-level analysis in addition to transcript-level analysis.
             Format: tab-separated with transcript ID in first column, gene ID in second.
 
-        length_file: Path to the transcript length file.
-            Contains transcript IDs and their lengths for length bias correction.
+        length_file: Path to the transcript length file. Contains transcript IDs and their lengths
+            for length bias correction.
             Format: tab-separated with transcript ID in first column, length in second.
 
         outbase: Base name for all output files. Default: 'emase'
             All output files will be prefixed with this base name.
 
         multiread_model: EMASE model to use for multi-mapping read handling.
-            Options: 1-4, where higher numbers represent more sophisticated models
-            for handling reads that align to multiple transcripts.
+            Options: 1-4, where higher numbers represent more sophisticated models for handling
+            reads that align to multiple transcripts.
 
         read_length: Average read length for length bias correction.
             Used in the EMASE algorithm to account for transcript length biases.
@@ -1632,34 +1421,22 @@ def run(
 
     logger.info('Running EMASE')
     em_factory = EMfactory(apm)
-    em_factory.prepare(pseudocount=pseudocount, lenfile=length_file, read_length=read_length)
-    em_factory.run(
-        model=multiread_model, tol=tolerance, max_iters=max_iters, verbose=True
-    )
+    em_factory.prepare(pseudocount=pseudocount, length_file=length_file, read_length=read_length)
+    em_factory.run(model=multiread_model, tol=tolerance, max_iters=max_iters, verbose=True)
 
     logger.info(f'Generating isoform TPMs: {outbase}.isoforms.tpm')
-    em_factory.report_depths(
-        filename=f'{outbase}.isoforms.tpm', tpm=True
-    )
+    em_factory.report_depths(filename=f'{outbase}.isoforms.tpm', tpm=True)
 
     logger.info(f'Generating isoform Read Counts: {outbase}.isoforms.expected_read_counts')
-    em_factory.report_read_counts(
-        filename=f'{outbase}.isoforms.expected_read_counts'
-    )
+    em_factory.report_read_counts(filename=f'{outbase}.isoforms.expected_read_counts')
 
     if report_posterior:
         logger.info(f'Generating Posterior Probabilities: {outbase}.posterior.h5')
-        em_factory.export_posterior_probability(
-            filename=f'{outbase}.posterior.h5'
-        )
+        em_factory.export_posterior_probability(filename=f'{outbase}.posterior.h5')
 
     if report_group_counts:
         logger.info(f'Generating gene TPMs: {outbase}.genes.tpm')
-        em_factory.report_depths(
-            filename=f'{outbase}.genes.tpm',
-            tpm=True,
-            grp_wise=True
-        )
+        em_factory.report_depths(filename=f'{outbase}.genes.tpm', tpm=True, grp_wise=True)
 
         logger.info(f'Generating gene Read Counts: {outbase}.genes.expected_read_counts')
         em_factory.report_read_counts(
@@ -1677,4 +1454,5 @@ def run(
             logger.info(f'Generating gene Alignment Counts: {outbase}.genes.alignment_counts')
             apm._bundle_inline(reset=True)
             apm.report_alignment_counts(filename=f'{outbase}.genes.alignment_counts')
+
     logger.debug('Done')

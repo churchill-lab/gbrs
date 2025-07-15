@@ -14,7 +14,7 @@ def em_factory(mock_alignment_property_matrix):
 
 
 def test_prepare(em_factory):
-    em_factory.prepare(,
+    em_factory.prepare(),
     assert em_factory.grp_conv_mat is not None
     assert em_factory.t2t_mat is not None
     assert em_factory.allelic_expression is not None
@@ -26,45 +26,45 @@ def test_reset(em_factory):
 
 
 def test_get_allelic_expression(em_factory):
-    em_factory.prepare(,
+    em_factory.prepare(),
     allelic_expression = em_factory.get_allelic_expression(at_group_level=False)
     assert allelic_expression is not None
 
 
 def test_update_probability_at_read_level(em_factory):
-    em_factory.prepare(,
+    em_factory.prepare(),
     em_factory.update_probability_at_read_level(model=4)
     assert em_factory.probability is not None
 
 
 def test_update_allelic_expression(em_factory):
-    em_factory.prepare(,
+    em_factory.prepare(),
     em_factory.update_allelic_expression(model=4)
     assert em_factory.allelic_expression is not None
 
 
 def test_run(em_factory):
-    em_factory.prepare(,
+    em_factory.prepare(),
     em_factory.run(model=4, tol=0.001, max_iters=10, verbose=False)
     assert em_factory.allelic_expression is not None
 
 
 def test_report_read_counts(em_factory, tmp_path):
-    em_factory.prepare(,
+    em_factory.prepare(),
     output_file = tmp_path / "read_counts.txt"
     em_factory.report_read_counts(filename=output_file)
     assert output_file.exists()
 
 
 def test_report_depths(em_factory, tmp_path):
-    em_factory.prepare(,
+    em_factory.prepare(),
     output_file = tmp_path / "depths.txt"
     em_factory.report_depths(filename=output_file)
     assert output_file.exists()
 
 
 def test_export_posterior_probability(em_factory, tmp_path):
-    em_factory.prepare(,
+    em_factory.prepare(),
     output_file = tmp_path / "posterior_probability.h5"
     em_factory.export_posterior_probability(filename=output_file)
     assert output_file.exists()

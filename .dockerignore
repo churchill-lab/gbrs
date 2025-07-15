@@ -1,25 +1,107 @@
-# Docker stuff
-.dockerignore
+# Docker build files
 Dockerfile
+.dockerignore
 
-# ignore .git directory
+# Version control
 .git
 .gitignore
+.gitattributes
 
-# ignore any ipynb and py files
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+*.egg
+
+# Virtual environments
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Development and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter notebooks and checkpoints
 **/*.ipynb
 **/*.ipynb_checkpoints
-**/*.db
-**/*.pyc
-**/*.pyo
-**/*.pyd
-**/*__pycache__
+.ipynb_checkpoints/
 
-# eggs
-**/*.egg-info
-
-logs/
+# Documentation
 *.md
+docs/
+*.rst
+
+# Test files and data
+tests/
+tests_new/
+pytest.ini
+.coverage
+htmlcov/
+.tox/
 .cache
+.pytest_cache/
+
+# Logs and temporary files
+*.log
+logs/
 debug.txt
+*.tmp
+*.temp
+
+# Data files (can be mounted at runtime)
+data/
+output/
+latest/
+local/
+
+# Build artifacts
+build/
+dist/
+downloads/
+parts/
+sdist/
+var/
+wheels/
+*.manifest
+*.spec
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Large binary files that shouldn't be in the image
+*.bam
+*.h5
+*.bin
+*.npz
+*.tar.gz
+
+# Development scripts
+*.sh
+clean.sh
+create_*.sh
+
+# Notes and documentation
+notes/
+*.txt
 

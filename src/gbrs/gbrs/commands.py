@@ -25,9 +25,8 @@ class SectionedGroup(TyperGroup):
         
         # Hardcoded groups
         main_commands = [
-            'bam2emase', 'bam2emase-paired', 'compress', 'compress-optimized',
-            'quantify', 'reconstruct', 'interpolate', 'export', 'plot', 
-            'get-transition-prob', 'get-alignment-spec', 'stencil'
+            'bam2emase', 'compress', 'compress', 'quantify', 'reconstruct', 'interpolate',
+            'export', 'plot',  'get-transition-prob', 'get-alignment-spec', 'stencil'
         ]
         utility_commands = ['debug-genoprob', 'generate_bam']
 
@@ -144,38 +143,6 @@ def compress(
             emase_files=all_emase_files,
             output_file=str(output_file),
             comp_lib=comp_lib
-        )
-    except Exception as e:
-        if logger.level == logging.DEBUG:
-            logger.exception(e)
-        else:
-            logger.error(e)
-
-
-@app.command(help='Compress EMASE files using tuple-based optimization for advanced storage efficiency')
-def compress_optimized(
-    emase_files: Annotated[list[Path], typer.Option('-i', '--emase-file', exists=False, dir_okay=False, resolve_path=True, help='EMASE files to compress. Can specify multiple files with comma separation or multiple -i flags')],
-    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Output compressed EMASE file')],
-    comp_lib: Annotated[str, typer.Option('-c', '--comp-lib', help='Compression library for output file (default: zlib)')] = 'zlib',
-    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
-) -> None:
-    logger = utils.configure_logging('gbrs', verbose)
-    logger.debug('compress_optimized')
-    try:
-        # file shortcut: the following command line options are all equal
-        # -i abc.h5 -i def.h5
-        # -i abc.h5,def.h5
-        all_emase_files: list[str] = []
-        for x in emase_files:
-            all_emase_files.extend(str(x).split(','))
-
-        for i, f in enumerate(all_emase_files):
-            all_emase_files[i] = utils.check_file(f, 'r')
-
-        emase_utils.compress_optimized(
-            emase_files=all_emase_files,
-            output_file=str(output_file),
-            comp_lib=comp_lib,
         )
     except Exception as e:
         if logger.level == logging.DEBUG:

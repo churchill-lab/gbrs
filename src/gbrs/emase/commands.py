@@ -40,7 +40,6 @@ import typer
 from typer.core import TyperGroup
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
 
 # local library imports
 from gbrs import utils
@@ -134,7 +133,7 @@ def bam2emase(
         locusid_file = str(locusid_file) if locusid_file else None
         output_file = str(output_file) if output_file else None
 
-        emase_utils.bam2emase_paired(
+        emase_utils.bam2emase(
             alignment_files=all_alignment_files,
             haplotypes=all_haplotypes,
             locusid_file=locusid_file,

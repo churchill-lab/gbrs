@@ -25,13 +25,11 @@ class AxisEnum(IntEnum):
 
 class AlignmentPropertyMatrix(Sparse3DMatrix):
     """
-    A specialized 3D sparse matrix for RNA-seq alignment data with metadata
-    support. This class is central to the EMASE algorithm implementation in
-    GBRS. It is used to store and manipulate the alignment probabilities for
-    each locus, haplotype, and read.
+    A specialized 3D sparse matrix for RNA-seq alignment data with metadata support. It is used to
+    store and manipulate the alignment probabilities for each locus, haplotype, and read.
 
-    This class extends Sparse3DMatrix to provide additional functionality
-    specific to RNA-seq alignment analysis, including:
+    This class extends Sparse3DMatrix to provide additional functionality specific to RNA-seq
+    alignment analysis, including:
     - Named dimensions (loci, haplotypes, reads)
     - Group-based operations for transcript isoforms
     - Normalization methods for read-level analysis
@@ -60,10 +58,8 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         grp_file: str | None = None
     ) -> None:
         """
-        Initialize an AlignmentPropertyMatrix object.
-
-        This constructor extends Sparse3DMatrix initialization with metadata
-        support for RNA-seq alignment analysis.
+        Initialize an AlignmentPropertyMatrix object. It extends Sparse3DMatrix initialization with
+        metadata support for RNA-seq alignment analysis.
 
         It supports multiple initialization modes:
 
@@ -89,8 +85,8 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             RuntimeError: If copying from non-finalized matrix or invalid parameters
 
         Note:
-            The grpfile should contain tab-separated values with group name in
-            first column and transcript names in subsequent columns.
+            The grp_file should contain tab-separated values with group name in first column and
+            transcript names in subsequent columns.
 
         """
         Sparse3DMatrix.__init__(
@@ -127,6 +123,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             # use for copying from other existing AlignmentPropertyMatrix object
             if other.count is not None:
                 self.count = copy.copy(other.count)
+
             if not shallow:
                 self.__copy_names(other)
                 self.__copy_group_info(other)
@@ -134,17 +131,22 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         elif h5_file is not None:
             # use for loading from a pytables file
             h5fh = tables.open_file(h5_file, 'r')
+
             if h5fh.__contains__(f'{datanode}/count'):
                 self.count = h5fh.get_node(datanode, 'count').read()
+
             if not shallow:
                 self.hname = h5fh.get_node_attr(datanode, 'hname')
                 self.lname = h5fh.get_node(metanode, 'lname').read()
+
                 # convert from bytes to string
                 self.lname = [x.decode() for x in self.lname]
                 self.lid = dict(zip(self.lname, np.arange(self.num_loci)))
+
                 if h5fh.__contains__(f'{metanode}/rname'):
                     self.rname = h5fh.get_node(metanode, 'rname').read()
                     self.rid = dict(zip(self.rname, np.arange(self.num_reads)))
+
             h5fh.close()
 
         elif shape is not None:
@@ -153,42 +155,33 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                 if len(haplotype_names) == self.num_haplotypes:
                     self.hname = haplotype_names
                 else:
-                    raise RuntimeError(
-                        'The number of names does not match to the matrix shape.'
-                    )
+                    raise RuntimeError('The number of names does not match to the matrix shape.')
+
             if locus_names is not None:
                 if len(locus_names) == self.num_loci:
                     self.lname = np.array(locus_names)
                     self.lid = dict(zip(self.lname, np.arange(self.num_loci)))
                 else:
-                    raise RuntimeError(
-                        'The number of names does not match to the matrix shape.'
-                    )
+                    raise RuntimeError('The number of names does not match to the matrix shape.')
+
             if read_names is not None:
                 if len(read_names) == self.num_reads:
                     self.rname = np.array(read_names)
                     self.rid = dict(zip(self.rname, np.arange(self.num_reads)))
                 else:
-                    raise RuntimeError(
-                        'The number of names does not match to the matrix shape.'
-                    )
+                    raise RuntimeError('The number of names does not match to the matrix shape.')
 
         if grp_file is not None:
             self.__load_groups(grp_file)
 
 
-    def __load_groups(
-        self,
-        grpfile: str
-    ) -> None:
+    def __load_groups(self, grp_file: str) -> None:
         """
-        Load transcript group definitions from a file.
-
-        This method reads transcript group definitions from a tab-separated file
-        and creates mappings for group-based operations.
+        Load transcript group definitions from a file from a tab-separated file and create mappings
+        for group-based operations.
 
         Args:
-            grpfile: Path to the transcript group definition file
+            grp_file: Path to the transcript group definition file
 
         Raises:
             RuntimeError: If locus IDs are not available (lname/lid not set)
@@ -205,7 +198,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             self.gname = list()
             self.groups = list()
 
-            with open(grpfile) as fh:
+            with open(grp_file) as fh:
                 for line in fh:
                     item = line.rstrip().split('\t')
                     self.gname.append(item[0])
@@ -220,13 +213,9 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
     load_groups = __load_groups
 
 
-    def __copy_names(
-        self,
-        other: Self
-    ) -> None:
+    def __copy_names(self, other: Self) -> None:
         """
-        Copy all the naming information from another AlignmentPropertyMatrix object
-        in place.
+        Copy all the naming information from another AlignmentPropertyMatrix object in place.
 
         Args:
             other: The source matrix to copy names from
@@ -238,13 +227,9 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         self.rid = copy.copy(other.rid)
 
 
-    def __copy_group_info(
-        self,
-        other: Self
-    ) -> None:
+    def __copy_group_info(self, other: Self) -> None:
         """
-        Copy all the group information from another AlignmentPropertyMatrix object
-        in place.
+        Copy all the group information from another AlignmentPropertyMatrix object in place.
 
         Args:
             other: The source matrix to copy group info from
@@ -255,20 +240,14 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             self.num_groups = other.num_groups
 
 
-    def copy(
-        self,
-        shallow: bool = False
-    ) -> Self:
+    def copy(self, shallow: bool = False) -> Self:
         """
-        Create a copy of the AlignmentPropertyMatrix object.
-
-        This method creates a deep copy of the matrix including all data and
-        metadata. The copy operation preserves the matrix structure, names,
-        group information, and count data.
+        Create a copy of the AlignmentPropertyMatrix object including all data and metadata. The
+        copy operation preserves the matrix structure, names, group information, and count data.
 
         Args:
-            shallow: If True, copy only the sparse matrix data without
-                metadata (names, groups, counts). If False, copy everything.
+            shallow: If True, copy only the sparse matrix data without metadata (names, groups,
+                counts). If False, copy everything.
 
         Returns:
             A new matrix object with copied data
@@ -277,8 +256,8 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             RuntimeError: If the source matrix is not finalized
 
         Note:
-            Shallow copies are useful for temporary operations where metadata
-            is not needed, saving memory and computation time.
+            Shallow copies are useful for temporary operations where metadata is not needed, saving
+            memory and computation time.
         """
         dmat = Sparse3DMatrix.copy(self)
         dmat.count = copy.copy(self.count)
@@ -290,41 +269,30 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
 
         return dmat
 
-    def _bundle_inline(
-        self,
-        reset: bool = False
-    ) -> None:
+    def _bundle_inline(self, reset: bool = False) -> None:
         """
         Perform inline bundling of transcript groups in place.
 
-        - Changes shape from
-            (num_transcripts, num_haplotypes, num_reads)
-            to
-            (num_groups, num_haplotypes, num_reads)
+        - Changes shape from:
+            (num_transcripts, num_haplotypes, num_reads) to (num_groups, num_haplotypes, num_reads)
         - Updates locus names to group names
         - Clears group information after bundling
 
-        Inline bundling is memory-efficient but destructive - the original
-        transcript-level data is lost. Use bundle() for non-destructive
-        bundling.
+        Inline bundling is memory-efficient but destructive - the original transcript-level data is
+        lost. Use bundle() for non-destructive bundling.
 
         Args:
             reset: If True, reset all values to 1.0 after bundling.
-                If False, preserve the original values. Defaults to False.
+                If False, preserve the original values.
 
         Returns:
             None: Modifies the current object in-place
 
         Raises:
-            RuntimeError: If matrix is not finalized or no group information
-                available
+            RuntimeError: If matrix is not finalized or no group information available
         """
         if self.finalized:
-            if (
-                self.num_groups > 0
-                and self.groups is not None
-                and self.gname is not None
-            ):
+            if self.num_groups > 0 and self.groups is not None and self.gname is not None:
                 grp_conv_mat = lil_matrix((self.num_loci, self.num_groups))
 
                 for i in range(self.num_groups):
@@ -337,11 +305,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                     self.data[hid] = (self.data[hid] * grp_conv_mat)
 
                 self.num_loci = self.num_groups
-                self.shape = (
-                    self.num_groups,
-                    self.num_haplotypes,
-                    self.num_reads,
-                )
+                self.shape = (self.num_groups, self.num_haplotypes, self.num_reads)
                 self.lname = copy.copy(self.gname)
                 self.lid = dict(zip(self.gname, np.arange(self.num_groups)))
                 self.num_groups = 0
@@ -351,37 +315,29 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                 if reset:
                     self.reset()
             else:
-                raise RuntimeError(
-                    'No group information is available for bundling.'
-                )
+                raise RuntimeError('No group information is available for bundling.')
         else:
             raise RuntimeError('The matrix is not finalized.')
 
 
-    def bundle(
-        self,
-        reset: bool = False,
-        shallow: bool = False
-    ) -> Self:
+    def bundle(self, reset: bool = False, shallow: bool = False) -> Self:
         """
-        Create a bundled AlignmentPropertyMatrix with transcript groups.
+        Create a bundled AlignmentPropertyMatrix with transcript groups. This method creates a new
+        matrix where transcript-level alignments are aggregated into group-level alignments (e.g.,
+        gene-level from transcript-level). The bundling operation uses the group conversion matrix
+        to combine transcript alignments within each group.
 
-        This method creates a new matrix where transcript-level alignments are
-        aggregated into group-level alignments (e.g., gene-level from
-        transcript-level). The bundling operation uses the group conversion
-        matrix to combine transcript alignments within each group.
+        The bundled matrix has shape (num_groups, num_haplotypes, num_reads) instead of
+        (num_transcripts, num_haplotypes, num_reads).
 
-        The bundled matrix has shape (num_groups, num_haplotypes, num_reads)
-        instead of (num_transcripts, num_haplotypes, num_reads).
-
-        For memory-efficient bundling, consider using _bundle_inline() if the
-        original data can be discarded.
+        For memory-efficient bundling, consider using _bundle_inline() if the original data can be
+        discarded.
 
         Args:
-            reset: If True, set all bundled values to 1.0 (binary incidence).
-                If False, preserve the original alignment values.
-            shallow: If True, copy only the sparse matrix data without
-                metadata. If False, copy all metadata including names.
+            reset: If True, set all bundled values to 1.0 (binary incidence). If False, preserve
+                the original alignment values.
+            shallow: If True, copy only the sparse matrix data without metadata. If False, copy all
+                metadata including names.
 
         Returns:
             A new matrix with group-level structure
@@ -414,9 +370,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                     grp_align.lname = copy.copy(self.gname)
                     grp_align.hname = self.hname
                     grp_align.rname = copy.copy(self.rname)
-                    grp_align.lid = dict(
-                        zip(grp_align.lname, np.arange(grp_align.num_loci))
-                    )
+                    grp_align.lid = dict(zip(grp_align.lname, np.arange(grp_align.num_loci)))
                     grp_align.rid = copy.copy(self.rid)
 
                 if reset:
@@ -434,13 +388,9 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
     # Binary Operators
     #
 
-    def __add__(
-        self,
-        other: Self
-    ) -> Self:
+    def __add__(self, other: Self) -> Self:
         """
-        Add two AlignmentPropertyMatrix objects element-wise. Both matrices
-        must have the same shape.
+        Add 2 AlignmentPropertyMatrix objects element-wise. Both matrices must have the same shape.
 
         Args:
             other: Matrix to add to self
@@ -454,13 +404,10 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         dmat.__copy_group_info(self)
         return dmat
 
-    def __sub__(
-        self,
-        other: Self
-    ) -> Self:
+    def __sub__(self, other: Self) -> Self:
         """
-        Subtract another AlignmentPropertyMatrix from self element-wise. Both
-        matrices must have the same shape.
+        Subtract another AlignmentPropertyMatrix from self element-wise. Both matrices must have
+        the same shape.
 
         Args:
             other: Matrix to subtract from self
@@ -475,10 +422,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         return dmat
 
 
-    def __mul__(
-        self,
-        other: Self | np.ndarray | spmatrix | float
-    ) -> Self:
+    def __mul__(self, other: Self | np.ndarray | spmatrix | float) -> Self:
         """
         Multiply AlignmentPropertyMatrix with another matrix or scalar.
 
@@ -495,9 +439,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         dmat = Sparse3DMatrix.__mul__(self, other)
         dmat.num_loci, dmat.num_haplotypes, dmat.num_reads = dmat.shape
 
-        if isinstance(
-            other, (np.ndarray, csc_matrix, csr_matrix, coo_matrix, lil_matrix)
-        ):
+        if isinstance(other, (np.ndarray, csc_matrix, csr_matrix, coo_matrix, lil_matrix)):
             dmat.hname = self.hname
             dmat.rname = copy.copy(self.rname)
             dmat.rid = copy.copy(self.rid)
@@ -512,13 +454,10 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
     # Helper functions
     #
 
-    def sum(
-        self,
-        axis: AxisEnum
-    ) -> np.ndarray | spmatrix:
+    def sum(self, axis: AxisEnum) -> np.ndarray | spmatrix:
         """
-        Sum the AlignmentPropertyMatrix along a specified axis. The result
-        provides aggregated alignment data for downstream analysis.
+        Sum the AlignmentPropertyMatrix along a specified axis. The result provides aggregated
+        alignment data for downstream analysis.
 
         Args:
             axis: Axis along which to sum:
@@ -536,11 +475,11 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             RuntimeError: If matrix is not finalized or invalid axis specified
 
         Note:
-            For READ axis summation, if count data is available, it is used
-            to weight the summation. Otherwise, binary incidence is assumed.
+            For READ axis summation, if count data is available, it is used to weight the summation.
+            Otherwise, binary incidence is assumed.
 
-            The HAPLOTYPE axis returns a sparse matrix to preserve sparsity
-            of the original data, while other axes return dense arrays.
+            The HAPLOTYPE axis returns a sparse matrix to preserve sparsity of the original data,
+            while other axes return dense arrays.
         """
         if self.finalized:
             if axis == self.Axis.LOCUS:
@@ -583,9 +522,9 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         """
         Normalize read-level alignment probabilities along specified axis.
 
-        This method performs read-wise normalization to convert raw alignment
-        counts to probabilities. The normalization ensures that for each read,
-        the sum of probabilities across the specified dimension equals 1.0.
+        This method performs read-wise normalization to convert raw alignment counts to
+        probabilities. The normalization ensures that for each read, the sum of probabilities
+        across the specified dimension equals 1.0.
 
         Args:
             axis: Axis along which to normalize:
@@ -594,17 +533,17 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                 - Axis.READ: Normalize each read as a whole
                 - Axis.GROUP: Normalize across transcript groups for each read
                 - Axis.HAPLOGROUP: Normalize across haplotype-groups for each read
-            grouping_mat: Incidence matrix specifying which transcripts belong to
-                the same gene/group. Required for GROUP and HAPLOGROUP normalization.
+            grouping_mat: Incidence matrix specifying which transcripts belong to the same
+            gene/group. Required for GROUP and HAPLOGROUP normalization.
 
         Raises:
-            RuntimeError: If matrix is not finalized, invalid axis, or missing
-                grouping matrix when required
+            RuntimeError: If matrix is not finalized, invalid axis, or missing grouping matrix when
+                required
 
         Note:
-            This method modifies the matrix in-place. The normalization is
-            essential for the EMASE algorithm to work correctly, as it ensures
-            that alignment probabilities sum to 1.0 for each read.
+            This method modifies the matrix in-place. The normalization is essential for the EMASE
+            algorithm to work correctly, as it ensures that alignment probabilities sum to 1.0 for
+            each read.
         """
         if self.finalized:
             if axis == self.Axis.LOCUS:
@@ -665,24 +604,19 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             raise RuntimeError('The original matrix must be finalized.')
 
 
-    def pull_alignments_from(
-        self,
-        reads_to_use: np.ndarray,
-        shallow: bool = False
-    ) -> Self:
+    def pull_alignments_from(self, reads_to_use: np.ndarray, shallow: bool = False) -> Self:
         """
         Extract alignments for a subset of reads.
 
-        This method creates a new matrix containing only the alignments for
-        the specified reads. It filters the matrix along the read dimension
-        while preserving the locus and haplotype structure.
+        A new matrix containing only the alignments for the specified reads is created. It
+        filters the matrix along the read dimension while preserving the locus and haplotype
+        structure.
 
         Args:
-            reads_to_use: Boolean array of length num_reads specifying which
-                reads to include (True) or exclude (False).
-            shallow: If True, copy only the sparse matrix data without any
-                metadata. If False, copy all metadata and update read names
-                and IDs.
+            reads_to_use: Boolean array of length num_reads specifying which reads to include
+                (True) or exclude (False).
+            shallow: If True, copy only the sparse matrix data without any metadata. If False, copy
+                all metadata and update read names and IDs.
 
         Returns:
             New matrix with filtered read data
@@ -691,9 +625,8 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             RuntimeError: If reads_to_use length doesn't match num_reads
 
         Note:
-            This method is commonly used in conjunction with get_unique_reads()
-            to analyze specific subsets of reads, such as uniquely-aligning
-            reads or reads with specific properties.
+            This method is commonly used in conjunction with get_unique_reads() to analyze specific
+            subsets of reads, such as uniquely-aligning reads or reads with specific properties.
         """
         new_alnmat = self.copy(shallow=shallow)
 
@@ -714,46 +647,31 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         shallow: bool = False
     ) -> Self:
         """
-        Extract alignments for uniquely-aligning reads.
-
-        This method identifies and extracts reads that align to exactly one
-        locus-haplotype combination, which are crucial for accurate expression
-        quantification in RNA-seq analysis.
+        Extract reads that align to exactly one locus-haplotype combination, which are crucial for
+        accurate expression quantification in RNA-seq analysis.
 
         Args:
-            ignore_haplotype: If True, consider reads as unique if they align
-                to only one locus regardless of haplotype.  If False, reads
-                must align to exactly one locus-haplotype combination to be
-                considered unique.
-            shallow: If True, copy only the sparse matrix data without metadata.
-                If False, copy all metadata.
+            ignore_haplotype: If True, consider reads as unique if they align to only one locus
+                regardless of haplotype.  If False, reads must align to exactly one locus-haplotype
+                combination to be considered unique.
+            shallow: If True, copy only the sparse matrix data without metadata. If False, copy all
+                metadata.
 
         Returns:
             New matrix containing only unique reads
 
         Raises:
             RuntimeError: If matrix is not finalized
-
-        Note:
-            Uniquely-aligning reads are essential for:
-            - Accurate transcript quantification
-            - Reducing ambiguity in expression estimation
-            - Improving statistical power in differential expression analysis
         """
         if self.finalized:
             if ignore_haplotype:
                 summat = self.sum(axis=self.Axis.HAPLOTYPE)
                 nnz_per_read = np.diff(summat.tocsr().indptr)
-                unique_reads = np.logical_and(
-                    nnz_per_read > 0, nnz_per_read < 2
-                )
-            else:  # allelic multireads should be removed
-                alncnt_per_read = self.sum(axis=self.Axis.LOCUS).sum(
-                    axis=self.Axis.HAPLOTYPE
-                )
-                unique_reads = np.logical_and(
-                    alncnt_per_read > 0, alncnt_per_read < 2
-                )
+                unique_reads = np.logical_and(nnz_per_read > 0, nnz_per_read < 2)
+            else:
+                # allelic multireads should be removed
+                alncnt_per_read = self.sum(axis=self.Axis.LOCUS).sum(axis=self.Axis.HAPLOTYPE)
+                unique_reads = np.logical_and(alncnt_per_read > 0, alncnt_per_read < 2)
             return self.pull_alignments_from(unique_reads, shallow=shallow)
         else:
             raise RuntimeError('The matrix is not finalized.')
@@ -766,14 +684,9 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         """
         Count uniquely-aligning reads per locus or locus-haplotype combination.
 
-        This method counts the number of reads that align uniquely to each
-        locus or locus-haplotype combination, providing essential statistics
-        for RNA-seq analysis and quality assessment.
-
         Args:
-            ignore_haplotype: If True, count reads unique to each locus
-            regardless of haplotype. If False, count reads unique to each
-            locus-haplotype combination.
+            ignore_haplotype: If True, count reads unique to each locus regardless of haplotype.
+                If False, count reads unique to each locus-haplotype combination.
 
         Returns:
             Count array with shape.
@@ -782,19 +695,12 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             RuntimeError: If matrix is not finalized
 
         Note:
-            This method is useful for:
-            - Assessing alignment quality and uniqueness
-            - Identifying loci with sufficient unique read support
-            - Quality control in RNA-seq analysis
-            - Statistical analysis of read distribution
-
-            When count data is available, it is used to weight the counts.
-            Otherwise, binary incidence is assumed (each alignment counts as 1).
+            When count data is available, it is used to weight the counts. Otherwise, binary
+            incidence is assumed (each alignment counts as 1).
         """
         if self.finalized:
-            unique_reads = self.get_unique_reads(
-                ignore_haplotype=ignore_haplotype, shallow=True
-            )
+            unique_reads = self.get_unique_reads(ignore_haplotype=ignore_haplotype, shallow=True)
+
             if ignore_haplotype:
                 numaln_per_read = unique_reads.sum(axis=self.Axis.HAPLOTYPE)
 
@@ -814,33 +720,19 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
 
     def count_alignments(self) -> np.ndarray:
         """
-        Count total alignments per locus-haplotype combination.
-
-        This method counts all alignments (both unique and multireads) for
-        each locus-haplotype combination, providing the raw alignment counts
-        before uniqueness filtering.
+        Count all alignments (both unique and multireads) for each locus-haplotype combination,
+        providing the raw alignment counts before uniqueness filtering.
 
         Returns:
-            Alignment count array with shape (num_haplotypes, num_loci)
-            containing total alignment counts for each locus-haplotype
-            combination.
+            Alignment count array with shape (num_haplotypes, num_loci) containing total alignment
+            counts for each locus-haplotype combination.
 
         Raises:
             RuntimeError: If matrix is not finalized
 
         Note:
-            This method returns the same result as sum(axis=Axis.READ) but
-            is provided for clarity and convenience.
-
-            The counts include:
-            - Uniquely-aligning reads
-            - Multireads (reads aligning to multiple loci/haplotypes)
-            - All alignment instances (weighted by count data if available)
-
-            This is useful for:
-            - Total read coverage analysis
-            - Quality assessment of alignment data
-            - Comparison with unique read counts
+            This method returns the same result as sum(axis=Axis.READ) but is provided for clarity
+            and convenience.
         """
         if self.finalized:
             return self.sum(axis=self.Axis.READ)
@@ -853,10 +745,8 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         filename: str
     ) -> None:
         """
-        Generate a comprehensive alignment count report.
-
-        This method creates a tab-separated text file containing detailed
-        alignment statistics for each locus, including total alignments,
+        Generate a comprehensive alignment count report. Creates a tab-separated text file
+        containing detailed alignment statistics for each locus, including total alignments,
         unique alignments per haplotype, and locus-level unique counts.
 
         Args:
@@ -864,19 +754,6 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
 
         Raises:
             RuntimeError: If matrix is not finalized or names are not available
-
-        Note:
-            The output file contains the following columns:
-            - locus: Locus name (transcript/gene name)
-            - aln_H: Total alignments for haplotype H
-            - uniq_H: Unique alignments for haplotype H
-            - locus_uniq: Total unique alignments for the locus (across all haplotypes)
-
-            This report is useful for:
-            - Quality assessment of alignment data
-            - Statistical analysis of read distribution
-            - Documentation of alignment results
-            - Downstream analysis in other tools
 
         Output Format:
             locus    aln_A    aln_B    aln_C    uniq_A    uniq_B    uniq_C    locus_uniq
@@ -888,10 +765,9 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         locus_unique_counts = self.count_unique_reads(ignore_haplotype=True)
         cntdata = np.vstack((alignment_counts, allelic_unique_counts))
         cntdata = np.vstack((cntdata, locus_unique_counts))
+
         fhout = open(filename, 'w')
-        fhout.write(
-            'locus\t' + '\t'.join([f'aln_{h}' for h in self.hname]) + '\t'
-        )
+        fhout.write('locus\t' + '\t'.join([f'aln_{h}' for h in self.hname]) + '\t')
         fhout.write('\t'.join([f'uniq_{h}' for h in self.hname]) + '\t')
         fhout.write('locus_uniq' + '\n')
 
@@ -910,17 +786,15 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         shallow: bool = False
     ) -> Self:
         """
-        Combine two AlignmentPropertyMatrix objects along the read dimension.
-
-        This method concatenates two matrices along the read axis, effectively
-        merging their read data while preserving the locus and haplotype
-        structure. This is useful for combining data from multiple samples
-        or sequencing runs.
+        Combine two AlignmentPropertyMatrix objects along the read dimension. This method
+        concatenates two matrices along the read axis, effectively merging their read data while
+        preserving the locus and haplotype structure. This is useful for combining data from
+        multiple samples or sequencing runs.
 
         Args:
             other: Matrix to combine with self.
-            shallow: If True, copy only the sparse matrix data without metadata.
-                If False, copy all metadata and update read names and IDs.
+            shallow: If True, copy only the sparse matrix data without metadata. If False, copy all
+                metadata and update read names and IDs.
 
         Returns:
             Combined matrix with concatenated read data
@@ -933,13 +807,6 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             - Same number of loci (num_loci)
             - Same number of haplotypes (num_haplotypes)
             - Read dimensions are concatenated (num_reads = self.num_reads + other.num_reads)
-
-            When shallow=False:
-            - Haplotype and locus names are preserved from self
-            - Read names are concatenated from both matrices
-            - Read IDs are updated to reflect the new ordering
-            - Group information is preserved from self
-            - Count data is concatenated if available in both matrices
         """
         if self.finalized and other.finalized:
             dmat = Sparse3DMatrix.combine(self, other)
@@ -972,19 +839,16 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         shallow: bool = False
     ) -> None:
         """
-        Save the AlignmentPropertyMatrix to an HDF5 file.
-
-        This method saves the matrix data and metadata to an HDF5 file for
-        persistent storage and sharing. The file includes the sparse matrix
-        data, count information, and metadata about loci, haplotypes, and reads.
+        Save the AlignmentPropertyMatrix to an HDF5 file. The file includes the sparse matrix data,
+        count information, and metadata about loci, haplotypes, and reads.
 
         Args:
             h5_file: Path to the output HDF5 file
             title: Title for the HDF5 file.
             index_dtype: Data type for matrix indices.
             data_dtype: Data type for matrix values.
-            incidence_only: If True, store only binary incidence (0/1).
-                If False, store actual alignment values.
+            incidence_only: If True, store only binary incidence (0/1). If False, store actual
+                alignment values.
             complib: Compression library to use ('zlib', 'lzo', 'bzip2', 'blosc').
             shallow: True to store lname and rname.
 
@@ -998,9 +862,6 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             - /lname: Locus names (if shallow=False)
             - /rname: Read names (if shallow=False and available)
             - hname: Haplotype names as file attribute (if shallow=False)
-
-            Compression is applied to reduce file size while maintaining
-            data integrity and access speed.
         """
         Sparse3DMatrix.save(
             self,
@@ -1047,22 +908,17 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         h5fh.close()
 
 
-    def get_read_data(
-        self,
-        rid: int
-    ) -> spmatrix:
+    def get_read_data(self, rid: int) -> spmatrix:
         """
-        Extract alignment data for a specific read.
-
-        This method returns a 2D sparse matrix containing all alignment
-        information for the specified read across all loci and haplotypes.
+        Extract alignment data for a specific read. Returns a 2D sparse matrix containing all
+        alignment information for the specified read across all loci and haplotypes.
 
         Args:
             rid: Read ID (index) to extract data for
 
         Returns:
-            2D sparse matrix with shape (num_haplotypes, num_loci)
-                containing alignment data for the specified read
+            2D sparse matrix with shape (num_haplotypes, num_loci) containing alignment data for
+                the specified read.
 
         Raises:
             IndexError: If rid is out of range
@@ -1071,15 +927,10 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         return self.get_cross_section(index=rid, axis=self.Axis.READ)
 
 
-    def print_read(
-        self,
-        rid: int
-    ) -> None:
+    def print_read(self, rid: int) -> None:
         """
-        Print detailed alignment information for a specific read.
-
-        This method displays a human-readable summary of all alignments
-        for the specified read, showing which loci it aligns to and the
+        Print detailed alignment information for a specific read.  Prints a human-readable summary
+        of all alignments for the specified read, showing which loci it aligns to and the
         corresponding alignment values for each haplotype.
 
         Args:
@@ -1088,11 +939,6 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         Raises:
             IndexError: If rid is out of range
             RuntimeError: If matrix is not finalized
-
-        Note:
-            The output format shows:
-            - Read name (if available)
-            - For each aligned locus: locus name and alignment values per haplotype
         """
         if self.rname is not None:
             print(self.rname[rid])
@@ -1114,23 +960,15 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
     #
     # For future use
     #
-    def get_reads_aligned_to_locus(
-        self,
-        lid: int,
-        hid: int | None = None
-    ) -> list[int]:
+    def get_reads_aligned_to_locus(self, lid: int, hid: int | None = None) -> list[int]:
         """
-        Get read IDs that align to a specific locus or locus-haplotype
-        combination.
-
-        This method returns a list of read indices that have alignments to
-        the specified locus. It can filter by haplotype or return reads
-        aligned to the locus across all haplotypes.
+        Get read IDs that align to a specific locus or locus-haplotype combination. It can filter
+        by haplotype or return reads aligned to the locus across all haplotypes.
 
         Args:
             lid: Locus ID (index) to query
-            hid: Haplotype ID (index) to filter by. If None, returns reads
-                aligned to the locus across all haplotypes.
+            hid: Haplotype ID (index) to filter by. If None, returns reads aligned to the locus
+                across all haplotypes.
 
         Returns:
             Sorted list of read IDs that align to the specified locus
@@ -1138,11 +976,6 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         Raises:
             IndexError: If lid or hid is out of range
             RuntimeError: If matrix is not finalized
-
-        Note:
-            This method is useful for:
-            - Identifying reads supporting a specific transcript/gene
-            - Quality assessment of locus-specific alignments
         """
         ridset = set()
         if hid is None:

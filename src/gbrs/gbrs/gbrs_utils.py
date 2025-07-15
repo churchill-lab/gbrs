@@ -24,9 +24,7 @@ logging.getLogger('matplotlib').setLevel(logging.WARNING)
 logger = utils.get_logger('gbrs')
 
 
-def get_chromosome_info(
-        fasta_index_file: str = 'ref.fa.fai'
-) -> OrderedDict[str, int]:
+def get_chromosome_info(fasta_index_file: str = 'ref.fa.fai') -> OrderedDict[str, int]:
     """
     Load chromosome information from FASTA index file.
 
@@ -41,9 +39,7 @@ def get_chromosome_info(
     """
     fai_file = os.path.join(DATA_DIR, fasta_index_file)
     try:
-        chr_lens = OrderedDict(
-            np.loadtxt(fai_file, usecols=(0, 1), dtype='|S8,<i4')
-        )
+        chr_lens = OrderedDict(np.loadtxt(fai_file, usecols=(0, 1), dtype='|S8,<i4'))
 
         # convert from bytes to string
         chr_lens = OrderedDict({k.decode(): v for k, v in chr_lens.items()})
@@ -137,20 +133,17 @@ def get_genotype_probability(
         sigma: float = 0.12
 ) -> np.ndarray:
     """
-    Calculate genotype probabilities from alignment profiles using expression
-    similarity.
+    Calculate genotype probabilities from alignment profiles using expression similarity.
 
-    This function is a core component of the GBRS emission probability
-    calculation that converts expression similarity between an individual's
-    gene expression profile and founder strain expression patterns into
-    genotype probabilities. It implements the emission model of the GBRS
+    This function is a core component of the GBRS emission probability calculation that converts
+    expression similarity between an individual's gene expression profile and founder strain
+    expression patterns into genotype probabilities. It implements the emission model of the GBRS
     Hidden Markov Model.
 
-    The function compares the normalized expression profile of an individual
-    gene against the alignment specificity vectors of all possible founder
-    strain combinations (diplotypes). The similarity is measured using squared
-    Euclidean distance, which is then converted to probabilities using a
-    Gaussian kernel.
+    The function compares the normalized expression profile of an individual gene against the
+    alignment specificity vectors of all possible founder strain combinations (diplotypes). The
+    similarity is measured using squared Euclidean distance, which is then converted to
+    probabilities using a Gaussian kernel.
 
     ALGORITHM:
     - Normalize the individual's expression profile to a unit vector
@@ -246,16 +239,15 @@ def ris_step(
     """
     Calculate log transition probability for RIL (Recombinant Inbred Lines) by sib-mating.
 
-    This function implements the transition probability model for Recombinant Inbred Lines
-    created through sib-mating, which is a key component of the GBRS Hidden Markov Model.
-    It calculates the probability of transitioning between genotypes at adjacent genetic
-    positions, accounting for recombination events and the specific mating scheme.
+    This function implements the transition probability model for Recombinant Inbred Lines created
+    through sib-mating, which is a key component of the GBRS Hidden Markov Model. It calculates the
+    probability of transitioning between genotypes at adjacent genetic positions, accounting for
+    recombination events and the specific mating scheme.
 
-    The function models the genetic linkage between adjacent markers/genes based on
-    the recombination fraction (distance in centiMorgans). For RIL populations, the
-    transition probabilities reflect the accumulation of recombination events over
-    multiple generations of inbreeding, resulting in a more complex pattern than
-    simple F2 populations.
+    The function models the genetic linkage between adjacent markers/genes based on the
+    recombination fraction (distance in centiMorgans). For RIL populations, the transition
+    probabilities reflect the accumulation of recombination events over multiple generations of
+    inbreeding, resulting in a more complex pattern than simple F2 populations.
 
     ALGORITHM:
     1. Generate all possible diplotypes from the haplotype set
@@ -439,27 +431,25 @@ def get_transition_prob(
     """
     Generate transition probability matrices for GBRS Hidden Markov Model.
 
-    This function is a critical preprocessing step in the GBRS pipeline that
-    calculates transition probability matrices for all chromosomes based on
-    genetic distances between markers/genes. These matrices model the genetic
-    linkage between adjacent positions and are essential for the HMM-based
-    genome reconstruction algorithm.
+    This function is a critical preprocessing step in the GBRS pipeline that calculates transition
+    probability matrices for all chromosomes based on genetic distances between markers/genes. These
+    matrices model the genetic linkage between adjacent positions and are essential for the
+    HMM-based genome reconstruction algorithm.
 
-    The function processes marker files containing genetic positions and
-    calculates transition probabilities for each adjacent pair of positions
-    on each chromosome. The probabilities depend on the mating scheme used
-    to create the population (RI, F2, CC, DO) and account for different
+    The function processes marker files containing genetic positions and calculates transition
+    probabilities for each adjacent pair of positions on each chromosome. The probabilities depend
+    on the mating scheme used to create the population (RI, F2, CC, DO) and account for different
     recombination patterns on autosomes vs sex chromosomes.
 
     ALGORITHM:
-    1. Load marker file and organize positions by chromosome
-    2. Generate all possible diplotypes from haplotype set
-    3. For each chromosome:
+    - Load marker file and organize positions by chromosome
+    - Generate all possible diplotypes from haplotype set
+    - For each chromosome:
        - Calculate genetic distances between adjacent positions
        - For each diplotype pair and position pair:
          - Calculate transition probability using appropriate step function
        - Store results in 3D matrix (positions × diplotypes × diplotypes)
-    4. Save matrices in compressed numpy format
+    - Save matrices in compressed numpy format
 
     WHAT THIS DOES:
     - Creates transition probability matrices for GBRS HMM
@@ -572,9 +562,7 @@ def get_transition_prob(
     gpos_by_chro = dict(gpos_by_chro)
 
     logger.info(f'Saving {os.path.join(DATA_DIR, "ref.gene_pos.ordered.npz")}')
-    np.savez_compressed(
-        os.path.join(DATA_DIR, 'ref.gene_pos.ordered.npz'), **gpos_by_chro
-    )
+    np.savez_compressed(os.path.join(DATA_DIR, 'ref.gene_pos.ordered.npz'), **gpos_by_chro)
 
     if mating_scheme == 'RI':
         step_func = ris_step
@@ -594,9 +582,7 @@ def get_transition_prob(
         pdiff = np.diff(np.array([e[1] for e in locs_by_chro[c]]))
         pdiff[pdiff < epsilon] = epsilon
         ndiff = len(pdiff)
-        tprob[c] = np.ndarray(
-            shape=(ndiff, num_diplotypes, num_diplotypes), dtype=float
-        )
+        tprob[c] = np.ndarray(shape=(ndiff, num_diplotypes, num_diplotypes), dtype=float)
         for dt1id, dt2id in list(product(diplotype_index, repeat=2)):
             dt1 = diplotype[dt1id]
             dt2 = diplotype[dt2id]
@@ -625,28 +611,27 @@ def get_alignment_spec(
     """
     Generate alignment specificity matrices for GBRS genome reconstruction.
 
-    This function is a critical preprocessing step in the GBRS pipeline that
-    calculates alignment specificity matrices from founder strain expression data.
-    These matrices capture how each founder strain's expression profile aligns
-    with the expression patterns of other strains, providing the foundation for
-    genotype probability calculations during genome reconstruction.
+    This function is a critical preprocessing step in the GBRS pipeline that calculates alignment
+    specificity matrices from founder strain expression data. These matrices capture how each
+    strain's expression profile aligns with the expression patterns of other strains, providing the
+    foundation for genotype probability calculations during genome reconstruction.
 
-    The function processes TPM (Transcripts Per Million) expression data from
-    multiple founder strains to create three key matrices:
-    1. **Axes matrix**: Raw expression values for each gene across all strains
-    2. **ASE matrix**: Allele-specific expression summaries
-    3. **Avecs matrix**: Normalized alignment specificity vectors used in reconstruction
+    The function processes TPM (Transcripts Per Million) expression data from multiple strains to
+    create three key matrices:
+    **Axes matrix**: Raw expression values for each gene across all strains
+    **ASE matrix**: Allele-specific expression summaries
+    **Avecs matrix**: Normalized alignment specificity vectors used in reconstruction
 
     ALGORITHM:
-    1. Load gene-to-transcript mapping and sample file information
-    2. For each founder strain:
+    - Load gene-to-transcript mapping and sample file information
+    - For each founder strain:
        - Load TPM expression data from multiple samples
        - Calculate average expression profile across samples
-    3. For each gene:
+    - For each gene:
        - Create axes matrix with raw expression values
        - Calculate ASE (allele-specific expression) summary
        - Generate normalized alignment specificity vectors
-    4. Save matrices in compressed numpy format
+    - Save matrices in compressed numpy format
 
     WHAT THIS DOES:
     - Takes TPM expression data from founder strain samples
@@ -712,11 +697,7 @@ def get_alignment_spec(
 
     num_strains = len(haplotypes)
 
-    gname = np.loadtxt(
-        gene2transcript,
-        usecols=(0,),
-        dtype='str'
-    )
+    gname = np.loadtxt(gene2transcript, usecols=(0,), dtype='str')
     num_genes = len(gname)
     gid = dict(zip(gname, np.arange(num_genes)))
 
@@ -787,22 +768,21 @@ def reconstruct(
     """
     Reconstruct individual genome using GBRS algorithm with gene expression data.
 
-    This function is the core genome reconstruction component of the GBRS pipeline
-    that uses gene expression data to infer individual genotypes across the genome.
-    It implements a Hidden Markov Model (HMM) with forward-backward algorithm and
-    Viterbi decoding to reconstruct the most likely genotype at each gene position.
+    This function is the core genome reconstruction component of the GBRS pipeline that uses gene
+    expression data to infer individual genotypes across the genome. It implements a Hidden Markov
+    Model (HMM) with forward-backward algorithm and Viterbi decoding to reconstruct the most likely
+    genotype at each gene position.
 
-    The function processes gene-level TPM expression data from an individual and
-    compares it against founder strain expression patterns to infer the individual's
-    genotype. It uses transition probabilities between adjacent genes to model
-    linkage disequilibrium and recombination events.
+    The function processes gene-level TPM expression data from an individual and compares it against
+    strain expression patterns to infer the individual's genotype. It uses transition probabilities
+    between adjacent genes to model linkage disequilibrium and recombination events.
 
     ALGORITHM:
-    1. Load expression data, transition probabilities, and alignment specificity
-    2. Calculate emission probabilities for each gene based on expression similarity
-    3. Run forward-backward algorithm to compute genotype probabilities
-    4. Run Viterbi algorithm to find most likely genotype sequence
-    5. Save genotype probabilities and most likely genotypes
+    - Load expression data, transition probabilities, and alignment specificity
+    - Calculate emission probabilities for each gene based on expression similarity
+    - Run forward-backward algorithm to compute genotype probabilities
+    - Run Viterbi algorithm to find most likely genotype sequence
+    - Save genotype probabilities and most likely genotypes
 
     WHAT THIS DOES:
     - Takes individual gene expression data (TPM values for each possible diplotype)
@@ -906,11 +886,11 @@ def reconstruct(
     chrlens = get_chromosome_info()
     chrs = chrlens.keys()
 
-    # Load alignment specificity
+    # load alignment specificity
     logger.info(f'Loading alignment specificity: {avec_file}')
     avecs = np.load(avec_file)
 
-    # Load meta info
+    # load meta info
     logger.info(f'Loading gene meta data: {gpos_file}')
     gene_pos = np.load(gpos_file)
 
@@ -924,22 +904,20 @@ def reconstruct(
         except:
             gid_genome_order[c] = np.array([g for g, p in gene_pos[c]])
 
-    # Load expression level
+    # load expression level
     logger.info(f'Loading expression level data: {expression_file}')
     expr = dict()
     with open(expression_file) as fh:
-        curline = fh.readline()
-        haplotypes = curline.rstrip().split('\t')[1:-1]
+        line = fh.readline()
+        haplotypes = line.rstrip().split('\t')[1:-1]
         num_haps = len(haplotypes)
-        genotypes = [
-            h1 + h2 for h1, h2 in combinations_with_replacement(haplotypes, 2)
-        ]
+        genotypes = [h1 + h2 for h1, h2 in combinations_with_replacement(haplotypes, 2)]
         num_genos = len(genotypes)
-        for curline in fh:
-            item = curline.rstrip().split('\t')
+        for line in fh:
+            item = line.rstrip().split('\t')
             expr[item[0]] = np.array(list(map(float, item[1:-1])))
 
-    # Get null model probability
+    # get null model probability
     logger.debug('Get null model probability')
     init_vec = []
     for h1, h2 in combinations_with_replacement(haplotypes, 2):
@@ -949,12 +927,10 @@ def reconstruct(
             init_vec.append(np.log(2.0 / (num_haps * num_haps)))
     init_vec = np.array(init_vec)
 
-    # Get initial emission probability
+    # get initial emission probability
     logger.debug('Get initial emission probability')
-    naiv_avecs = (
-            np.eye(num_haps)
-            + (np.ones((num_haps, num_haps)) - np.eye(num_haps)) * 0.0001
-    )
+    naiv_avecs = (np.eye(num_haps) + (np.ones((num_haps, num_haps)) - np.eye(num_haps)) * 0.0001)
+
     eprob = dict()
     for gid, evec in expr.items():
         if sum(evec) < expr_threshold:
@@ -970,11 +946,11 @@ def reconstruct(
                 + np.nextafter(0, 1)
             )
 
-    # Load transition probabilities
+    # load transition probabilities
     logger.info(f'Loading transition probabilities: {tprob_file}')
     tprob = np.load(tprob_file)
 
-    # Get forward probability
+    # get forward probability
     logger.info('Getting forward probability')
     alpha = dict()
     alpha_scaler = dict()
@@ -1004,7 +980,7 @@ def reconstruct(
             alpha[c] = alpha_c
             alpha_scaler[c] = alpha_scaler_c
 
-    # Get backward probability
+    # get backward probability
     logger.info('Getting backward probability')
     beta = dict()
     for c in chrs:
@@ -1014,9 +990,8 @@ def reconstruct(
             gid_genome_order_c = gid_genome_order[c]
             num_genes_in_chr = len(gid_genome_order_c)
             beta_c = np.zeros((num_genos, num_genes_in_chr))
-            beta_c[:, -1] = alpha_scaler[c][
-                -1
-            ]  # init_vec + eprob[gid_genome_order_c[-1]]
+            beta_c[:, -1] = alpha_scaler[c][-1]
+
             for i in range(num_genes_in_chr - 2, -1, -1):
                 beta_c[:, i] = np.log(
                     np.exp(
@@ -1028,7 +1003,7 @@ def reconstruct(
                 )
             beta[c] = beta_c
 
-    # Get forward-backward probability
+    # get forward-backward probability
     logger.info('Getting forward-backward probability')
     gamma = dict()
     for c in chrs:
@@ -1041,7 +1016,7 @@ def reconstruct(
     logger.info(f'Saving Reconstructed Genotype Probabilities: {out_gprob}')
     np.savez_compressed(out_gprob, **gamma)
 
-    # Run Viterbi
+    # run Viterbi
     logger.info('Running Viterbi')
     delta = dict()
     for c in chrs:
@@ -1097,25 +1072,23 @@ def interpolate(
     """
     Interpolate genotype probabilities from gene positions to uniform grid positions.
 
-    This function is a post-processing step in the GBRS pipeline that converts
-    genotype probabilities calculated at gene positions to a uniform grid of
-    positions across the genome. This interpolation is useful for visualization,
-    comparison across samples, and downstream analyses that require consistent
-    genomic coordinates.
+    This function is a post-processing step in the GBRS pipeline that converts genotype
+    probabilities calculated at gene positions to a uniform grid of positions across the genome.
+    This interpolation is useful for visualization, comparison across samples, and downstream
+    analyses that require consistent genomic coordinates.
 
-    The function uses linear interpolation to estimate genotype probabilities
-    at grid positions based on the probabilities at nearby gene positions.
-    It handles chromosome boundaries and extrapolation at chromosome ends
-    by extending the gene positions with boundary values.
+    The function uses linear interpolation to estimate genotype probabilities at grid positions
+    based on the probabilities at nearby gene positions. It handles chromosome boundaries and
+    extrapolation at chromosome ends by extending the gene positions with boundary values.
 
     ALGORITHM:
-    1. Load genotype probabilities at gene positions
-    2. Load uniform grid positions for each chromosome
-    3. For each chromosome:
+    - Load genotype probabilities at gene positions
+    - Load uniform grid positions for each chromosome
+    - For each chromosome:
        - Extend gene positions with boundary values (0.0 and grid_max+1.0)
        - Create interpolation function using scipy.interpolate.interp1d
        - Interpolate probabilities at all grid positions
-    4. Save interpolated probabilities in compressed numpy format
+    - Save interpolated probabilities in compressed numpy format
 
     WHAT THIS DOES:
     - Converts gene-based probabilities to grid-based probabilities
@@ -1187,9 +1160,7 @@ def interpolate(
         try:
             x_gene = np.load(gpos_file)
         except:
-            logger.error(
-                f'Please make sure if $GBRS_DATA is set correctly: {DATA_DIR}'
-            )
+            logger.error(f'Please make sure if $GBRS_DATA is set correctly: {DATA_DIR}')
             raise
         else:
             pass
@@ -1219,26 +1190,17 @@ def interpolate(
         fh.readline()  # skip header (Assuming there is just one line of header)
         for line in fh:
             item = line.rstrip().split('\t')
-            x_grid[item[1]].append(
-                float(item[3])
-            )  # x_grid[chr] = [...positions in cM...]
+            x_grid[item[1]].append(float(item[3]))  # x_grid[chr] = [...positions in cM...]
     x_grid = dict(x_grid)
 
-    x_gene_extended = (
-        dict()
-    )  # Adding end points in case we have to extrapolate at the 1st or last grid
+    # adding end points in case we have to extrapolate at the 1st or last grid
+    x_gene_extended = (dict())
     for c in x_grid.keys():
         if c in x_gene.files:
             logger.debug(f'Working on {c}')
             x = [float(coord) for m, coord in x_gene[c]]
-            # x_min = min(x_grid[c][0]-100.0, 0.0)
-            # x_max = max(x_grid[c][-1]+1.0, chrlens[c])
-            # x = np.append([x_min], x)
-            # x = np.append(x, [x_max])
             x = np.append([0.0], x)
-            x = np.append(
-                x, [x_grid[c][-1] + 1.0]
-            )  # Do we have chromosome length in cM?
+            x = np.append(x, [x_grid[c][-1] + 1.0])
             x_gene_extended[c] = x
 
     logger.info(f'Loading GBRS genotype probability file: {genoprob_file}')
@@ -1276,27 +1238,25 @@ def plot(
     """
     Generate genome reconstruction visualization plot.
 
-    This function creates a comprehensive visualization of the GBRS genome
-    reconstruction results, showing the most likely genotype at each position
-    across all chromosomes. The plot displays both haplotypes for each
-    position, allowing identification of recombination events and genomic
+    This function creates a comprehensive visualization of the GBRS genome reconstruction results,
+    showing the most likely genotype at each position across all chromosomes. The plot displays
+    both haplotypes for each position, allowing identification of recombination events and genomic
     structure patterns.
 
-    The visualization uses a stacked bar chart format where each chromosome
-    is represented by two horizontal bars (one for each haplotype). Different
-    founder strains are color-coded, making it easy to identify regions of
-    shared ancestry and recombination breakpoints. The plot includes
+    The visualization uses a stacked bar chart format where each chromosome is represented by two
+    horizontal bars (one for each haplotype). Different founder strains are color-coded, making it
+    easy to identify regions of shared ancestry and recombination breakpoints. The plot includes
     recombination counts for each chromosome and total recombination count.
 
     ALGORITHM:
-    1. Load genotype probabilities and determine most likely genotypes
-    2. For each chromosome:
+    - Load genotype probabilities and determine most likely genotypes
+    - For each chromosome:
        - Extract most likely diplotype at each position
        - Separate into two haplotypes
        - Identify recombination events (genotype changes)
        - Create color-coded bars for visualization
-    3. Generate plot with proper spacing, labels, and annotations
-    4. Save in specified format with high resolution
+    - Generate plot with proper spacing, labels, and annotations
+    - Save in specified format with high resolution
 
     WHAT THIS DOES:
     - Visualizes GBRS genome reconstruction results
@@ -1420,9 +1380,7 @@ def plot(
     hid = dict(zip(haplotypes, np.arange(8)))
     logger.info(f'Haplotype IDs: {hid}')
 
-    genotypes = np.array(
-        [h1 + h2 for h1, h2 in combinations_with_replacement(haplotypes, 2)]
-    )
+    genotypes = np.array([h1 + h2 for h1, h2 in combinations_with_replacement(haplotypes, 2)])
 
     #
     # Main body
@@ -1439,12 +1397,11 @@ def plot(
 
         return sorted(list, key=alphanum_key)
 
-    chrs = [value for value in chrlens.keys() if value in genoprob.files]
     # intersection of ref.fa.fai chroms and those present in genoprob.
+    chrs = [value for value in chrlens.keys() if value in genoprob.files]
 
-    chrs = natural_sort(chrs)
     # natural sorting of the chrom list for display.
-
+    chrs = natural_sort(chrs)
     num_chrs = len(chrs)
 
     fig = pyplot.figure()
@@ -1454,9 +1411,8 @@ def plot(
     ax.set_ylim(1, 95)
     num_recomb_total = 0
     for cid, c in enumerate(chrs):
-        if (
-                c in genoprob.files
-        ):  # Skip drawing Y chromosome if the sample is female
+        if c in genoprob.files:
+            # skip drawing Y chromosome if the sample is female
             logger.debug(f'Working on {c}')
             genotype_calls = genotypes[genoprob[c].argmax(axis=0)]
             hap = []
@@ -1474,16 +1430,13 @@ def plot(
 
                 if i > 0:
                     if c1 == c2:
-                        if (
-                                col1[-1] != col2[-1]
-                        ):  # When homozygous region starts, remember the
-                            # most recent het
+                        if col1[-1] != col2[-1]:
+                            # when homozygous region starts, remember the most recent het
                             oldcol1 = col1[-1]
                             oldcol2 = col2[-1]
                     else:
-                        if (
-                                col1[-1] == col2[-1]
-                        ):  # When heterozygous region starts
+                        if col1[-1] == col2[-1]:
+                            # when heterozygous region starts
                             if c1 == oldcol2 or c2 == oldcol1:
                                 c1, c2 = c2, c1
                         elif c1 == col2[-1] or c2 == col1[-1]:
@@ -1577,7 +1530,7 @@ def load_gpos(gpos_path: str) -> dict[str, list[float]]:
     gpos = np.load(gpos_path, allow_pickle=True)
     chrom_cM = {}
     for chrom in gpos.files:
-        # Each entry: list of (gene, cM)
+        # each entry: list of (gene, cM)
         cM_list = [float(x[1]) for x in gpos[chrom]]
         chrom_cM[chrom] = cM_list
     return chrom_cM
@@ -1617,7 +1570,7 @@ def natural_chrom_order(chroms: list[str]) -> list[str]:
         Sorted list of chromosome names
     """
 
-    # Order: 1,2,...,19,X,Y,MT (case-insensitive)
+    # order: 1,2,...,19,X,Y,MT (case-insensitive)
     def chrom_key(c):
         c = c.upper()
         if c == 'X':
@@ -2095,25 +2048,23 @@ def export(
     """
     Export genotype probabilities to GBRS quant format for downstream analysis.
 
-    This function converts genotype probability matrices from the GBRS format
-    (diplotype probabilities) to a quantitative format that represents the
-    expected contribution of each founder strain at each genomic position.
-    This conversion is useful for downstream analyses that require founder
-    strain dosage information rather than diplotype probabilities.
+    This function converts genotype probability matrices from the GBRS format (diplotype
+    probabilities) to a quantitative format that represents the expected contribution of each
+    founder strain at each genomic position. This conversion is useful for downstream analyses
+    that require strain dosage information rather than diplotype probabilities.
 
-    The function applies a conversion matrix that transforms diplotype
-    probabilities into founder strain dosages. For each position, it calculates
-    the expected contribution of each founder strain based on the probabilities
-    of all possible diplotypes containing that strain.
+    The function applies a conversion matrix that transforms diplotype probabilities into strain
+    dosages. For each position, it calculates the expected contribution of each strain based on the
+    probabilities of all possible diplotypes containing that strain.
 
     ALGORITHM:
-    1. Load genotype probability matrices for all chromosomes
-    2. Create conversion matrix mapping diplotypes to founder strain dosages
-    3. For each chromosome:
+    - Load genotype probability matrices for all chromosomes
+    - Create conversion matrix mapping diplotypes to founder strain dosages
+    - For each chromosome:
        - Transpose probability matrix to (positions × diplotypes)
        - Stack matrices from all chromosomes into single matrix
-    4. Apply conversion matrix: dosage = probabilities × conversion_matrix
-    5. Save results in tab-separated format with founder strain columns
+    - Apply conversion matrix: dosage = probabilities × conversion_matrix
+    - Save results in tab-separated format with founder strain columns
 
     WHAT THIS DOES:
     - Converts diplotype probabilities to founder strain dosages
@@ -2161,10 +2112,6 @@ def export(
             filename with '.tsv' extension.
             Example: 'DO336.genoprobs.tsv'
 
-    Returns:
-        None. The function creates a tab-separated file containing founder
-        strain dosages for all positions across all chromosomes.
-
     Raises:
         FileNotFoundError: If genoprob_file or grid_file does not exist
         ValueError: If strains list is empty or incompatible with data
@@ -2195,11 +2142,10 @@ def export(
     logger.info('Getting suffices for strains')
     num_strains = len(strains)
     hid = dict(zip(strains, np.arange(num_strains)))
-    genotypes = [
-        h1 + h2 for h1, h2 in combinations_with_replacement(strains, 2)
-    ]
+    genotypes = [h1 + h2 for h1, h2 in combinations_with_replacement(strains, 2)]
     num_genotypes = len(genotypes)
     convmat = np.zeros((num_genotypes, num_strains))
+
     for g in range(num_genotypes):
         h1, h2 = genotypes[g]
         convmat[g, hid[h1]] += 1
@@ -2217,6 +2163,7 @@ def export(
                 grid[chrom] += 1
             else:
                 grid[chrom] = 1
+
     num_grids = sum(grid.values())
     logger.debug(f'Number of grids: {num_grids}')
 
@@ -2252,26 +2199,24 @@ def debug_genoprob(
     """
     Analyze and debug genotype probability files with detailed statistics.
 
-    This function provides comprehensive analysis and debugging capabilities
-    for GBRS genotype probability files. It examines the structure, quality,
-    and statistical properties of the probability matrices to help identify
-    potential issues or validate the reconstruction results.
+    This function provides comprehensive analysis and debugging capabilities for GBRS genotype
+    probability files. It examines the structure, quality, and statistical properties of the
+    probability matrices to help identify potential issues or validate the reconstruction results.
 
-    The function performs extensive quality checks including probability
-    normalization, distribution analysis, and diplotype frequency analysis.
-    It provides both summary statistics and detailed examples to help
-    understand the structure and quality of the genotype probability data.
+    The function performs extensive quality checks including probability normalization, distribution
+    analysis, and diplotype frequency analysis. It provides both summary statistics and detailed
+    examples to help understand the structure and quality of the genotype probability data.
 
     ALGORITHM:
-    1. Load genotype probability file and examine structure
-    2. For each chromosome:
+    - Load genotype probability file and examine structure
+    - For each chromosome:
        - Analyze matrix dimensions and data types
        - Check probability normalization (sum to 1.0)
        - Calculate maximum probabilities and confidence
        - Analyze distribution of most likely diplotypes
        - Provide detailed examples for first few positions
-    3. Generate comprehensive summary report
-    4. Optionally save detailed analysis to file
+    - Generate comprehensive summary report
+    - Optionally save detailed analysis to file
 
     WHAT THIS DOES:
     - Validates probability matrix structure and quality
@@ -2354,74 +2299,76 @@ def debug_genoprob(
         strains = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
         diplotypes = [h1 + h2 for h1, h2 in combinations_with_replacement(strains, 2)]
 
-        # Determine if this is an interpolated file based on the filename
+        # determine if this is an interpolated file based on the filename
         is_interpolated = 'interpolated' in genoprob_file.lower()
 
         logger.debug(f'Chromosomes: {data.files}')
         logger.debug(f'Diplotypes: {diplotypes}')
         logger.debug(f'Number of diplotypes: {len(diplotypes)}')
-        logger.debug(
-            f"File type: {'Interpolated (grid positions)' if is_interpolated else 'Original (gene positions)'}")
+        if is_interpolated:
+            logger.debug('File type: Interpolated (grid positions)')
+        else:
+            logger.debug('Original (gene positions)')
 
-        # Summary statistics
+        # summary statistics
         total_positions = 0
         for chrom in sorted(data.files):
             matrix = data[chrom]
-            position_type = "grid positions" if is_interpolated else "genes"
-            print(f"\nChromosome {chrom}:")
-            print(f"  Shape: {matrix.shape}")
-            print(f"  Data type: {matrix.dtype}")
-            print(f"  Number of {position_type}: {matrix.shape[1]}")
-            print(f"  Number of diplotypes: {matrix.shape[0]}")
+            position_type = 'grid positions' if is_interpolated else 'genes'
+            print(f'\nChromosome {chrom}:')
+            print(f'  Shape: {matrix.shape}')
+            print(f'  Data type: {matrix.dtype}')
+            print(f'  Number of {position_type}: {matrix.shape[1]}')
+            print(f'  Number of diplotypes: {matrix.shape[0]}')
 
-            # Check probability properties
+            # check probability properties
             col_sums = matrix.sum(axis=0)
             print(
-                f"  Column sums (should be ~1.0): min={col_sums.min():.6f}, max={col_sums.max():.6f}, mean={col_sums.mean():.6f}")
+                f'  Column sums (should be ~1.0): min={col_sums.min():.6f}, max={col_sums.max():.6f}, mean={col_sums.mean():.6f}')
 
-            # Find most likely diplotypes
+            # find most likely diplotypes
             max_probs = matrix.max(axis=0)
             max_diplotype_indices = matrix.argmax(axis=0)
             print(
-                f"  Max probabilities: min={max_probs.min():.6f}, max={max_probs.max():.6f}, mean={max_probs.mean():.6f}")
+                f'  Max probabilities: min={max_probs.min():.6f}, max={max_probs.max():.6f}, mean={max_probs.mean():.6f}')
 
             # Show distribution of most likely diplotypes
             unique_diplotypes, counts = np.unique(max_diplotype_indices, return_counts=True)
-            print(f"  Most common diplotypes (first 10):")
+            print('  Most common diplotypes (first 10):')
             for i, (diplotype_idx, count) in enumerate(zip(unique_diplotypes, counts)):
                 if i < 10:
                     print(
-                        f"    {diplotypes[diplotype_idx]}: {count} {position_type} ({count / matrix.shape[1] * 100:.1f}%)")
+                        f'    {diplotypes[diplotype_idx]}: {count} {position_type} ({count / matrix.shape[1] * 100:.1f}%)')
 
             total_positions += matrix.shape[1]
 
-        position_type = "grid positions" if is_interpolated else "genes"
-        print(f"\nTotal {position_type} across all chromosomes: {total_positions}")
+        position_type = 'grid positions' if is_interpolated else 'genes'
+        print(f'\nTotal {position_type} across all chromosomes: {total_positions}')
 
-        # Show detailed example for first chromosome
+        # show detailed example for first chromosome
         if data.files:
             first_chrom = sorted(data.files)[0]
             matrix = data[first_chrom]
-            position_type = "positions" if is_interpolated else "genes"
-            logger.debug(f"\n=== DETAILED EXAMPLE: Chromosome {first_chrom} ===")
-            print(f"First 5 {position_type}, all diplotypes:")
+            position_type = 'positions' if is_interpolated else 'genes'
+            logger.debug(f'\n=== DETAILED EXAMPLE: Chromosome {first_chrom} ===')
+            print(f'First 5 {position_type}, all diplotypes:')
 
-            # Show first 5 positions/genes with their probabilities
+            # show first 5 positions/genes with their probabilities
             for pos_idx in range(min(5, matrix.shape[1])):
-                print(f"\n{position_type.capitalize()} {pos_idx}:")
+                print(f'\n{position_type.capitalize()} {pos_idx}:')
                 probs = matrix[:, pos_idx]
                 max_idx = probs.argmax()
-                print(f"  Most likely: {diplotypes[max_idx]} (prob={probs[max_idx]:.6f})")
+                print(f'  Most likely: {diplotypes[max_idx]} (prob={probs[max_idx]:.6f})')
 
                 # Show top 5 diplotypes
                 top_indices = np.argsort(probs)[-5:][::-1]
                 for i, idx in enumerate(top_indices):
-                    print(f"  {i + 1}. {diplotypes[idx]}: {probs[idx]:.6f}")
+                    print(f'  {i + 1}. {diplotypes[idx]}: {probs[idx]:.6f}')
 
         return data
 
     except Exception as e:
-        print(f"Error reading {genoprob_file}: {e}")
+        print(f'Error reading {genoprob_file}: {e}')
         return None
 
 

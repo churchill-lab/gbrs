@@ -16,19 +16,18 @@ logger = utils.get_logger('gbrs')
 
 class Sparse3DMatrix:
     """
-    A 3-dimensional sparse matrix designed for efficient storage and
-    manipulation of RNA-seq alignment data.
+    A 3-dimensional sparse matrix designed for efficient storage and manipulation of RNA-seq
+    alignment data.
     
-    This class implements a sparse 3D matrix structure optimized for
-    RNA-seq alignments, where the three dimensions represent:
+    This class implements a sparse 3D matrix structure optimized for RNA-seq alignments, where the
+    three dimensions represent:
     - Axis 0: Loci (transcripts/genes)
     - Axis 1: Haplotypes (founder strains)
     - Axis 2: Reads (sequencing reads)
     
-    The matrix uses scipy sparse matrices internally for memory efficiency,
-    storing only non-zero elements. This is particularly important for
-    RNA-seq data where most reads align to only a small subset of possible
-    loci-haplotype combinations.
+    The matrix uses scipy sparse matrices internally for memory efficiency, storing only non-zero
+    elements. This is particularly important for RNA-seq data where most reads align to only a small
+    subset of possible loci-haplotype combinations.
     
     Key Features:
     - Memory-efficient sparse storage with CSC (Compressed Sparse Column) format
@@ -38,8 +37,8 @@ class Sparse3DMatrix:
     - Two-phase workflow: population then finalization
     
     The matrix follows a two-phase workflow:
-    1. **Population phase**: Add data using set_value() or add_value()
-    2. **Finalization phase**: Call finalize() to convert to optimized CSC format
+    **Population phase**: Add data using set_value() or add_value()
+    **Finalization phase**: Call finalize() to convert to optimized CSC format
     
     Attributes:
         shape: 3-tuple of (num_loci, num_haplotypes, num_reads)
@@ -66,28 +65,16 @@ class Sparse3DMatrix:
         3. **Create new empty matrix**: Provide 'shape' parameter
         
         Args:
-            other: Existing matrix to copy from. The source matrix must be
-                finalized
-            h5_file: Path to HDF5 file containing matrix data in EMASE format
+            other: Existing matrix to copy from. The source matrix must be finalized.
+            h5_file: Path to HDF5 file containing matrix data in EMASE format.
             datanode: HDF5 node path containing matrix data. Defaults to '/'
             shape: 3-tuple specifying (num_loci, num_haplotypes, num_reads).
                 Required for creating new empty matrix
-            dtype: Data type for matrix elements. Defaults to float
+            dtype: Data type for matrix elements.
                 
         Raises:
-            RuntimeError: If copying from non-finalized matrix or invalid
-                shape provided
+            RuntimeError: If copying from non-finalized matrix or invalid shape provided
             ValueError: If shape is not a 3-tuple of positive integers
-            
-        Examples:
-            # Create new empty matrix
-            matrix = Sparse3DMatrix(shape=(1000, 8, 50000))
-            
-            # Load from file
-            matrix = Sparse3DMatrix(h5_file='alignments.h5')
-            
-            # Copy existing matrix
-            new_matrix = Sparse3DMatrix(other=existing_matrix)
         """
         self.shape = (0, 0, 0)
         self.ndim = 3
@@ -108,9 +95,7 @@ class Sparse3DMatrix:
             h5fh = tables.open_file(h5_file, 'r')
             self.shape = h5fh.get_node_attr(datanode, 'shape')
             for hid in range(self.shape[1]):
-                self.data.append(
-                    self._reconstruct_spmat(h5fh, hid, datanode, dtype)
-                )
+                self.data.append(self._reconstruct_spmat(h5fh, hid, datanode, dtype))
             h5fh.close()
             self.finalize()  # Convert to CSC format
         
@@ -135,21 +120,19 @@ class Sparse3DMatrix:
         dtype: type
     ) -> csc_matrix | coo_matrix:
         """
-        Reconstruct a sparse matrix from HDF5 file data for a specific
-        haplotype.
+        Reconstruct a sparse matrix from HDF5 file data for a specific haplotype.
         
-        This private method reads sparse matrix data from an HDF5 file
-        and reconstructs the corresponding scipy sparse matrix object.
-        It supports both CSC and COO formats.
+        This private method reads sparse matrix data from an HDF5 file and reconstructs the
+        corresponding scipy sparse matrix object. It supports both CSC and COO formats.
         
         Args:
-            h5_fh: Open HDF5 file handle
-            hid: Haplotype index to reconstruct
-            datanode: HDF5 node path containing matrix data
-            dtype: Data type for matrix elements
+            h5_fh: Open HDF5 file handle.
+            hid: Haplotype index to reconstruct.
+            datanode: HDF5 node path containing matrix data.
+            dtype: Data type for matrix elements.
             
         Returns:
-            Reconstructed sparse matrix in CSC or COO format
+            Reconstructed sparse matrix in CSC or COO format.
             
         Raises:
             RuntimeError: If unsupported matrix type is encountered
@@ -181,16 +164,12 @@ class Sparse3DMatrix:
             else:
                 data = np.ones(len(indices), dtype=dtype)
             
-            spmat = csc_matrix(
-                (data, indices, indptr), shape=(self.shape[2], self.shape[0])
-            )
+            spmat = csc_matrix((data, indices, indptr), shape=(self.shape[2], self.shape[0]))
         
         elif mtype == 'coo_matrix':
             coor = h5_fh.get_node(hapnode, 'coor').read()
             data = h5_fh.get_node(hapnode, 'data').read().astype(dtype)
-            spmat = coo_matrix(
-                (data, coor), shape=(self.shape[2], self.shape[0])
-            )
+            spmat = coo_matrix((data, coor), shape=(self.shape[2], self.shape[0]))
         
         else:
             raise RuntimeError('Only csc or coo matrices are supported.')
@@ -200,22 +179,14 @@ class Sparse3DMatrix:
 
     def copy(self) -> Self:
         """
-        Create a deep copy of the Sparse3DMatrix.
-        
-        This method creates a complete copy of the matrix including all data
-        and properties. The copy inherits the finalized state of the original
-        matrix.
+        Create a deep copy of the Sparse3DMatrix. The copy inherits the finalized state of the
+        original matrix.
         
         Returns:
             A new matrix with identical data and properties
             
         Raises:
             RuntimeError: If the original matrix is not finalized
-            
-        Note:
-            This method performs a deep copy of all matrix data, ensuring that
-            modifications to the copy do not affect the original matrix.
-            The copy inherits the finalized state of the original matrix.
         """
         if self.finalized:
             dmat = self.__class__()
@@ -261,6 +232,7 @@ class Sparse3DMatrix:
             
             elif isinstance(other, (csc_matrix, csr_matrix, coo_matrix, lil_matrix)):
                 other_csc = other.tocsc()
+
                 for hid in range(self.shape[1]):
                     dmat.data.append(self.data[hid] + other_csc)
             
@@ -324,8 +296,7 @@ class Sparse3DMatrix:
         other: Self | np.ndarray | csc_matrix | csr_matrix | coo_matrix | lil_matrix | Number
     ) -> Self:
         """
-        Multiply this Sparse3DMatrix by another matrix, sparse matrix, or
-        scalar.
+        Multiply this Sparse3DMatrix by another matrix, sparse matrix, or scalar.
         
         This method supports multiple multiplication modes:
         - Element-wise multiplication with another Sparse3DMatrix
@@ -339,7 +310,7 @@ class Sparse3DMatrix:
                 - Number: Scalar multiplication
                 
         Returns:
-            Result of multiplication
+            Result of multiplication.
             
         Raises:
             RuntimeError: If matrices are not finalized or incompatible
@@ -355,29 +326,28 @@ class Sparse3DMatrix:
             dmat.shape = self.shape
             
             if isinstance(other, Sparse3DMatrix):
-                # Element-wise multiplication between same kind
+                # element-wise multiplication between same kind
                 if other.finalized:
                     for hid in range(self.shape[1]):
-                        dmat.data.append(
-                            self.data[hid].multiply(other.data[hid])
-                        )
+                        dmat.data.append(self.data[hid].multiply(other.data[hid]))
                 else:
                     raise RuntimeError('Both matrices must be finalized.')
             
             elif isinstance(other, (np.ndarray, csc_matrix, csr_matrix)):
-                # Matrix-matrix multiplication
+                # matrix-matrix multiplication
                 for hid in range(self.shape[1]):
                     dmat.data.append(self.data[hid] * other)
                 dmat.shape = (other.shape[1], self.shape[1], self.shape[2])
             
             elif isinstance(other, (coo_matrix, lil_matrix)):
-                # Matrix-matrix multiplication
+                # matrix-matrix multiplication
                 other_csc = other.tocsc()
                 for hid in range(self.shape[1]):
                     dmat.data.append(self.data[hid] * other_csc)
                 dmat.shape = (other_csc.shape[1], self.shape[1], self.shape[2])
             
-            elif isinstance(other, Number):  # Rescaling of matrix
+            elif isinstance(other, Number):
+                # rescaling of matrix
                 for hid in range(self.shape[1]):
                     dmat.data.append(self.data[hid] * other)
             
@@ -390,18 +360,12 @@ class Sparse3DMatrix:
             raise RuntimeError('The original matrix must be finalized.')
 
 
-    def set_value(
-        self,
-        lid: int,
-        hid: int,
-        rid: int,
-        value: float
-    ) -> None:
+    def set_value(self, lid: int, hid: int, rid: int, value: float) -> None:
         """
         Set a specific value in the matrix at the given coordinates.
         
-        This method sets the value at position (lid, hid, rid) to the specified
-        value.  Use this during the population phase before calling finalize().
+        This method sets the value at position (lid, hid, rid) to the specified value.  Use this
+        during the population phase before calling finalize().
         
         Args:
             lid: Locus index (axis 0).
@@ -410,27 +374,19 @@ class Sparse3DMatrix:
             value: Value to set at the specified position.
             
         Raises:
-            RuntimeError: If the matrix has not been properly initialized with
-                shape
+            RuntimeError: If the matrix has not been properly initialized with shape
         """
         if np.all(self.shape > 0):
             self.data[hid][rid, lid] = value
         else:
             raise RuntimeError('The Sparse3DMatrix has only been declared.')
 
-    def add_value(
-        self,
-        lid: int,
-        hid: int,
-        rid: int,
-        value: float
-    ) -> None:
+    def add_value(self, lid: int, hid: int, rid: int, value: float) -> None:
         """
         Add a value to the existing value at the given coordinates.
         
-        This method adds the specified value to the current value at
-        position (lid, hid, rid). Use this during the population phase
-        before calling finalize().
+        This method adds the specified value to the current value at position (lid, hid, rid). Use
+        this during the population phase before calling finalize().
         
         Args:
             lid: Locus index (axis 0)
@@ -439,8 +395,7 @@ class Sparse3DMatrix:
             value: Value to add to the current value at the specified position
             
         Raises:
-            RuntimeError: If the matrix has not been properly initialized with
-                shape
+            RuntimeError: If the matrix has not been properly initialized with shape
         """
         if np.all(self.shape > 0):
             self.data[hid][rid, lid] += value
@@ -452,23 +407,20 @@ class Sparse3DMatrix:
         """
         Reset all non-zero values in the matrix to 1.0.
         
-        This method sets all non-zero elements in the matrix to 1.0, effectively
-        converting the matrix to an incidence matrix (binary matrix).
+        This method sets all non-zero elements in the matrix to 1.0, effectively converting the
+        matrix to an incidence matrix (binary matrix).
         
         Raises:
             RuntimeError: If the matrix is not finalized
             
         Note:
-            This is useful for converting alignment count matrices to binary
-            incidence matrices, where only the presence/absence of alignments
-            is important, not their counts.
+            This is useful for converting alignment count matrices to binary incidence matrices,
+            where only the presence/absence of alignments is important, not their counts.
         """
         if self.finalized:
             for hid in range(self.shape[1]):
                 # TODO: inherit the dtype from orig
-                self.data[hid].data = np.ones(
-                    self.data[hid].nnz, dtype=self.data[hid].dtype
-                )
+                self.data[hid].data = np.ones(self.data[hid].nnz, dtype=self.data[hid].dtype)
         else:
             raise RuntimeError('The original matrix must be finalized.')
 
@@ -477,23 +429,21 @@ class Sparse3DMatrix:
         """
         Convert the matrix to optimized CSC format.
         
-        This method converts all internal sparse matrices from LIL
-        (List of Lists) format to CSC (Compressed Sparse Column) format
-        for optimal performance.
+        This method converts all internal sparse matrices from LIL (List of Lists) format to
+        CSC (Compressed Sparse Column) format for optimal performance.
 
-        After finalization, the matrix becomes read-only for element-wise
-        operations.
+        After finalization, the matrix becomes read-only for element-wise operations.
         
         Raises:
             RuntimeError: If the matrix has not been properly initialized
             
         Note:
-            Finalization is a required step before performing matrix operations
-            like addition, subtraction, or multiplication. It optimizes memory
-            usage and computational performance for large matrices.
+            Finalization is a required step before performing matrix operations like addition,
+            subtraction, or multiplication. It optimizes memory usage and computational performance
+            for large matrices.
             
-            After finalization, you can no longer use set_value() or add_value().
-            Use reset() to modify values if needed.
+            After finalization, you can no longer use set_value() or add_value(). Use reset() to
+            modify values if needed.
         """
         if not self.finalized:
             for hid in range(self.shape[1]):
@@ -508,7 +458,7 @@ class Sparse3DMatrix:
         Sum the matrix along a specified axis.
         
         This method performs summation along one of the three dimensions:
-        loci (axis 0), haplotypes (axis 1), or reads (axis 2).
+            loci (axis 0), haplotypes (axis 1), or reads (axis 2).
         
         Args:
             axis: Axis along which to sum:
@@ -536,7 +486,8 @@ class Sparse3DMatrix:
                 # sum along haplotypes
                 sum_mat = self.data[0]
                 for hid in range(1, self.shape[1]):
-                    sum_mat = sum_mat + self.data[hid]  # Still sparse matrix
+                    # still sparse matrix
+                    sum_mat = sum_mat + self.data[hid]
             elif axis == 2:
                 # sum along reads
                 sum_mat = []
@@ -559,9 +510,8 @@ class Sparse3DMatrix:
         """
         Get a 2D cross-section of the 3D matrix along a specified axis.
         
-        This method extracts a 2D slice from the 3D matrix, returning a sparse
-        matrix representing the cross-section at the specified index along the
-        given axis.
+        This method extracts a 2D slice from the 3D matrix, returning a sparse matrix representing
+        the cross-section at the specified index along the given axis.
         
         Args:
             index: Index along the specified axis for the cross-section
@@ -614,9 +564,9 @@ class Sparse3DMatrix:
         """
         Add another matrix along a specified axis.
         
-        This method adds another Sparse3DMatrix along the specified axis,
-        effectively concatenating the matrices. This is useful for combining
-        data from different sources or expanding the matrix dimensions.
+        This method adds another Sparse3DMatrix along the specified axis, effectively concatenating
+        the matrices. This is useful for combining data from different sources or expanding the
+        matrix dimensions.
         
         Args:
             addend_mat: Matrix to add along the specified axis
@@ -692,10 +642,9 @@ class Sparse3DMatrix:
         """
         Multiply the matrix by a multiplier along a specified axis.
         
-        This method performs matrix multiplication with different types of
-        multipliers and can operate along specific axes. It supports both
-        element-wise and matrix multiplication depending on the multiplier
-        type and axis specification.
+        This method performs matrix multiplication with different types of multipliers and can
+        operate along specific axes. It supports both element-wise and matrix multiplication
+        depending on the multiplier type and axis specification.
         
         Args:
             multiplier: Multiplier matrix or array
@@ -777,9 +726,9 @@ class Sparse3DMatrix:
         """
         Combine this matrix with another matrix along the read dimension.
         
-        This method combines two Sparse3DMatrix objects along the read dimension,
-        effectively concatenating their read data. This is useful for merging
-        data from different samples or experiments.
+        This method combines two Sparse3DMatrix objects along the read dimension, effectively
+        concatenating their read data. This is useful for merging data from different samples
+        or experiments.
         
         Args:
             other: Matrix to combine with along the read dimension
@@ -823,17 +772,16 @@ class Sparse3DMatrix:
         """
         Save the matrix to an HDF5 file in EMASE format.
         
-        This method saves the Sparse3DMatrix to an HDF5 file using the EMASE
-        format, which is compatible with the GBRS pipeline and other
-        EMASE-based tools.
+        This method saves the Sparse3DMatrix to an HDF5 file using the EMASE format, which is
+        compatible with the GBRS pipeline and other EMASE-based tools.
         
         Args:
             h5_file: Path to the output HDF5 file.
             title: Title for the HDF5 file. If None, uses default.
             index_dtype: Data type for sparse matrix indices (indptr, indices).
             data_dtype: Data type for sparse matrix data. Defaults to float
-            incidence_only: If True, store only binary incidence (1.0 for
-                alignments). If False, store actual values.
+            incidence_only: If True, store only binary incidence (1.0 for alignments). If False,
+                store actual values.
             complib: Compression library to use.
                 
         Raises:
