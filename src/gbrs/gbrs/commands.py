@@ -11,7 +11,6 @@ from rich.console import Console
 from rich.panel import Panel
 
 # local library imports
-from gbrs.emase.emase_utils import bam2emase as emase_bam2emase
 from gbrs.gbrs import bam_utils
 from gbrs.gbrs import emase_utils
 from gbrs.gbrs import gbrs_utils
@@ -25,7 +24,7 @@ class SectionedGroup(TyperGroup):
         
         # Hardcoded groups
         main_commands = [
-            'bam2emase', 'compress', 'compress', 'quantify', 'reconstruct', 'interpolate',
+            'compress', 'compress', 'quantify', 'reconstruct', 'interpolate',
             'export', 'plot',  'get-transition-prob', 'get-alignment-spec', 'stencil'
         ]
         utility_commands = ['debug-genoprob', 'generate_bam']
@@ -75,49 +74,6 @@ def common(
 ):
     pass
 
-
-
-@app.command(help='Convert BAM alignment files to EMASE format for allele-specific expression analysis')
-def bam2emase(alignment_files: Annotated[list[Path], typer.Option('-i', '--alignment-files', exists=False, dir_okay=False, resolve_path=True, help='Input BAM file containing RNA-seq alignments, can separate files by "," or have multiple -i')],
-    haplotypes: Annotated[list[str], typer.Option('-h', '--haplotype-char', help='Haplotype identifiers (e.g., A,B,C,D). Can specify multiple times or comma-separated')],
-    locusid_file: Annotated[Path, typer.Option('-m', '--locus-ids', exists=True, dir_okay=False, resolve_path=True, help='Transcript/locus information file')],
-    output_file: Annotated[Path, typer.Option('-o', '--output', exists=False, dir_okay=False, writable=True, resolve_path=True, help='Output EMASE file (HDF5 format). Auto-generated if not specified')] = None,
-    delim: Annotated[str, typer.Option('-d', '--delim', help='Delimiter between transcript ID and haplotype in BAM file')] = '_',
-    index_dtype: Annotated[str, typer.Option('--index-dtype', help='Data type for matrix indices (advanced users only)')] = 'uint32',
-    data_dtype: Annotated[str, typer.Option('--data-dtype', help='Data type for matrix values (advanced users only)')] = 'uint8',
-    verbose: Annotated[int, typer.Option('-v', '--verbose', count=True, help='Increase verbosity (use multiple times for more detail)')] = 0
-) -> None:
-    logger = utils.configure_logging('gbrs', verbose)
-    logger.debug('bam2emase')
-    try:
-        all_alignment_files: list[str] = []
-        for x in alignment_files:
-            all_alignment_files.extend(str(x).split(','))
-
-        for i, f in enumerate(all_alignment_files):
-            all_alignment_files[i] = utils.check_file(f, 'r')
-
-        all_haplotypes: list[str] = []
-        for x in haplotypes:
-            all_haplotypes.extend(x.split(','))
-
-        locusid_file = str(locusid_file) if locusid_file else None
-        output_file = str(output_file) if output_file else None
-
-        emase_bam2emase(
-            alignment_files=all_alignment_files,
-            haplotypes=all_haplotypes,
-            locusid_file=locusid_file,
-            output_file=output_file,
-            delim=delim,
-            index_dtype=index_dtype,
-            data_dtype=data_dtype
-        )
-    except Exception as e:
-        if logger.level == logging.DEBUG:
-            logger.exception(e)
-        else:
-            logger.error(e)
 
 @app.command(help='Compress EMASE files to reduce storage size while maintaining data integrity')
 def compress(

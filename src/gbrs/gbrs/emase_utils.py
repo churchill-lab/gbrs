@@ -158,7 +158,7 @@ def compress(
                 # each tuples values are read indices
                 ec_key_parts.append(tuple(sorted(indices)))
                 # Convert to native Python types for cleaner logging
-                ec_key_parts_native = [tuple(int(x) for x in tup) for tup in ec_key_parts]
+                #ec_key_parts_native = [tuple(int(x) for x in tup) for tup in ec_key_parts]
                 #logger.debug(f'ec_key_parts={ec_key_parts_native}')
 
             # create tuple key instead of string
@@ -167,7 +167,7 @@ def compress(
             # the number of occurrences
             ec[ec_key] += aln_mat_rd.count[cur_ind]
             # Convert to native Python types for cleaner logging
-            ec_native = {tuple(tuple(int(x) for x in tup) for tup in k): float(v) for k, v in ec.items()}
+            #ec_native = {tuple(tuple(int(x) for x in tup) for tup in k): float(v) for k, v in ec.items()}
             #logger.debug(f'ec={ec_native}')
 
     #logger.debug('ec conversion')

@@ -50,7 +50,9 @@ console = Console()
 
 class SectionedGroup(TyperGroup):
     def format_help(self, ctx, formatter):
-        console.print(Panel.fit('[bold cyan]EMASE - Expression Modeling for Allele-Specific Expression[/bold cyan]'))
+        console.print(Panel.fit(
+            '[bold cyan]EMASE - Expression Modeling for Allele-Specific Expression[/bold cyan]'
+        ))
 
         # Hardcoded groups
         main_commands = [

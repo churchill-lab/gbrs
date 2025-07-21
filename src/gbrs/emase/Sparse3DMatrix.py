@@ -78,7 +78,8 @@ class Sparse3DMatrix:
         """
         self.shape = (0, 0, 0)
         self.ndim = 3
-        self.data: list[csc_matrix] = []
+        #self.data: list[csc_matrix] = []
+        self.data: list = list()
         self.finalized = False
         
         # copy from existing matrix
@@ -492,8 +493,7 @@ class Sparse3DMatrix:
                 # sum along reads
                 sum_mat = []
                 for hid in range(self.shape[1]):
-                    sum_hap = self.data[hid].sum(axis=0).A
-                    sum_mat.append(sum_hap)
+                    sum_mat.append(self.data[hid].sum(axis=0).A)
                 sum_mat = np.vstack(sum_mat)
             else:
                 raise RuntimeError('The axis should be 0, 1, or 2.')
@@ -521,37 +521,26 @@ class Sparse3DMatrix:
                 - 2: Cross-section across reads (returns locus × haplotype matrix)
                 
         Returns:
-            2D sparse matrix representing the cross-section
+            2D sparse matrix in CSC format representing the cross-section
             
         Raises:
-            RuntimeError: If matrix is not finalized or invalid axis/index
-            IndexError: If index is out of bounds for the specified axis
+            RuntimeError: If matrix is not finalized or invalid axis specified
         """
         if self.finalized:
             if axis == 0:
-                # cross-section across loci
-                if index >= self.shape[0]:
-                    raise IndexError(f'Locus index {index} out of bounds')
-                cross_section = self.data[0][:, index]
-
-                for hid in range(1, self.shape[1]):
-                    cross_section = hstack([cross_section, self.data[hid][:, index]])
+                cols = []
+                for hid in range(len(self.data)):
+                    cols.append(self.data[hid][:, index])
+                return hstack(cols).tocsc()
             elif axis == 1:
-                # cross-section across haplotypes
-                if index >= self.shape[1]:
-                    raise IndexError(f'Haplotype index {index} out of bounds')
-                cross_section = self.data[index]
+                return self.data[axis]
             elif axis == 2:
-                # cross-section across reads
-                if index >= self.shape[2]:
-                    raise IndexError(f'Read index {index} out of bounds')
-                cross_section = self.data[0][index, :]
-
-                for hid in range(1, self.shape[1]):
-                    cross_section = vstack([cross_section, self.data[hid][index, :]])
+                rows = []
+                for hid in range(len(self.data)):
+                    rows.append(self.data[hid][index, :])
+                return vstack(rows).tocsc()
             else:
                 raise RuntimeError('The axis should be 0, 1, or 2.')
-            return cross_section
         else:
             raise RuntimeError('The original matrix must be finalized.')
 
@@ -564,75 +553,39 @@ class Sparse3DMatrix:
         """
         Add another matrix along a specified axis.
         
-        This method adds another Sparse3DMatrix along the specified axis, effectively concatenating
-        the matrices. This is useful for combining data from different sources or expanding the
-        matrix dimensions.
+        This method performs in-place addition of another Sparse3DMatrix along the specified axis.
+        The operation modifies the current matrix directly without creating a new matrix.
         
         Args:
             addend_mat: Matrix to add along the specified axis
             axis: Axis along which to add:
-                - 0: Add along loci dimension
+                - 0: Add along loci dimension (not implemented)
                 - 1: Add along haplotypes dimension (default)
-                - 2: Add along reads dimension
+                - 2: Add along reads dimension (not implemented)
                 
         Returns:
-            New matrix with expanded dimensions.
+            Self (for method chaining)
             
         Raises:
-            RuntimeError: If matrices are not finalized or incompatible
-            ValueError: If matrices have incompatible shapes for the
-                specified axis
+            RuntimeError: If matrix is not finalized or invalid axis specified
+            NotImplementedError: If axis 0 or 2 is specified (not yet implemented)
             
         Note:
-            The matrices must have compatible shapes for the specified axis.
-            For axis 1 (haplotypes), the loci and reads dimensions must match.
-            For axis 0 (loci), the haplotypes and reads dimensions must match.
-            For axis 2 (reads), the loci and haplotypes dimensions must match.
+            This method modifies the matrix in-place. Only axis 1 (haplotypes) is currently
+            implemented. The addend_mat should be compatible with the current matrix structure.
         """
-        if self.finalized and addend_mat.finalized:
-            dmat = self.__class__()
-            
+        if self.finalized:
             if axis == 0:
-                # add along loci
-                if self.shape[1] != addend_mat.shape[1] or self.shape[2] != addend_mat.shape[2]:
-                    raise ValueError('Haplotype and read dimensions must match for axis 0 addition')
-
-                dmat.shape = (self.shape[0] + addend_mat.shape[0], self.shape[1], self.shape[2])
-
-                for hid in range(self.shape[1]):
-                    dmat.data.append(hstack([self.data[hid], addend_mat.data[hid]]))
-            
+                raise NotImplementedError('The method is not yet implemented for the axis.')
             elif axis == 1:
-                # add along haplotypes
-                if self.shape[0] != addend_mat.shape[0] or self.shape[2] != addend_mat.shape[2]:
-                    raise ValueError('Locus and read dimensions must match for axis 1 addition')
-
-                dmat.shape = (self.shape[0], self.shape[1] + addend_mat.shape[1], self.shape[2])
-
                 for hid in range(self.shape[1]):
-                    dmat.data.append(self.data[hid])
-
-                for hid in range(addend_mat.shape[1]):
-                    dmat.data.append(addend_mat.data[hid])
-            
+                    self.data[hid] = self.data[hid] + addend_mat
             elif axis == 2:
-                # add along reads
-                if self.shape[0] != addend_mat.shape[0] or self.shape[1] != addend_mat.shape[1]:
-                    raise ValueError('Locus and haplotype dimensions must match for axis 2 addition')
-
-                dmat.shape = (self.shape[0], self.shape[1], self.shape[2] + addend_mat.shape[2])
-
-                for hid in range(self.shape[1]):
-                    dmat.data.append(vstack([self.data[hid], addend_mat.data[hid]]))
-            
+                raise NotImplementedError('The method is not yet implemented for the axis.')
             else:
                 raise RuntimeError('The axis should be 0, 1, or 2.')
-            
-            dmat.finalized = True
-
-            return dmat
         else:
-            raise RuntimeError('Both matrices must be finalized.')
+            raise RuntimeError('The original matrix must be finalized.')
 
     def multiply(
         self,
@@ -642,79 +595,88 @@ class Sparse3DMatrix:
         """
         Multiply the matrix by a multiplier along a specified axis.
         
-        This method performs matrix multiplication with different types of multipliers and can
-        operate along specific axes. It supports both element-wise and matrix multiplication
-        depending on the multiplier type and axis specification.
+        This method performs in-place multiplication of the matrix by different types of multipliers
+        along specified axes. The operation modifies the current matrix directly without creating
+        a new matrix. This is a key method used in the EMASE algorithm for updating alignment
+        probabilities.
         
         Args:
-            multiplier: Multiplier matrix or array
+            multiplier: Multiplier matrix or array. Can be:
+                - 1D numpy array: Vector multiplication along specified axis
+                - 2D numpy array: Matrix multiplication along specified axis
+                - scipy sparse matrix: Sparse matrix multiplication
+                - Sparse3DMatrix: Element-wise multiplication with another 3D matrix
             axis: Axis along which to multiply:
-                - None: Matrix multiplication (default)
-                - 0: Multiply along loci dimension
+                - None: Not used (for Sparse3DMatrix multipliers)
+                - 0: Multiply along loci dimension (not implemented for 1D)
                 - 1: Multiply along haplotypes dimension
                 - 2: Multiply along reads dimension
                 
         Returns:
-            Result of multiplication
+            Self (for method chaining)
             
         Raises:
-            RuntimeError: If matrix is not finalized or incompatible
-            TypeError: If unsupported multiplier type is provided
+            RuntimeError: If matrix is not finalized, invalid axis, or incompatible multiplier
+            NotImplementedError: If axis 0 is specified for 1D multipliers
             
         Note:
-            When axis is None, performs standard matrix multiplication.
-            When axis is specified, performs element-wise multiplication along
-            that dimension with broadcasting.
+            This method modifies the matrix in-place and is critical for the EMASE algorithm.
+            
+            For 1D multipliers:
+            - Axis 1: Multiplier length must match number of loci
+            - Axis 2: Multiplier length must match number of reads
+            
+            For 2D multipliers:
+            - Axis 0: Shape should be (num_reads, num_haplotypes)
+            - Axis 1: Shape should be (num_reads, num_loci)  
+            - Axis 2: Shape should be (num_haplotypes, num_loci) - used in EM algorithm
+            
+            For Sparse3DMatrix: Performs element-wise multiplication with compatible 3D matrix
         """
         if self.finalized:
-            dmat = self.__class__()
-            dmat.shape = self.shape
-            
-            if axis is None:
-                # matrix multiplication
-                if isinstance(multiplier, (np.ndarray, csc_matrix, csr_matrix)):
-                    for hid in range(self.shape[1]):
-                        dmat.data.append(self.data[hid] * multiplier)
-                    dmat.shape = (multiplier.shape[1], self.shape[1], self.shape[2])
-                elif isinstance(multiplier, (coo_matrix, lil_matrix)):
-                    multiplier_csc = multiplier.tocsc()
-                    for hid in range(self.shape[1]):
-                        dmat.data.append(self.data[hid] * multiplier_csc)
-                    dmat.shape = (multiplier_csc.shape[1], self.shape[1], self.shape[2])
-                else:
-                    raise TypeError('Unsupported multiplier type for matrix multiplication')
-            
-            else:
-                # element-wise multiplication along specified axis
+            if multiplier.ndim == 1:
                 if axis == 0:
-                    # multiply along loci
-                    if multiplier.shape[0] != self.shape[0]:
-                        raise ValueError('Multiplier shape does not match locus dimension')
-
-                    for hid in range(self.shape[1]):
-                        dmat.data.append(self.data[hid].multiply(multiplier))
-                
+                    # multiplier is np.array of length |haplotypes|
+                    raise NotImplementedError('The method is not yet implemented for the axis.')
                 elif axis == 1:
-                    # multiply along haplotypes
-                    if multiplier.shape[0] != self.shape[1]:
-                        raise ValueError('Multiplier shape does not match haplotype dimension')
-
+                    # multiplier is np.array of length |loci|
+                    sz = len(multiplier)
+                    multiplier_mat = lil_matrix((sz, sz))
+                    multiplier_mat.setdiag(multiplier)
                     for hid in range(self.shape[1]):
-                        dmat.data.append(self.data[hid] * multiplier[hid])
-                
+                        self.data[hid] = self.data[hid] * multiplier_mat
                 elif axis == 2:
-                    # multiply along reads
-                    if multiplier.shape[0] != self.shape[2]:
-                        raise ValueError('Multiplier shape does not match read dimension')
-
+                    # multiplier is np.array of length |reads|
                     for hid in range(self.shape[1]):
-                        dmat.data.append(self.data[hid].multiply(multiplier))
-                
+                        self.data[hid].data *= multiplier[self.data[hid].indices]
                 else:
                     raise RuntimeError('The axis should be 0, 1, or 2.')
-            
-            dmat.finalized = True
-            return dmat
+            elif multiplier.ndim == 2:
+                if axis == 0:
+                    # multiplier is sp.sparse matrix of shape |reads| x |haplotypes|
+                    for hid in range(self.shape[1]):
+                        self.data[hid].data *= multiplier[self.data[hid].indices, hid]
+                elif axis == 1:
+                    # multiplier is sp.sparse matrix of shape |reads| x |loci|
+                    for hid in range(self.shape[1]):
+                        self.data[hid] = self.data[hid].multiply(multiplier)
+                elif axis == 2:
+                    # multiplier is np.matrix of shape |haplotypes| x |loci|
+                    for hid in range(self.shape[1]):
+                        multiplier_vec = multiplier[hid, :]
+                        multiplier_vec = multiplier_vec.ravel()
+                        self.data[hid].data *= multiplier_vec.repeat(np.diff(self.data[hid].indptr))
+                else:
+                    raise RuntimeError('The axis should be 0, 1, or 2.')
+            elif isinstance(multiplier, Sparse3DMatrix):
+                # multiplier is Sparse3DMatrix object
+                for hid in range(self.shape[1]):
+                    self.data[hid] = self.data[hid].multiply(multiplier.data[hid])
+            else:
+                raise RuntimeError(
+                    'The multiplier should be 1, 2 dimensional numpy array or '
+                    'a Sparse3DMatrix object.'
+                )
         else:
             raise RuntimeError('The original matrix must be finalized.')
 
@@ -738,16 +700,12 @@ class Sparse3DMatrix:
             
         Raises:
             RuntimeError: If matrices are not finalized or incompatible
-            ValueError: If matrices have incompatible locus or haplotype dimensions
-            
+
         Note:
             The matrices must have the same locus and haplotype dimensions.
             The resulting matrix will have the sum of the read dimensions.
         """
         if self.finalized and other.finalized:
-            if self.shape[0] != other.shape[0] or self.shape[1] != other.shape[1]:
-                raise ValueError('Locus and haplotype dimensions must match for combination')
-            
             dmat = self.__class__()
             dmat.shape = (self.shape[0], self.shape[1], self.shape[2] + other.shape[2])
             
@@ -803,21 +761,21 @@ class Sparse3DMatrix:
         h5fh = tables.open_file(h5_file, 'w', title=title or 'Sparse3DMatrix')
         fil = tables.Filters(complevel=1, complib=complib)
         
-        # Set root attributes
+        # set root attributes
         h5fh.set_node_attr(h5fh.root, 'shape', self.shape)
         h5fh.set_node_attr(h5fh.root, 'mtype', 'csc_matrix')
         h5fh.set_node_attr(h5fh.root, 'incidence_only', incidence_only)
         
-        # Save each haplotype matrix
+        # save each haplotype matrix
         for hid in range(self.shape[1]):
             logger.debug(f'Saving haplotype {hid}')
             hgroup = h5fh.create_group(
                 h5fh.root,
                 f'h{hid}',
-                f'Sparse matrix for Haplotype {hid}',
+                f'Sparse matrix components for Haplotype {hid}',
             )
             
-            # Save sparse matrix components
+            # save sparse matrix components
             h5fh.create_carray(
                 hgroup,
                 'indptr',

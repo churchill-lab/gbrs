@@ -857,6 +857,14 @@ def h5_inspect(
             except Exception as e:
                 logger.warning(f'Could not read locus/read names: {e}')
 
+            # get count if available
+            count = None
+            try:
+                if '/count' in f:
+                    count = f.root.count.read()
+            except Exception as e:
+                logger.warning(f'Could not read count: {e}')
+
             # display dataset information
             if lname is not None or rname is not None:
                 logger.warning('')
@@ -904,6 +912,25 @@ def h5_inspect(
                             )
                         else:
                             logger.warning(f'  Sample:  {sample_str}')
+
+                if count is not None:
+                    logger.warning(f'Count ({len(count):,}):')
+                    logger.warning(f'  Shape:   {count.shape}')
+                    logger.warning(f'  Dtype:   {count.dtype}')
+                    logger.warning(
+                        f'  Memory:  {len(count) * count.dtype.itemsize / (1024**2):.2f} MB'
+                    )
+                    # show sample count based on max_reads parameter
+                    if len(count) > 0:
+                        sample_count = count[: min(max_reads, len(count))]
+                        sample_float = [float(x) for x in sample_count]
+                        if len(sample_count) < len(count):
+                            logger.warning(
+                                f'  Sample:  {sample_float} ... ({len(count) - len(sample_count)} more)'
+                            )
+                        else:
+                            logger.warning(f'  Sample:  {sample_float}')
+
 
             # process each selected haplotype
             logger.warning('')

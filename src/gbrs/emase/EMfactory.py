@@ -62,11 +62,16 @@ class EMfactory:
             alignments: AlignmentPropertyMatrix containing RNA-seq alignment data with
                 read-to-transcript-haplotype relationships
         """
-        self.probability: APM = alignments
-        self.allelic_expression: np.ndarray | None = None
-        self.grp_conv_mat: csc_matrix | None = None
-        self.t2t_mat: csc_matrix | None = None
-        self.target_lengths: np.ndarray | None = None
+        #self.probability: APM = alignments
+        #self.allelic_expression: np.ndarray | None = None
+        #self.grp_conv_mat: csc_matrix | None = None
+        #self.t2t_mat: csc_matrix | None = None
+        #self.target_lengths: np.ndarray | None = None
+        self.probability = alignments
+        self.allelic_expression = None
+        self.grp_conv_mat = None
+        self.t2t_mat = None
+        self.target_lengths = None
 
 
     def prepare(

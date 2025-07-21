@@ -754,7 +754,7 @@ def get_common_alignments_optimized(
         # load metadata (locus names, read names) from first file
         lname = f.get_node('/', 'lname').read()
         rname = f.get_node('/', 'rname').read()
-        # Convert from bytes to string
+        # convert from bytes to string
         lname = [x.decode() for x in lname]
         rname = [x.decode() for x in rname]
 
@@ -765,7 +765,7 @@ def get_common_alignments_optimized(
             logger.debug(f'Validating file {file_idx + 1}/{len(emase_files)}: {emase_file}')
 
             with tables.open_file(emase_file, 'r') as f:
-                # Check shape/dimensions
+                # check shape/dimensions
                 file_shape = f.get_node_attr('/', 'shape')
                 if file_shape != shape:
                     error_msg = (
@@ -776,7 +776,7 @@ def get_common_alignments_optimized(
                     logger.error(error_msg)
                     raise ValueError(error_msg)
 
-                # Check read IDs
+                # check read IDs
                 file_rname = f.get_node('/', 'rname').read()
                 file_rname = [x.decode() for x in file_rname]
                 if file_rname != rname:
@@ -788,7 +788,7 @@ def get_common_alignments_optimized(
                     logger.error(error_msg)
                     raise ValueError(error_msg)
 
-                # Check haplotype names (optional but good for consistency)
+                # check haplotype names (optional but good for consistency)
                 try:
                     file_hname = f.get_node_attr('/', 'hname')
                     if file_idx == 1:  # Get hname from first file for comparison
@@ -1397,9 +1397,7 @@ def run(
         - Posterior probabilities provide uncertainty estimates for expression levels
         - This function is the final step in the GBRS pipeline for expression quantification
     """
-    report_group_counts = (
-            group_file is not None
-    )
+    report_group_counts = (group_file is not None)
 
     logger.info(f'Alignment File: {alignment_file}')
     logger.info(f'Group File: {group_file}')

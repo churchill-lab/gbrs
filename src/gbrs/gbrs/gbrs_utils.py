@@ -402,21 +402,15 @@ def ris_step(
                 return np.log(1.0 - R) - np.log(1 + gamma)
 
 
-def f2_step(
-        gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True
-):
+def f2_step(gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True):
     return NotImplementedError
 
 
-def cc_step(
-        gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True
-):
+def cc_step(gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True):
     return NotImplementedError
 
 
-def do_step(
-        gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True
-):
+def do_step(gen_left, gen_right, rec_frac, is_x_chr=False, forward_direction=True):
     return NotImplementedError
 
 
@@ -1219,10 +1213,6 @@ def interpolate(
     logger.info(f'Saving interpolate probability file: {output_file}')
     np.savez_compressed(output_file, **gene_intrp_chr)
     logger.info('Done')
-
-
-def combine():
-    raise NotImplementedError
 
 
 def plot(

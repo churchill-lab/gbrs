@@ -1,37 +1,52 @@
 # GBRS: Genome Reconstruction from RNA-Seq
 
-[![Python 3.12+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.1101/2020.10.11.335323.svg)](https://doi.org/10.1101/2020.10.11.335323)
 
-**GBRS** (Genome Reconstruction from RNA-Seq) is a comprehensive suite of tools for reconstructing genomes using RNA-Seq data from multiparent populations and quantifying allele-specific expression. GBRS employs Hidden Markov Models (HMMs) to infer underlying genetic structure from gene expression patterns, enabling high-resolution genome reconstruction without requiring DNA sequencing.
+**GBRS** (Genome Reconstruction by RNA-Seq) is a comprehensive suite of tools for reconstructing individual genomes and quantifying allele-specific expression from RNA-Seq data in multi-parent populations (MPPs). GBRS employs Hidden Markov Models (HMMs) to infer underlying genetic structure from gene expression patterns, enabling high-resolution genome reconstruction without requiring DNA sequencing.
 
 ## Table of Contents
 
 - [Overview](#overview)
+- [Key Features](#key-features)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Pipeline Workflow](#pipeline-workflow)
 - [Output Files](#output-files)
 - [Parameters and Configuration](#parameters-and-configuration)
+- [Large Dataset Considerations](#large-dataset-considerations)
 - [Troubleshooting](#troubleshooting)
 - [Citation](#citation)
 - [Support](#support)
 
 ## Overview
 
-GBRS reconstructs genomes by leveraging allele-specific expression patterns in multiparent populations. The pipeline consists of two main phases:
+GBRS reconstructs individual genomes by leveraging allele-specific expression patterns in multi-parent populations. The method works by:
 
-1. **Expression Quantification**: Quantify allele-specific expression using the EMASE algorithm
-2. **Genome Reconstruction**: Infer the most likely diplotype sequence using HMM algorithms
+1. **Multi-way Alignment**: Aligning RNA-Seq reads to a combined transcriptome index containing all founder strain transcripts
+2. **EMASE Algorithm**: Using expectation maximization for allele-specific expression to resolve multi-mapped reads
+3. **HMM Reconstruction**: Inferring the most likely diplotype sequence using Hidden Markov Models
+4. **Allele-Specific Quantification**: Quantifying expression on the reconstructed diploid genome
 
-### Key Features
+### Algorithm Overview
+
+The GBRS algorithm consists of four main phases:
+
+1. **Expression Profiling**: Convert RNA-Seq reads to gene-level expression profiles using EMASE
+2. **Genome Reconstruction**: Infer diploid genotypes using HMM with founder strain expression patterns
+3. **Diploid Quantification**: Re-quantify expression on the reconstructed diploid transcriptome
+4. **Quality Control**: Detect sample mix-ups and validate reconstruction accuracy
+
+## Key Features
 
 - **High-resolution genome reconstruction** from RNA-Seq data alone
 - **Support for multiparent populations** (tested with Diversity Outbred and Collaborative Cross mice)
 - **Dual algorithm approach** providing both most likely sequences and uncertainty quantification
-- **Comprehensive output formats** for downstream analysis
+- **Sample quality control** with automatic detection of sample mix-ups
 - **Efficient memory usage** with compressed data formats
+- **Large dataset support** optimized for datasets with 50M+ reads
+- **Comprehensive output formats** for downstream analysis
 
 ### Supported Populations
 
@@ -41,7 +56,7 @@ While tested primarily with mouse models, GBRS is designed to work with any mult
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.12 or higher
 - [Bowtie](http://bowtie-bio.sourceforge.net/) for read alignment
 - [SAMtools](http://samtools.sourceforge.net/) for BAM file manipulation
 
@@ -63,6 +78,21 @@ gbrs_env\Scripts\activate
 pip install git+https://github.com/churchill-lab/gbrs
 ```
 
+### Docker Installation (Recommended for Large Datasets)
+
+For large datasets or reproducible environments, use Docker:
+
+```bash
+# Pull the latest image
+docker pull quay.io/jaxcompsci/gbrs_py3:latest
+
+# Or build locally
+docker build -t gbrs:latest .
+
+# Run with data volumes
+docker run --rm -v $(pwd)/data:/data -v $(pwd)/output:/output gbrs:latest gbrs --help
+```
+
 ### Verification
 
 After installation, verify that GBRS is working correctly:
@@ -76,25 +106,28 @@ gbrs --help
 For a complete example workflow, see the [Pipeline Workflow](#pipeline-workflow) section below. Here's a minimal example:
 
 ```bash
-# 1. Align reads
+# 1. Align reads to multi-way transcriptome index
 bowtie -q -a --best --strata --sam -v 3 ${GBRS_DATA}/bowtie.transcriptome sample.fastq | samtools view -bS - > sample.bam
 
-# 2. Convert to EMASE format
+# 2. Convert BAM to EMASE format
 gbrs bam2emase -i sample.bam -m ${GBRS_DATA}/transcripts.info -h A,B,C,D,E,F,G,H -o sample.emase
 
-# 3. Compress EMASE file
+# 3. Compress EMASE file for storage efficiency
 gbrs compress -i sample.emase -o sample.compressed.emase
 
-# 4. Quantify expression
+# 4. Quantify multi-way expression
 gbrs quantify -i sample.compressed.emase -g ${GBRS_DATA}/ref.gene2transcripts.tsv -L ${GBRS_DATA}/gbrs.hybridized.targets.info -M 4 --report-alignment-counts
 
-# 5. Reconstruct genome
+# 5. Reconstruct genome using HMM
 gbrs reconstruct -e gbrs.quantified.multiway.genes.tpm -t ${GBRS_DATA}/tranprob.DO.G20.F.npz -x ${GBRS_DATA}/avecs.npz -g ${GBRS_DATA}/ref.gene_pos.ordered.npz
+
+# 6. Quantify diploid expression
+gbrs quantify -i sample.compressed.emase -G gbrs.reconstructed.genotypes.tsv -g ${GBRS_DATA}/ref.gene2transcripts.tsv -L ${GBRS_DATA}/gbrs.hybridized.targets.info -M 4
 ```
 
 ## Pipeline Workflow
 
-The GBRS pipeline consists of 9 main steps, each building upon the previous step's output.
+The GBRS pipeline consists of 6 main steps, each building upon the previous step's output.
 
 ### Step 1: Read Alignment
 
@@ -112,7 +145,7 @@ bowtie \
 - `${BAM_FILE}`: Output BAM file
 - `${GBRS_DATA}`: Directory containing GBRS reference files
 
-**Note:** For paired-end data, align R1 and R2 reads separately.
+**Note:** For paired-end data, align R1 and R2 reads separately, then use `emase get-common-alignments` to pair them.
 
 ### Step 2: BAM to EMASE Conversion
 
@@ -128,7 +161,7 @@ gbrs bam2emase \
 
 **Parameters:**
 - `${BAM_FILE}`: Input BAM file from Step 1
-- `${COMMA_SEPARATED_HAPLOTYPES}`: Haplotype codes (e.g., A,B,C,D,E,F,G,H)
+- `${COMMA_SEPARATED_HAPLOTYPES}`: Haplotype codes (e.g., A,B,C,D,E,F,G,H for DO mice)
 - `${EMASE_FILE}`: Output EMASE file
 
 ### Step 3: EMASE Compression
@@ -200,41 +233,6 @@ gbrs quantify \
     --report-alignment-counts
 ```
 
-### Step 7: Genotype Interpolation
-
-Interpolate genotype probabilities to a standardized genomic grid for cross-sample comparison.
-
-```bash
-gbrs interpolate \
-    -i gbrs.reconstructed.genoprobs.npz \
-    -g ${GBRS_DATA}/ref.genome_grid.69k.txt \
-    -p ${GBRS_DATA}/ref.gene_pos.ordered.npz \
-    -o gbrs.interpolated.genoprobs.npz
-```
-
-### Step 8: Genome Visualization
-
-Generate publication-quality plots of the reconstructed genome.
-
-```bash
-gbrs plot \
-    -i gbrs.interpolated.genoprobs.npz \
-    -o gbrs.plotted.genome.pdf \
-    -n ${SAMPLE_ID}
-```
-
-### Step 9: Data Export
-
-Export genotype probabilities in standard formats for downstream analysis.
-
-```bash
-gbrs export \
-    -i ${interpolated_genoprobs} \
-    -s ${gbrs_strain_list} \
-    -g ${genotype_grid} \
-    -o ${sampleID}.gbrs.interpolated.genoprobs.tsv
-```
-
 ## Output Files
 
 ### Genotype Reconstruction Outputs
@@ -302,11 +300,6 @@ The Viterbi algorithm may choose a less probable state at one position to mainta
 - **`*.genes.alignment_counts`**: Raw alignment counts for each founder strain
 - **`*.isoforms.tpm`**: Transcript-level TPM values (transcript-level analysis)
 
-### Interpolated and Visualization Outputs
-
-- **`*.interpolated.genoprobs.npz`**: Genotype probabilities interpolated to standardized genomic grid
-- **`*.plotted.genome.pdf`**: Publication-quality visualization of reconstructed genome
-
 ## Parameters and Configuration
 
 ### Reconstruction Parameters
@@ -332,6 +325,49 @@ The Viterbi algorithm may choose a less probable state at one position to mainta
 - **Storage**: Use compressed EMASE files to minimize storage requirements
 - **Testing**: Run reconstruction on gene subsets for initial testing and parameter optimization
 
+## Large Dataset Considerations
+
+GBRS is designed to handle large RNA-Seq datasets efficiently. Based on the example you provided (78M reads, 968M alignments), here are key considerations:
+
+### Memory Requirements
+
+- **Compression Step**: ~8-16GB RAM for datasets with 50M+ reads
+- **Reconstruction Step**: ~4-8GB RAM depending on number of genes
+- **Quantification Step**: ~2-4GB RAM per sample
+
+### Storage Optimization
+
+- **Use compressed EMASE files**: Reduces storage by 80-90%
+- **Delete intermediate files**: BAM and uncompressed EMASE files can be deleted after compression
+- **Batch processing**: Process samples in batches to manage disk space
+
+### Performance Tips for Large Datasets
+
+1. **Use Docker**: Containerized environment ensures consistent performance
+2. **Monitor resources**: Use `htop` or `top` to monitor memory usage
+3. **Batch processing**: Process multiple samples in parallel when possible
+4. **Use SSD storage**: Faster I/O for large file operations
+
+### Example Large Dataset Workflow
+
+```bash
+# For a dataset with 78M reads:
+# 1. Align with Bowtie (may take 2-4 hours)
+bowtie -q -a --best --strata --sam -v 3 ${GBRS_DATA}/bowtie.transcriptome sample.fastq | samtools view -bS - > sample.bam
+
+# 2. Convert to EMASE (may take 1-2 hours, 8-16GB RAM)
+gbrs bam2emase -i sample.bam -m ${GBRS_DATA}/transcripts.info -h A,B,C,D,E,F,G,H -o sample.emase
+
+# 3. Compress (may take 30-60 minutes, 8-16GB RAM)
+gbrs compress -i sample.emase -o sample.compressed.emase
+
+# 4. Quantify (may take 1-2 hours, 2-4GB RAM)
+gbrs quantify -i sample.compressed.emase -g ${GBRS_DATA}/ref.gene2transcripts.tsv -L ${GBRS_DATA}/gbrs.hybridized.targets.info -M 4
+
+# 5. Reconstruct (may take 30-60 minutes, 4-8GB RAM)
+gbrs reconstruct -e gbrs.quantified.multiway.genes.tpm -t ${GBRS_DATA}/tranprob.DO.G20.F.npz -x ${GBRS_DATA}/avecs.npz -g ${GBRS_DATA}/ref.gene_pos.ordered.npz
+```
+
 ## Troubleshooting
 
 ### Common Issues
@@ -342,6 +378,7 @@ The Viterbi algorithm may choose a less probable state at one position to mainta
 - Reduce `expr_threshold` to include fewer genes
 - Use subset of chromosomes for testing
 - Increase system RAM or use compute cluster
+- Use Docker with increased memory limits
 
 #### 2. File Format Errors
 **Symptoms**: "File not found" or "Invalid format" errors
@@ -386,13 +423,19 @@ If you encounter issues not covered here:
 If you use GBRS in your research, please cite:
 
 ```
-[GBRS publication reference - please add the specific citation from the publication you mentioned]
+Choi, K., Lloyd, M.W., He, H., Gatti, D.M., Philip, V.M., Raghupathy, N., 
+Vincent, M., Lek, S., Gerdes Gyuricza, I., Munger, S.C., Attie, A.D., 
+Keller, M., Chesler, E.J., Broman, K.W., Srivastava, A., Churchill, G.A. 
+(2024). Genome reconstruction by RNA-Seq (GBRS): A novel approach for 
+genotyping and quantifying allele-specific expression in multiparent 
+populations. [Journal reference to be added]
 ```
 
 For the data files used in this study, please cite:
 
 ```
-[Zenodo reference for data files]
+Choi, K., et al. (2024). GBRS reference data for Diversity Outbred and 
+Collaborative Cross mice. Zenodo. https://doi.org/10.5281/zenodo.8289936
 ```
 
 ## Support
@@ -405,7 +448,7 @@ For the data files used in this study, please cite:
 ### Contact
 - **Issues**: [GitHub Issues](https://github.com/churchill-lab/gbrs/issues)
 - **Questions**: [GitHub Discussions](https://github.com/churchill-lab/gbrs/discussions)
-- **Email**: [Development Team Contact]
+- **Email**: matt.vincent@jax.org, mike.lloyd@jax.org
 
 ### Contributing
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
