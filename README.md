@@ -24,51 +24,64 @@ docker pull quay.io/jaxcompsci/gbrs_py3:latest
 
 ---
 
-## Quick Start (paired-end, ships with repository)
+## Quick Start (paired-end example)
 
-A miniature dataset lives in `examples/example3/`.  The snippet below reproduces the full pipeline; adjust paths if you move the dataset.
+Below is a minimal, end-to-end run using **your own RNA-Seq FASTQs** together with the publicly available supporting-files bundle (download from [Zenodo 10.5281/zenodo.8289936](https://zenodo.org/records/8289936)).
 
 ```bash
-# ------- variables -----------------------------------------------------
-S=examples/example3/example          # output prefix
+# ---- paths --------------------------------------------------------------
+FASTQ_R1=mySample_R1.fastq.gz          # change to your paired-end files
+FASTQ_R2=mySample_R2.fastq.gz
 THREADS=8
-HAPS=A,B,C,D,E,F,G,H                 # founder list
-INDEX=examples/example3/supporting_files/emase_gbrs/rel_2112_v8/bowtie/bowtie.transcripts
-META=examples/example3/supporting_files/emase_gbrs/rel_2112_v8/emase.fullTranscripts.info
-G2T=examples/example3/supporting_files/emase_gbrs/rel_2112_v8/emase.gene2transcripts.tsv
-LEN=examples/example3/supporting_files/emase_gbrs/rel_2112_v8/emase.pooled.fullTranscripts.info
-EMISS=examples/example3/supporting_files/emase_gbrs/rel_2112_v8/gbrs_emissions_all_tissues.avecs.npz
-TP=examples/example3/supporting_files/emase_gbrs/rel_2112_v8/transition_probabilities/tranprob.DO.G17.M.npz
-GPOS=examples/example3/supporting_files/emase_gbrs/rel_2112_v8/ref.gene_pos.ordered_ensBuild_105.npz
-GRID=examples/example3/supporting_files/emase_gbrs/rel_2112_v8/ref.genome_grid.GRCm39.tsv
-# ----------------------------------------------------------------------
+HAPS=A,B,C,D,E,F,G,H                  # founder order
 
-# 1) Align paired-end reads (BAMs already provided; shown for completeness)
-# bowtie (see docs/users.md) → ${S}.R1.bam / ${S}.R2.bam
+# Directory created after unpacking the Zenodo archive
+export GBRS_DATA=/path/to/gbrs_supporting_files
+# -------------------------------------------------------------------------
+
+# 1) Align reads to the pooled transcriptome (R1 / R2 separately)
+zcat ${FASTQ_R1} | bowtie -p ${THREADS} -q -a --best --strata --sam -v 3 \
+      ${GBRS_DATA}/bowtie.transcriptome - \
+  2> mySample.R1.log | samtools view -bS - > mySample.R1.bam
+
+zcat ${FASTQ_R2} | bowtie -p ${THREADS} -q -a --best --strata --sam -v 3 \
+      ${GBRS_DATA}/bowtie.transcriptome - \
+  2> mySample.R2.log | samtools view -bS - > mySample.R2.bam
 
 # 2) Convert BAM → EMASE
-emase bam2emase -i ${S}.R1.bam -m ${META} -h ${HAPS} -o ${S}.R1.h5
-emase bam2emase -i ${S}.R2.bam -m ${META} -h ${HAPS} -o ${S}.R2.h5
+emase bam2emase -i mySample.R1.bam -m ${GBRS_DATA}/emase.fullTranscripts.info \
+                -h ${HAPS} -o mySample.R1.h5
+emase bam2emase -i mySample.R2.bam -m ${GBRS_DATA}/emase.fullTranscripts.info \
+                -h ${HAPS} -o mySample.R2.h5
 
-# 3) Intersect alignments (pair consistency)
-emase get-common-alignments -i ${S}.R1.h5 -i ${S}.R2.h5 -o ${S}.R1R2.h5
+# 3) Intersect paired-end alignments & compress
+emase get-common-alignments -i mySample.R1.h5 -i mySample.R2.h5 \
+                            -o mySample.R1R2.h5
+gbrs compress -i mySample.R1R2.h5 -o mySample.R1R2.compressed.h5
 
-# 4) Compress
-gbrs compress -i ${S}.R1R2.h5 -o ${S}.R1R2.compressed.h5
+# 4) Quantify multi-way expression
+gbrs quantify -i mySample.R1R2.compressed.h5 \
+              -g ${GBRS_DATA}/emase.gene2transcripts.tsv \
+              -L ${GBRS_DATA}/emase.pooled.fullTranscripts.info \
+              -M 4 -a -o mySample
 
-# 5) Quantify multi-way expression
-gbrs quantify -i ${S}.R1R2.compressed.h5 -g ${G2T} -L ${LEN} -M 4 -a -o ${S}
+# 5) Reconstruct genotypes
+gbrs reconstruct -e mySample.multiway.genes.tpm \
+                 -t ${GBRS_DATA}/transition_probabilities/tranprob.DO.G20.F.npz \
+                 -x ${GBRS_DATA}/gbrs_emissions_all_tissues.avecs.npz \
+                 -g ${GBRS_DATA}/ref.gene_pos.ordered_ensBuild_105.npz \
+                 -o mySample
 
-# 6) Reconstruct genotype
-gbrs reconstruct -e ${S}.multiway.genes.tpm -t ${TP} -x ${EMISS} -g ${GPOS} -o ${S}
+# 6) Quantify on reconstructed diploid genome
+gbrs quantify -i mySample.R1R2.compressed.h5 \
+              -g ${GBRS_DATA}/emase.gene2transcripts.tsv \
+              -L ${GBRS_DATA}/emase.pooled.fullTranscripts.info \
+              -G mySample.genotypes.tsv -M 4 -a -o mySample
 
-# 7) Quantify on reconstructed diploid
-gbrs quantify -i ${S}.R1R2.compressed.h5 -g ${G2T} -L ${LEN} -G ${S}.genotypes.tsv -M 4 -a -o ${S}
-
-# 8) (optional) Interpolate / plot / export → see docs/users.md
+# 7) (optional) Interpolate / plot / export  → see docs/users.md
 ```
 
-*Single-end data?*  Skip step 3 and run `emase bam2emase` once.
+*Single-end data?*  Run `emase bam2emase` once, skip the `get-common-alignments` step, and continue from compression onward.
 
 ---
 
