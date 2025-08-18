@@ -78,7 +78,22 @@ gbrs quantify -i mySample.R1R2.compressed.h5 \
               -L ${GBRS_DATA}/emase.pooled.fullTranscripts.info \
               -G mySample.genotypes.tsv -M 4 -a -o mySample
 
-# 7) (optional) Interpolate / plot / export  → see docs/users.md
+# 7) Interpolate to a uniform genome grid (optional but recommended)
+gbrs interpolate -i mySample.genoprobs.npz \
+                -g ${GBRS_DATA}/ref.genome_grid.GRCm39.tsv \
+                -p ${GBRS_DATA}/ref.gene_pos.ordered_ensBuild_105.npz \
+                -o mySample.interpolated.genoprobs.npz
+
+# 8) Plot the reconstructed genome mosaic (PDF)
+gbrs plot -i mySample.interpolated.genoprobs.npz \
+          -o mySample.plotted.genome.pdf \
+          -n mySample
+
+# 9) Export founder-dosage matrix (TSV for QTL mapping)
+gbrs export -i mySample.interpolated.genoprobs.npz \
+           -s ${HAPS} \
+           -g ${GBRS_DATA}/ref.genome_grid.GRCm39.tsv \
+           -o mySample.interpolated.genoprobs.tsv
 ```
 
 *Single-end data?*  Run `emase bam2emase` once, skip the `get-common-alignments` step, and continue from compression onward.
