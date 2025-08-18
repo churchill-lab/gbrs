@@ -143,14 +143,18 @@ def compress(
         # Read 4, ec_key = [(3, ), (3, )]
         # ec = {((0, 1, 4), ()): 1.0, ((2, ), (1, )): 1.0, ((3, ), (3, )): 2.0})
         #
+        step_size = 1e6
 
         logger.debug('Creating unique ECs with tuple keys')
         for cur_ind in range(aln_mat_rd.num_reads):
+            if cur_ind % step_size == 0:
+                logger.debug(f'Processed {cur_ind:,} records ({cur_ind / aln_mat_rd.num_reads:.2%})')
+
             ec_key_parts = []
             for h in range(aln_mat_rd.num_haplotypes):
                 i0 = aln_mat_rd.data[h].indptr[cur_ind]
                 i1 = aln_mat_rd.data[h].indptr[cur_ind + 1]
-                #logger.debug(f'Read {cur_ind}, haplotype {h}: sparse indices {i0}-{i1}')
+                # logger.debug(f'Read {cur_ind}, haplotype {h}: sparse indices {i0}-{i1}')
                 indices = aln_mat_rd.data[h].indices[i0:i1]
 
                 # use tuple instead of string for better performance
@@ -158,8 +162,8 @@ def compress(
                 # each tuples values are read indices
                 ec_key_parts.append(tuple(sorted(indices)))
                 # Convert to native Python types for cleaner logging
-                #ec_key_parts_native = [tuple(int(x) for x in tup) for tup in ec_key_parts]
-                #logger.debug(f'ec_key_parts={ec_key_parts_native}')
+                # ec_key_parts_native = [tuple(int(x) for x in tup) for tup in ec_key_parts]
+                # logger.debug(f'ec_key_parts={ec_key_parts_native}')
 
             # create tuple key instead of string
             ec_key = tuple(ec_key_parts)
@@ -167,12 +171,12 @@ def compress(
             # the number of occurrences
             ec[ec_key] += aln_mat_rd.count[cur_ind]
             # Convert to native Python types for cleaner logging
-            #ec_native = {tuple(tuple(int(x) for x in tup) for tup in k): float(v) for k, v in ec.items()}
-            #logger.debug(f'ec={ec_native}')
+            # ec_native = {tuple(tuple(int(x) for x in tup) for tup in k): float(v) for k, v in ec.items()}
+            # logger.debug(f'ec={ec_native}')
 
-    #logger.debug('ec conversion')
+    # logger.debug('ec conversion')
     ec = dict(ec)
-    #logger.debug('ec conversion done')
+    # logger.debug('ec conversion done')
     num_ecs = len(ec)
 
     logger.info('Constructing APM')
@@ -359,7 +363,7 @@ def quantify(
         group_file: Path to the group file containing transcript-to-gene mapping. Uses default
             location from GBRS_DATA environment variable. If provided, enables gene-level analysis
             in addition to transcript-level analysis.
-            Format: tab-separated, transcript ID than gene ID
+            Format: tab-separated, Group1    Transcript1    Transcript2    Transcript3
 
         length_file: Path to the transcript length file for length bias correction. Uses default
             location from GBRS_DATA environment variable. Contains transcript IDs and their lengths
@@ -370,6 +374,7 @@ def quantify(
             multi-way mode. If provided, filters alignment data by individual genotype calls before
             analysis.
             Format: tab-separated, gene ID than called haplotypes
+            Example: ENSMUSG00000000001      DF
 
         outbase: Base name for all output files.
         multiread_model: EMASE model to use for multi-mapping read handling.

@@ -1,34 +1,3 @@
-"""
-EMASE Command-Line Interface
-
-This module provides the command-line interface for the EMASE (Expectation-Maximization
-for Allele-Specific Expression) tools. It implements a comprehensive set of commands
-for processing RNA-seq alignment data and quantifying allele-specific expression.
-
-Main Commands:
-    bam2emase: Convert BAM files to EMASE format
-    combine: Merge multiple EMASE files
-    count-alignments: Generate alignment count statistics
-    count-shared-multireads-pairwise: Analyze shared multiread patterns
-    create-hybrid: Create hybrid transcriptome from multiple haplotypes
-    get-common-alignments: Find reads with identical alignment patterns
-    get-common-alignments-optimized: Optimized version of get-common-alignments
-    pull-out-unique-reads: Extract reads with unique alignment patterns
-    prepare: Prepare EMASE reference files
-    run: Run EMASE algorithm for expression quantification
-
-Utility Commands:
-    h5-compare: Compare HDF5 files for differences
-    h5-inspect: Inspect EMASE HDF5 files
-
-Usage:
-    emase --help                    # Show all commands
-    emase bam2emase --help         # Show help for specific command
-    emase run --help               # Show help for EMASE algorithm
-
-For detailed documentation, see: https://github.com/churchill-lab/gbrs
-"""
-
 # standard library imports
 from pathlib import Path
 from typing import Annotated, Optional
