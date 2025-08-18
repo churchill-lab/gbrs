@@ -14,11 +14,11 @@ Virtual environment (recommended):
 ```bash
 python -m venv gbrs_env
 source gbrs_env/bin/activate
-pip install git+https://github.com/churchill-lab/gbrs.git@v1.1.0
+pip install git+https://github.com/churchill-lab/gbrs
 ```
 Docker (alternative):
 ```bash
-docker pull churchilllab/gbrs:1.1.0
+docker pull quay.io/jaxcompsci/gbrs_py3:latest
 ```
 
 ---
