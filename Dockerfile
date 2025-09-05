@@ -75,7 +75,7 @@ RUN wget -q https://github.com/samtools/samtools/releases/download/1.18/samtools
     && rm -rf samtools-1.18*
 
 # Install Bowtie (platform-specific)
-ARG TARGETPLATFORM
+ARG TARGETPLATFORM=linux/amd64
 RUN if [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
         wget -q -O bowtie.zip https://github.com/BenLangmead/bowtie/releases/download/v1.3.1/bowtie-1.3.1-linux-x86_64.zip; \
     elif [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
@@ -125,8 +125,6 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # IMPORTANT: Install Python 3.12 in the runtime image so the venv works
-# In a multi-stage build, the venv created in the builder points to the Python binary path in the builder image.
-# If the runtime image does not have the same Python version at the same path, the venv will be broken ("bad interpreter").
 RUN add-apt-repository ppa:deadsnakes/ppa && \
     apt-get update && \
     apt-get install -y python3.12 python3.12-venv && \
